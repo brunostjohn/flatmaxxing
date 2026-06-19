@@ -1,0 +1,11 @@
+{
+	"ts.experimental.useTsgo": true,
+	"typescript.experimental.useTsgo": true,
+	"editor.defaultFormatter": "biomejs.biome",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.biome": "explicit",
+		"source.organizeImports.biome": "never"
+	},
+	"typescript.native-preview.tsdk": "node_modules/@typescript/native-preview"
+}
