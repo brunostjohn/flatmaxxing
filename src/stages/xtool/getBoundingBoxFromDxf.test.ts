@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import DxfParser, { type IDxf } from "dxf-parser";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getDxfBounds } from "./getBoundingBoxFromDxf";
+import { getDxfBounds } from "./geometry";
 
 const makeDxf = (entities: unknown[]): IDxf => ({ entities }) as IDxf;
 

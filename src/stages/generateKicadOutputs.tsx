@@ -103,7 +103,7 @@ const generatePngFromSvg = Effect.fn(
 
 export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
   function* (kicadCli: string, project: string, pcbFile: string) {
-    const { setTaskOutput, patchTask, modifyTaskChild } = yield* createTasklist(
+    const { setTaskOutput, patchTask } = yield* createTasklist(
       [
         {
           id: "gerbers",
@@ -262,7 +262,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
       });
 
       const frontPngFiber = yield* Effect.gen(function* () {
-        yield* modifyTaskChild("png", "front", {
+        yield* patchTask(["png", "front"], {
           state: "loading",
         });
 
@@ -271,13 +271,13 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
           `${resolve(project, "png", `${boardFilename}-F_Mask.png`)}`,
         );
 
-        yield* modifyTaskChild("png", "front", {
+        yield* patchTask(["png", "front"], {
           state: "success",
           label: "Successfully generated front PNG file.",
         });
       }).pipe(Effect.forkChild);
       const backPngFiber = yield* Effect.gen(function* () {
-        yield* modifyTaskChild("png", "back", {
+        yield* patchTask(["png", "back"], {
           state: "loading",
         });
 
@@ -286,7 +286,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
           `${resolve(project, "png", `${boardFilename}-B_Mask.png`)}`,
         );
 
-        yield* modifyTaskChild("png", "back", {
+        yield* patchTask(["png", "back"], {
           state: "success",
           label: "Successfully generated back PNG file.",
         });
@@ -357,9 +357,9 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
       ],
       setTaskOutput: (output) => setTaskOutput("place", output),
       setError: (error) =>
-        modifyTaskChild("place", "front", { state: "error", output: error }),
+        patchTask(["place", "front"], { state: "error", output: error }),
       setSuccess: () =>
-        modifyTaskChild("place", "front", {
+        patchTask(["place", "front"], {
           state: "success",
           label: "Successfully generated place files.",
         }),
@@ -384,9 +384,9 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
       ],
       setTaskOutput: (output) => setTaskOutput("place", output),
       setError: (error) =>
-        modifyTaskChild("place", "back", { state: "error", output: error }),
+        patchTask(["place", "back"], { state: "error", output: error }),
       setSuccess: () =>
-        modifyTaskChild("place", "back", {
+        patchTask(["place", "back"], {
           state: "success",
           label: "Successfully generated place files.",
         }),

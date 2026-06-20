@@ -1,0 +1,42 @@
+import { expect, test } from "bun:test";
+import type { TaskDef, TaskPath } from "@/inkHelpers";
+import { xToolTaskPaths } from "./xToolTaskPaths";
+import { xToolTasks } from "./xToolTasks";
+
+const findTask = (
+	tasks: readonly TaskDef[],
+	[id, ...rest]: TaskPath,
+): TaskDef | undefined => {
+	const task = tasks.find((candidate) => candidate.id === id);
+	if (!task || rest.length === 0) {
+		return task;
+	}
+
+	return findTask(task.children ?? [], rest as unknown as TaskPath);
+};
+
+const collectPaths = (value: unknown): TaskPath[] => {
+	if (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.every((item) => typeof item === "string")
+	) {
+		return [value as unknown as TaskPath];
+	}
+
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+
+	return Object.values(value).flatMap(collectPaths);
+};
+
+test("all xTool task path constants point at real task nodes", () => {
+	const paths = collectPaths(xToolTaskPaths);
+
+	expect(paths.length).toBeGreaterThan(0);
+
+	for (const path of paths) {
+		expect(findTask(xToolTasks, path), path.join(" > ")).toBeDefined();
+	}
+});
