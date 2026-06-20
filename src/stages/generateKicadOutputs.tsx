@@ -320,7 +320,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
         "export",
         "dxf",
         "--layers",
-        "F.Paste,B.Paste",
+        "F.Paste,B.Paste,F.Mask,B.Mask",
         "--common-layers",
         "Edge.Cuts",
         "--use-drill-origin",

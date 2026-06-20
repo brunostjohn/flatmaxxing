@@ -74,6 +74,59 @@ export const createTasklist = Effect.fn("flatmaxx.ink.createTasklist")(
     );
 
     return {
+      executeWithTask: Effect.fn("flatmaxx.ink.createTasklist.executeWithTask")(
+        function* <A, E, R>({
+          taskId,
+          effect,
+          executingLabel,
+          doneLabel,
+          errorLabel,
+        }: {
+          taskId: string;
+          effect: Effect.Effect<A, E, R>;
+          executingLabel?: string;
+          doneLabel?: string;
+          errorLabel?: string;
+        }) {
+          MutableHashMap.modify(tasks, taskId, (oldTask) => ({
+            ...oldTask,
+            state: "loading" as const,
+            label: executingLabel ?? oldTask.label,
+          }));
+          yield* Effect.sync(() =>
+            rerender(<TaskRenderer tasks={tasks} title={title} />),
+          );
+          yield* Effect.promise(() => waitUntilRenderFlush());
+
+          const result = yield* effect.pipe(Effect.result);
+
+          if (result._tag === "Success") {
+            MutableHashMap.modify(tasks, taskId, (oldTask) => ({
+              ...oldTask,
+              state: "success" as const,
+              label: doneLabel ?? oldTask.label,
+            }));
+          } else {
+            MutableHashMap.modify(tasks, taskId, (oldTask) => ({
+              ...oldTask,
+              state: "error" as const,
+              label: errorLabel ?? oldTask.label,
+              output: result.failure as string,
+            }));
+          }
+
+          yield* Effect.sync(() =>
+            rerender(<TaskRenderer tasks={tasks} title={title} />),
+          );
+          yield* Effect.promise(() => waitUntilRenderFlush());
+
+          if (result._tag === "Failure") {
+            return yield* Effect.fail(result.failure);
+          }
+
+          return yield* Effect.succeed(result.success);
+        },
+      ),
       appendTask: Effect.fn("flatmaxx.ink.createTasklist.appendTask")(
         function* (task: TaskDef) {
           MutableHashMap.set(tasks, task.id, task);
