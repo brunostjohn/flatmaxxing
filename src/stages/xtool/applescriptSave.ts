@@ -1,4 +1,4 @@
-export const applescriptSave = (app: string, dir: string, filename: string) => `
+export const applescriptSave = (app: string, dir: string) => `
 tell application "System Events"
       repeat 50 times
         try
@@ -17,7 +17,7 @@ tell application "System Events"
       delay 0.5
       delay 0.2
       key code 36
-      delay 1
+      delay 3
       try
         tell process "${app}"
           if exists button "Replace" of sheet 1 of front window then

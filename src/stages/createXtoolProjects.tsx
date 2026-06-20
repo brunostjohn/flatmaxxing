@@ -17,7 +17,11 @@ import {
   clickInkjetPrinting,
   clickM1Ultra,
   clickMode,
+  clickSaveAs,
   clickScaleToFit,
+  getIntensitySpanBox,
+  getParameterOverviewItemBox,
+  getPassesSpanBox,
   getWidthBoundingBox,
   getXBoundingBox,
   getYBoundingBox,
@@ -96,8 +100,9 @@ const runScriptInXToolStudio = Effect.fn("flatmaxx.runScriptInXToolStudio")(
 
     return res.result.value;
   },
-  Effect.retry(Schedule.exponential(1000)),
-  Effect.timeout(Duration.seconds(10)),
+  Effect.retry(
+    Schedule.exponential(1000).pipe(Schedule.both(Schedule.recurs(3))),
+  ),
 );
 
 const getTargets = Effect.promise(() => CDP.List({ port: 9333 }));
@@ -113,7 +118,7 @@ const createNewXtoolProject = Effect.fn(
 ) {
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
     status: "Finding CDP targets...",
   });
 
@@ -121,7 +126,7 @@ const createNewXtoolProject = Effect.fn(
 
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
     status: "Connecting to the xTool Studio shell...",
   });
   const shellClient = yield* getXToolStudioShell(targets);
@@ -129,7 +134,7 @@ const createNewXtoolProject = Effect.fn(
 
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
     status: "Running browser script to create a new project...",
   });
   yield* runScriptInXToolStudio(shellCreateProjectBrowserScript, Runtime).pipe(
@@ -138,12 +143,13 @@ const createNewXtoolProject = Effect.fn(
 
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
     status: "Getting new project target...",
   });
   const newProjectTarget = yield* getNewProjectTarget().pipe(
-    Effect.retry(Schedule.exponential(1000)),
-    Effect.timeout(Duration.seconds(10)),
+    Effect.retry(
+      Schedule.exponential(1000).pipe(Schedule.both(Schedule.recurs(3))),
+    ),
   );
 
   return newProjectTarget;
@@ -151,60 +157,33 @@ const createNewXtoolProject = Effect.fn(
 
 const saveXtoolProjectAndClose = Effect.fn(
   "flatmaxx.createXtoolProjects.saveXtoolProjectAndClose",
-)(function* (desiredAbsolutePath: string, { Input, Runtime }: Client) {
+)(function* (
+  desiredAbsolutePath: string,
+  pcbName: string,
+  filetype: "solderMask" | "solderPaste",
+  { Runtime }: Client,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const fileExists = yield* fs.exists(
+    resolve(desiredAbsolutePath, `${pcbName}-${filetype}.xs`),
+  );
+  if (fileExists) {
+    yield* fs.remove(
+      resolve(desiredAbsolutePath, `${pcbName}-${filetype}.xs`),
+      { force: true },
+    );
+  }
+
   const absolutePath = yield* Effect.sync(() =>
-    resolve(desiredAbsolutePath, "solder_mask.xs"),
+    resolve(desiredAbsolutePath, `${pcbName}-${filetype}.xs`),
   );
 
-  yield* runScriptInXToolStudio(
-    `document.querySelector('body').focus()`,
-    Runtime,
-  );
+  yield* runScriptInXToolStudio(clickSaveAs(), Runtime);
 
-  yield* Effect.promise(() =>
-    Input.dispatchKeyEvent({
-      type: "rawKeyDown",
-      modifiers: 4,
-      key: "s",
-      code: "KeyS",
-      windowsVirtualKeyCode: 83,
-      text: "s",
-      unmodifiedText: "s",
-      commands: ["save"],
-    }),
-  );
+  yield* runScriptInXToolStudio(shellClickOnSaveScript, Runtime);
 
-  yield* Effect.promise(() =>
-    Input.dispatchKeyEvent({
-      type: "keyUp",
-      modifiers: 8,
-      key: "s",
-      code: "KeyS",
-      windowsVirtualKeyCode: 83,
-    }),
-  );
-
-  yield* Effect.promise(() =>
-    Input.dispatchKeyEvent({
-      type: "keyUp",
-      modifiers: 0,
-      key: "Meta",
-      code: "MetaLeft",
-      windowsVirtualKeyCode: 91,
-    }),
-  );
-
-  yield* runScriptInXToolStudio(shellClickOnSaveScript, Runtime).pipe(
-    Effect.retry(Schedule.exponential(1000)),
-    Effect.timeout(Duration.seconds(10)),
-  );
-
-  const app = "xTool Studio";
-  const dir = absolutePath;
-  const filename = "solder_mask.xs";
-
-  yield* runAppleScript(applescriptBringDialogToFront(app));
-  yield* runAppleScript(applescriptSave(app, dir, filename));
+  yield* runAppleScript(applescriptBringDialogToFront("xTool Studio"));
+  yield* runAppleScript(applescriptSave("xTool Studio", absolutePath));
 });
 
 const cdpClickOn = Effect.fn("flatmaxx.createXtoolProjects.cdpClickOn")(
@@ -295,55 +274,228 @@ const cdpTypeIn = Effect.fn("flatmaxx.createXtoolProjects.cdpTypeIn")(
   },
 );
 
-const cdpClickEmptyCanvas = Effect.fn(
-  "flatmaxx.createXtoolProjects.cdpClickEmptyCanvas",
-)(function* (Input: Client["Input"]) {
-  // Pick a boring empty spot in the editor viewport.
-  // Tune these once against xTool. Avoid toolbar/sidebar/object bounds.
-  const x = 180;
-  const y = 180;
+type RectBounds = { x: number; y: number; width: number; height: number };
 
-  yield* cdpClickOn(x, y, Input);
+const getCanvasBoundingBox = () => `
+(() => {
+  const canvas = document.querySelector("canvas");
+  if (!canvas) {
+    throw new Error("Canvas not found");
+  }
+
+  const boundingBox = canvas.getBoundingClientRect();
+
+  return {
+    x: boundingBox.x,
+    y: boundingBox.y,
+    width: boundingBox.width,
+    height: boundingBox.height,
+  };
+})();
+`;
+
+const clearXToolSelection = Effect.fn(
+  "flatmaxx.createXtoolProjects.clearXToolSelection",
+)(function* ({ Runtime, Input }: Pick<Client, "Runtime" | "Input">) {
+  yield* runAppleScript(applescriptEsc);
+
+  const { x, y, height }: RectBounds = yield* runScriptInXToolStudio(
+    getCanvasBoundingBox(),
+    Runtime,
+    true,
+  );
+
+  yield* cdpClickOn(x + 2, y + height - 2, Input);
   yield* Effect.sleep(Duration.millis(150));
 });
+
+type ModifyTaskChild = (
+  id: string,
+  childId: string,
+  childDef: Partial<TaskDef>,
+) => Effect.Effect<void>;
+
+type SolderMaskBounds = { width: number; height: number };
+
+export type SolderMaskPasteOffsets = {
+  right?: number;
+  bottom?: number;
+};
+
+export function getSolderMaskPastePosition(
+  { width, height }: SolderMaskBounds,
+  { right, bottom }: SolderMaskPasteOffsets = {},
+) {
+  return {
+    x: right === undefined ? 0 : width + right,
+    y: bottom === undefined ? 0 : height + bottom,
+  };
+}
 
 export const pasteIntoXToolStudio = Effect.fn(
   "flatmaxx.createXtoolProjects.pasteIntoXToolStudio",
 )(function* (
   { Runtime, Input }: Client,
-  modifyTaskChild: (
-    id: string,
-    childId: string,
-    childDef: Partial<TaskDef>,
-  ) => Effect.Effect<void>,
-  { width }: { width: number; height: number },
-  offsetToTheRightBy: number,
+  bounds: SolderMaskBounds,
+  offsets: SolderMaskPasteOffsets = {},
 ) {
+  const { x, y } = getSolderMaskPastePosition(bounds, offsets);
+
+  yield* clearXToolSelection({ Runtime, Input });
   yield* runAppleScript(applescriptOpenXtoolAndPaste);
 
   yield* runScriptInXToolStudio(clickScaleToFit, Runtime);
 
+  yield* Effect.sleep(Duration.millis(500));
+
   const wBox: { width: number; height: number; x: number; y: number } =
     yield* runScriptInXToolStudio(getWidthBoundingBox(), Runtime, true);
   yield* cdpClickOn(wBox.x + wBox.width / 2, wBox.y + wBox.height / 2, Input);
-  yield* cdpTypeIn(width.toString(), Input, true);
+  yield* cdpTypeIn(bounds.width.toString(), Input, true);
 
   const xBox: { width: number; height: number; x: number; y: number } =
     yield* runScriptInXToolStudio(getXBoundingBox(), Runtime, true);
   yield* cdpClickOn(xBox.x + xBox.width / 2, xBox.y + xBox.height / 2, Input);
-  yield* cdpTypeIn(
-    (0 + (offsetToTheRightBy > 0 ? width + offsetToTheRightBy : 0)).toString(),
-    Input,
-    true,
-  );
+  yield* cdpTypeIn(x.toString(), Input, true);
 
   const yBox: { width: number; height: number; x: number; y: number } =
     yield* runScriptInXToolStudio(getYBoundingBox(), Runtime, true);
   yield* cdpClickOn(yBox.x + yBox.width / 2, yBox.y + yBox.height / 2, Input);
-  yield* cdpTypeIn("0", Input, true);
+  yield* cdpTypeIn(y.toString(), Input, true);
 
-  yield* runAppleScript(applescriptEsc);
-  yield* cdpClickEmptyCanvas(Input);
+  yield* Effect.sleep(Duration.millis(500));
+
+  yield* clearXToolSelection({ Runtime, Input });
+});
+
+type SolderMaskSide = "front" | "back";
+
+const solderMaskSideConfig = {
+  front: {
+    label: "front",
+    fileSuffix: "F_Mask",
+    boundsTaskId: "get-front-bounds",
+    importTaskId: "import-front-solder-mask",
+  },
+  back: {
+    label: "back",
+    fileSuffix: "B_Mask",
+    boundsTaskId: "get-back-bounds",
+    importTaskId: "import-back-solder-mask",
+  },
+} as const satisfies Record<
+  SolderMaskSide,
+  {
+    label: string;
+    fileSuffix: string;
+    boundsTaskId: string;
+    importTaskId: string;
+  }
+>;
+
+const getSolderMaskBounds = Effect.fn(
+  "flatmaxx.createXtoolProjects.getSolderMaskBounds",
+)(function* (
+  projectPath: string,
+  pcbName: string,
+  side: SolderMaskSide,
+  modifyTaskChild: ModifyTaskChild,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const config = solderMaskSideConfig[side];
+
+  yield* modifyTaskChild("create-solder-mask-project", config.boundsTaskId, {
+    state: "loading",
+    label: `Getting ${config.label} solder mask bounds...`,
+    status: `Reading ${config.fileSuffix} DXF file...`,
+  });
+  const dxfFile = yield* fs.readFileString(
+    resolve(projectPath, "..", "dxf", `${pcbName}-${config.fileSuffix}.dxf`),
+  );
+
+  yield* modifyTaskChild("create-solder-mask-project", config.boundsTaskId, {
+    state: "loading",
+    label: `Getting ${config.label} solder mask bounds...`,
+    status: `Parsing ${config.fileSuffix} DXF file...`,
+  });
+  const parser = new DxfParser();
+  const dxf = parser.parseSync(dxfFile);
+  if (!dxf) {
+    yield* modifyTaskChild("create-solder-mask-project", config.boundsTaskId, {
+      state: "error",
+      label: `Getting ${config.label} solder mask bounds...`,
+      status: `Failed to parse ${config.fileSuffix} DXF file.`,
+    });
+    return yield* Effect.fail(new Error("Failed to parse DXF file."));
+  }
+
+  yield* modifyTaskChild("create-solder-mask-project", config.boundsTaskId, {
+    state: "loading",
+    label: `Getting ${config.label} solder mask bounds...`,
+    status: `${config.fileSuffix} DXF file parsed successfully.`,
+  });
+
+  const bounds = getDxfBounds(dxf);
+
+  yield* modifyTaskChild("create-solder-mask-project", config.boundsTaskId, {
+    state: "success",
+    label: `Got ${bounds.width}x${bounds.height}mm ${config.label} bounds.`,
+    status: "",
+  });
+
+  return bounds;
+});
+
+const importSolderMask = Effect.fn(
+  "flatmaxx.createXtoolProjects.importSolderMask",
+)(function* (
+  projectPath: string,
+  pcbName: string,
+  side: SolderMaskSide,
+  newProjectTarget: Client,
+  modifyTaskChild: ModifyTaskChild,
+  firstPasteOffsets: SolderMaskPasteOffsets,
+  secondPasteOffsets: SolderMaskPasteOffsets,
+) {
+  const config = solderMaskSideConfig[side];
+  const bounds = yield* getSolderMaskBounds(
+    projectPath,
+    pcbName,
+    side,
+    modifyTaskChild,
+  );
+
+  yield* modifyTaskChild("create-solder-mask-project", config.importTaskId, {
+    state: "loading",
+    label: `Importing ${config.label} solder mask...`,
+    status: `Copying ${config.fileSuffix} PNG file to clipboard...`,
+  });
+
+  yield* runAppleScript(
+    applescriptCopyFileToClipboard(
+      resolve(projectPath, "..", "png", `${pcbName}-${config.fileSuffix}.png`),
+    ),
+  );
+
+  yield* modifyTaskChild("create-solder-mask-project", config.importTaskId, {
+    state: "loading",
+    status: `Pasting ${config.fileSuffix} PNG file to xTool Studio (1/2)...`,
+  });
+
+  yield* pasteIntoXToolStudio(newProjectTarget, bounds, firstPasteOffsets);
+
+  yield* modifyTaskChild("create-solder-mask-project", config.importTaskId, {
+    state: "loading",
+    status: `Pasting ${config.fileSuffix} PNG file to xTool Studio (2/2)...`,
+  });
+
+  yield* pasteIntoXToolStudio(newProjectTarget, bounds, secondPasteOffsets);
+
+  yield* modifyTaskChild("create-solder-mask-project", config.importTaskId, {
+    state: "success",
+    label: `${config.label[0]?.toUpperCase()}${config.label.slice(1)} solder mask imported successfully.`,
+    status: "",
+  });
 });
 
 const importFrontSolderMask = Effect.fn(
@@ -352,106 +504,97 @@ const importFrontSolderMask = Effect.fn(
   projectPath: string,
   pcbName: string,
   newProjectTarget: Client,
-  modifyTaskChild: (
-    id: string,
-    childId: string,
-    childDef: Partial<TaskDef>,
-  ) => Effect.Effect<void>,
+  modifyTaskChild: ModifyTaskChild,
   offsetSecondToTheRightBy: number,
 ) {
-  const fs = yield* FileSystem.FileSystem;
-
-  yield* modifyTaskChild("create-solder-mask-project", "get-bounds", {
-    state: "loading",
-    label: "Getting width and height of the board...",
-    status: "Reading DXF file...",
-  });
-  const dxfFile = yield* fs.readFileString(
-    resolve(projectPath, "..", "dxf", `${pcbName}-F_Mask.dxf`),
-  );
-
-  yield* modifyTaskChild("create-solder-mask-project", "get-bounds", {
-    state: "loading",
-    label: "Getting width and height of the board...",
-    status: "Parsing DXF file...",
-  });
-  const parser = new DxfParser();
-  const dxf = parser.parseSync(dxfFile);
-  if (!dxf) {
-    yield* modifyTaskChild("create-solder-mask-project", "get-bounds", {
-      state: "error",
-      label: "Getting width and height of the board...",
-      status: "Failed to parse DXF file.",
-    });
-    return yield* Effect.fail(new Error("Failed to parse DXF file."));
-  }
-
-  yield* modifyTaskChild("create-solder-mask-project", "get-bounds", {
-    state: "loading",
-    label: "Getting width and height of the board...",
-    status: "DXF file parsed successfully.",
-  });
-
-  const bounds = getDxfBounds(dxf);
-
-  yield* modifyTaskChild("create-solder-mask-project", "get-bounds", {
-    state: "success",
-    label: `Got ${bounds.width}x${bounds.height}mm bounds from DXF file.`,
-    status: "",
-  });
-
-  yield* modifyTaskChild(
-    "create-solder-mask-project",
-    "import-front-solder-mask",
-    {
-      state: "loading",
-      label: "Importing front solder mask...",
-      status: "Copying front PNG file to clipboard...",
-    },
-  );
-
-  yield* runAppleScript(
-    applescriptCopyFileToClipboard(
-      resolve(projectPath, "..", "png", `${pcbName}-F_Mask.png`),
-    ),
-  );
-
-  yield* modifyTaskChild(
-    "create-solder-mask-project",
-    "import-front-solder-mask",
-    {
-      state: "loading",
-      status: "Pasting front PNG file to xTool Studio (1/2)...",
-    },
-  );
-
-  yield* pasteIntoXToolStudio(newProjectTarget, modifyTaskChild, bounds, 0);
-
-  yield* modifyTaskChild(
-    "create-solder-mask-project",
-    "import-front-solder-mask",
-    {
-      state: "loading",
-      status: "Pasting front PNG file to xTool Studio (2/2)...",
-    },
-  );
-
-  yield* pasteIntoXToolStudio(
+  yield* importSolderMask(
+    projectPath,
+    pcbName,
+    "front",
     newProjectTarget,
     modifyTaskChild,
-    bounds,
-    offsetSecondToTheRightBy,
+    {},
+    { right: offsetSecondToTheRightBy },
   );
+});
 
-  yield* modifyTaskChild(
-    "create-solder-mask-project",
-    "import-front-solder-mask",
-    {
-      state: "success",
-      label: "Front solder mask imported successfully.",
-      status: "",
-    },
+const importBackSolderMask = Effect.fn(
+  "flatmaxx.createXtoolProjects.importBackSolderMask",
+)(function* (
+  projectPath: string,
+  pcbName: string,
+  newProjectTarget: Client,
+  modifyTaskChild: ModifyTaskChild,
+  offsetSecondToTheRightBy: number,
+  offsetBackToTheBottomBy: number,
+) {
+  yield* importSolderMask(
+    projectPath,
+    pcbName,
+    "back",
+    newProjectTarget,
+    modifyTaskChild,
+    { bottom: offsetBackToTheBottomBy },
+    { right: offsetSecondToTheRightBy, bottom: offsetBackToTheBottomBy },
   );
+});
+
+const configureSettingsForSolderMask = Effect.fn(
+  "flatmaxx.createXtoolProjects.configureSettingsForSolderMask",
+)(function* (
+  { Runtime, Input }: Pick<Client, "Runtime" | "Input">,
+  _modifyTaskChild: ModifyTaskChild,
+) {
+  const { x, y, width, height }: RectBounds = yield* runScriptInXToolStudio(
+    getParameterOverviewItemBox(),
+    Runtime,
+    true,
+  );
+  yield* cdpClickOn(x + width / 2, y + height / 2, Input);
+
+  yield* Effect.sleep(Duration.millis(500));
+
+  const {
+    x: intensityX,
+    y: intensityY,
+    width: intensityWidth,
+    height: intensityHeight,
+  }: RectBounds = yield* runScriptInXToolStudio(
+    getIntensitySpanBox(),
+    Runtime,
+    true,
+  );
+  yield* cdpClickOn(
+    intensityX + intensityWidth / 2,
+    intensityY + intensityHeight / 2,
+    Input,
+  );
+  yield* cdpTypeIn("100", Input, true);
+
+  yield* Effect.sleep(Duration.millis(500));
+
+  const {
+    x: passesX,
+    y: passesY,
+    width: passesWidth,
+    height: passesHeight,
+  }: RectBounds = yield* runScriptInXToolStudio(
+    getPassesSpanBox(),
+    Runtime,
+    true,
+  );
+  yield* cdpClickOn(
+    passesX + passesWidth / 2,
+    passesY + passesHeight / 2,
+    Input,
+  );
+  yield* cdpTypeIn("3", Input, true);
+
+  yield* Effect.sleep(Duration.millis(500));
+
+  yield* clearXToolSelection({ Runtime, Input });
+
+  yield* Effect.sleep(Duration.millis(500));
 });
 
 const createSolderMaskProject = Effect.fn(
@@ -459,23 +602,19 @@ const createSolderMaskProject = Effect.fn(
 )(function* (
   desiredAbsolutePath: string,
   pcbName: string,
-  modifyTaskChild: (
-    id: string,
-    childId: string,
-    childDef: Partial<TaskDef>,
-  ) => Effect.Effect<void>,
+  modifyTaskChild: ModifyTaskChild,
   offsetSecondToTheRightBy: number,
   offsetBackToTheBottomBy: number,
 ) {
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
   });
   const newProjectTarget = yield* createNewXtoolProject(modifyTaskChild);
 
   yield* modifyTaskChild("create-solder-mask-project", "create-new-project", {
     state: "loading",
-    label: "Creating new project...",
+    label: "Creating project in existing xTool Studio session...",
     status: "Clicking switch device...",
   });
   yield* runScriptInXToolStudio(clickDeviceSwitch, newProjectTarget.Runtime);
@@ -527,8 +666,25 @@ const createSolderMaskProject = Effect.fn(
     offsetSecondToTheRightBy,
   );
 
-  yield* saveXtoolProjectAndClose(desiredAbsolutePath, newProjectTarget).pipe(
-    Effect.ensuring(Effect.promise(() => newProjectTarget.close())),
+  yield* importBackSolderMask(
+    desiredAbsolutePath,
+    pcbName,
+    newProjectTarget,
+    modifyTaskChild,
+    offsetSecondToTheRightBy,
+    offsetBackToTheBottomBy,
+  );
+
+  yield* configureSettingsForSolderMask(
+    { Runtime: newProjectTarget.Runtime, Input: newProjectTarget.Input },
+    modifyTaskChild,
+  );
+
+  yield* saveXtoolProjectAndClose(
+    desiredAbsolutePath,
+    pcbName,
+    "solderMask",
+    newProjectTarget,
   );
 });
 
@@ -550,22 +706,12 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
             state: "loading",
           },
           {
-            id: "start-app",
-            label: "Start xTool Studio.",
-            state: "pending",
-          },
-          {
             id: "create-solder-mask-project",
             label: "Create solder mask project.",
             state: "pending",
           },
-          {
-            id: "stop-app",
-            label: "Stop xTool Studio.",
-            state: "pending",
-          },
         ],
-        "Step X: Create xTool projects",
+        "Step 2: Create xTool projects",
       );
 
     if (!(yield* fs.exists(resolve(projectPath, "xtool")))) {
@@ -591,12 +737,12 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
       children: [
         {
           id: "create-new-project",
-          label: "Creating new project...",
+          label: "Creating project in existing xTool Studio session...",
           state: "pending",
         },
         {
-          id: "get-bounds",
-          label: "Getting width and height of the board...",
+          id: "get-front-bounds",
+          label: "Getting front solder mask bounds...",
           state: "pending",
         },
         {
@@ -605,18 +751,13 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
           state: "pending",
         },
         {
+          id: "get-back-bounds",
+          label: "Getting back solder mask bounds...",
+          state: "pending",
+        },
+        {
           id: "import-back-solder-mask",
           label: "Importing back solder mask...",
-          state: "pending",
-        },
-        {
-          id: "save-project",
-          label: "Saving project...",
-          state: "pending",
-        },
-        {
-          id: "close-project",
-          label: "Closing project...",
           state: "pending",
         },
       ],
@@ -627,6 +768,20 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
       modifyTaskChild,
       offsetSecondToTheRightBy,
       offsetBackToTheBottomBy,
+    ).pipe(
+      Effect.tapError((error) =>
+        patchTask("create-solder-mask-project", {
+          state: "error",
+          label: "Failed to create solder mask project.",
+          output: error instanceof Error ? error.message : String(error),
+        }),
+      ),
     );
+
+    yield* patchTask("create-solder-mask-project", {
+      state: "success",
+      label: "Solder mask project created.",
+      status: "",
+    });
   },
 );
