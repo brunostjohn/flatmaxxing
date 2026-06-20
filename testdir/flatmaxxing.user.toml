@@ -1,0 +1,57 @@
+[alignmentDrills]
+generate = true
+distance = { x = 6, y = 6 }
+
+[electroplating]
+generateEdgeCutsWithAlignmentDrills = true
+additionalDistance = { left = 16, right = 4, top = 4, bottom = 4 }
+
+[solderMask]
+generate = true
+double = true
+distance = { x = 6, y = 6 }
+
+[stencil]
+generate = true
+
+[drills]
+generate = true
+withEdgeCuts = true
+
+[place]
+generate = true
+
+[cnc]
+availbleDrills = [
+    { diameter = 0.3 },
+    { diameter = 0.5 },
+    { diameter = 0.7 },
+    { diameter = 0.8 },
+    { diameter = 1.0 },
+    { diameter = 1.1 },
+    { diameter = 1.2 },
+]
+availableMills = [
+    { diameter = 0.7 },
+    { diameter = 0.8 },
+    { diameter = 1.0 },
+    { diameter = 1.1 },
+    { diameter = 1.2 },
+    { diameter = 1.3 },
+    { diameter = 1.4 },
+    { diameter = 1.5 },
+]
+
+[cnc.isolation]
+feedRate = 400
+spindleSpeed = 15000
+zCutDepth = 0.05
+zCutFeedRate = 200
+tool = { type = "vbit", diameter = 0.14, angle = 60 }
+
+[cnc.nonCopperClearing]
+feedRate = 400
+spindleSpeed = 15000
+zCutDepth = 0.05
+zCutFeedRate = 200
+tool = { type = "vbit", diameter = 0.14, angle = 60 }

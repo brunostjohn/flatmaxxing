@@ -1,3 +1,6 @@
+export * from "./boardValidation/boardValidation";
+export * from "./boardValidation/ensureKicadHasAValidOrigin";
+export * from "./boardValidation/validateKicadBoard";
 export * from "./ensureKicadExists";
-export * from "./ensureKicadHasAValidOrigin";
 export * from "./findPCBProject";
+export * from "./generateKicadOutputs";

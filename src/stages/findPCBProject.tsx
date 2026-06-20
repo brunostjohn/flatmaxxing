@@ -1,4 +1,4 @@
-import { renderOnce, renderWithOutput } from "@/inkHelpers";
+import { renderOnce, renderWaiting, renderWithOutput } from "@/inkHelpers";
 import { Alert } from "@inkjs/ui";
 import { Array, Effect } from "effect";
 import { FileSystem } from "effect/FileSystem";
@@ -10,6 +10,11 @@ export const findPCBProject = Effect.fn("flatmaxx.findPCBProject")(function* (
   pathToDirectory: string,
 ) {
   const fs = yield* FileSystem;
+
+  const [success] = yield* renderWaiting({
+    success: "KiCAD project found",
+    loading: "Checking for KiCAD projects...",
+  });
 
   if (!(yield* fs.exists(pathToDirectory))) {
     yield* renderOnce(
@@ -42,10 +47,14 @@ export const findPCBProject = Effect.fn("flatmaxx.findPCBProject")(function* (
   }
 
   if (foundProjects.length === 1) {
+    yield* success("Single project found.");
+
     return yield* Effect.sync(() =>
       resolve(pathToDirectory, foundProjects[0]!),
     );
   }
+
+  yield* success("Multiple projects found.");
 
   const project = yield* renderWithOutput<string>((send) => (
     <>

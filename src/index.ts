@@ -1,7 +1,8 @@
 import {
   ensureKicadExists,
-  ensureKicadHasAValidOrigin,
   findPCBProject,
+  generateKicadOutputs,
+  validateKicadBoard,
 } from "@/stages";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Effect } from "effect";
@@ -25,9 +26,11 @@ const Flatmaxx = Command.make(
   Effect.fn("flatmaxx.main")(function* ({ kicadProject, pathTokKicad }) {
     yield* ensureKicadExists(pathTokKicad);
 
-    const project = yield* findPCBProject(kicadProject);
+    const pcbFile = yield* findPCBProject(kicadProject);
 
-    yield* ensureKicadHasAValidOrigin(project);
+    yield* validateKicadBoard(pcbFile);
+
+    yield* generateKicadOutputs(pathTokKicad, kicadProject, pcbFile);
   }),
 ).pipe(
   Command.withDescription("Creates CNC files from a KiCAD project."),
@@ -47,5 +50,5 @@ const Flatmaxx = Command.make(
 Flatmaxx.pipe(
   Command.run({ version: "1.0.0" }),
   Effect.provide(BunServices.layer),
-  BunRuntime.runMain({ disableErrorReporting: true }),
+  BunRuntime.runMain({ disableErrorReporting: false }),
 );
