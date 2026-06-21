@@ -8,6 +8,7 @@ import {
 import { shellCreateProjectBrowserScript } from "../scripts";
 import { xToolTaskPaths } from "../tasks";
 import type { CreateProjectTaskPaths, XToolTasks } from "./types";
+import { discardXToolShellRestoreModal } from "./discardXToolShellRestoreModal";
 import { waitForXToolEditorReady } from "./waitForXToolEditorReady";
 
 export const createNewXtoolProject = Effect.fn(
@@ -36,6 +37,22 @@ export const createNewXtoolProject = Effect.fn(
 	});
 
 	const { Runtime } = shellClient;
+
+	yield* tasks.runTask({
+		path: paths.discardRestoreModal,
+		effect: discardXToolShellRestoreModal(shellClient),
+		loading: { status: "Checking for xTool restore modal..." },
+		success: { label: "xTool restore modal check complete." },
+		error: { label: "Failed to check xTool restore modal." },
+	}).pipe(
+		Effect.andThen((discarded) =>
+			tasks.patchTask(paths.discardRestoreModal, {
+				output: discarded
+					? 'Clicked restore modal "Discard" button.'
+					: "No restore modal found.",
+			}),
+		),
+	);
 
 	yield* tasks.runTask({
 		path: paths.createEditorProject,

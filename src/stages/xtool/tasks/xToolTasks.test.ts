@@ -58,6 +58,9 @@ test("xTool lifecycle tasks run before project generation tasks", () => {
 	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.launch)).toBeDefined();
 	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.waitShell)).toBeDefined();
 	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.discardRestoreModal),
+	).toBeDefined();
+	expect(
 		findTask(xToolTasks, xToolTaskPaths.lifecycle.waitCreateProjectButton),
 	).toBeDefined();
 	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.close)).toBeDefined();
@@ -65,6 +68,9 @@ test("xTool lifecycle tasks run before project generation tasks", () => {
 
 test("solder mask project waits for the editor UI before M1 setup", () => {
 	expect(findTask(xToolTasks, xToolTaskPaths.cdp.connectEditor)).toBeDefined();
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.cdp.discardRestoreModal),
+	).toBeDefined();
 	expect(
 		findTask(xToolTasks, xToolTaskPaths.cdp.waitForEditorReady),
 	).toBeDefined();
@@ -79,6 +85,7 @@ test("paste stencil task branches include the fragile workflow steps", () => {
 		xToolTaskPaths.pasteStencils.back,
 	]) {
 		expect(findTask(xToolTasks, side.cdp.connectEditor)).toBeDefined();
+		expect(findTask(xToolTasks, side.cdp.discardRestoreModal)).toBeDefined();
 		expect(findTask(xToolTasks, side.cdp.waitForEditorReady)).toBeDefined();
 		expect(findTask(xToolTasks, side.device.selectF1Ultra)).toBeDefined();
 		expect(findTask(xToolTasks, side.importDxf.validateDxf)).toBeDefined();

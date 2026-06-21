@@ -25,6 +25,7 @@ export type XToolLifecycleTaskPaths = {
 	waitExistingExit: TaskPath;
 	launch: TaskPath;
 	waitShell: TaskPath;
+	discardRestoreModal: TaskPath;
 	waitCreateProjectButton: TaskPath;
 	close: TaskPath;
 };
@@ -33,6 +34,7 @@ export type CreateProjectTaskPaths = {
 	root: TaskPath;
 	listTargets: TaskPath;
 	connectShell: TaskPath;
+	discardRestoreModal: TaskPath;
 	createEditorProject: TaskPath;
 	connectEditor: TaskPath;
 	waitForEditorReady: TaskPath;

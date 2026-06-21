@@ -37,6 +37,7 @@ export const xToolTaskPaths = {
 		waitExistingExit: [...lifecycle, "wait-existing-exit"] as const,
 		launch: [...lifecycle, "launch-with-cdp-flags"] as const,
 		waitShell: [...lifecycle, "wait-shell-target"] as const,
+		discardRestoreModal: [...lifecycle, "discard-restore-modal"] as const,
 		waitCreateProjectButton: [
 			...lifecycle,
 			"wait-create-project-button",
@@ -53,6 +54,10 @@ export const xToolTaskPaths = {
 				root: frontStencilCdp,
 				listTargets: [...frontStencilCdp, "list-targets"] as const,
 				connectShell: [...frontStencilCdp, "connect-shell"] as const,
+				discardRestoreModal: [
+					...frontStencilCdp,
+					"discard-restore-modal",
+				] as const,
 				createEditorProject: [
 					...frontStencilCdp,
 					"create-editor-project",
@@ -109,6 +114,10 @@ export const xToolTaskPaths = {
 				root: backStencilCdp,
 				listTargets: [...backStencilCdp, "list-targets"] as const,
 				connectShell: [...backStencilCdp, "connect-shell"] as const,
+				discardRestoreModal: [
+					...backStencilCdp,
+					"discard-restore-modal",
+				] as const,
 				createEditorProject: [
 					...backStencilCdp,
 					"create-editor-project",
@@ -164,6 +173,7 @@ export const xToolTaskPaths = {
 		root: cdp,
 		listTargets: [...cdp, "list-targets"] as const,
 		connectShell: [...cdp, "connect-shell"] as const,
+		discardRestoreModal: [...cdp, "discard-restore-modal"] as const,
 		createEditorProject: [...cdp, "create-editor-project"] as const,
 		connectEditor: [...cdp, "connect-editor"] as const,
 		waitForEditorReady: [...cdp, "wait-editor-ready"] as const,

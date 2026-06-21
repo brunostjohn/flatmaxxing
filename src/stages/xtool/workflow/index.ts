@@ -10,6 +10,7 @@ export * from "./createSolderMaskProject";
 export * from "./createSolderPasteStencilProject";
 export * from "./createSolderPasteStencilProjects";
 export * from "./createXtoolProjects";
+export * from "./discardXToolShellRestoreModal";
 export * from "./getSolderMaskBounds";
 export * from "./getSolderMaskPastePosition";
 export * from "./getSolderPasteStencilDxfPath";

@@ -13,6 +13,7 @@ import {
 import { xToolTaskPaths } from "../tasks";
 import { confirmCloseExistingXToolStudio } from "./confirmCloseExistingXToolStudio";
 import type { XToolLifecycleTaskPaths, XToolTasks } from "./types";
+import { discardXToolShellRestoreModal } from "./discardXToolShellRestoreModal";
 import { waitForXToolStudioShellCreateProjectButton } from "./waitForXToolStudioShellCreateProjectButton";
 
 export const startXToolStudioLifecycle = Effect.fn(
@@ -190,6 +191,22 @@ export const startXToolStudioLifecycle = Effect.fn(
 		success: { label: "xTool shell CDP target connected." },
 		error: { label: "Failed to connect to xTool shell CDP target." },
 	});
+
+	yield* tasks.runTask({
+		path: paths.discardRestoreModal,
+		effect: discardXToolShellRestoreModal(shellClient),
+		loading: { status: "Checking for xTool restore modal..." },
+		success: { label: "xTool restore modal check complete." },
+		error: { label: "Failed to check xTool restore modal." },
+	}).pipe(
+		Effect.andThen((discarded) =>
+			tasks.patchTask(paths.discardRestoreModal, {
+				output: discarded
+					? 'Clicked restore modal "Discard" button.'
+					: "No restore modal found.",
+			}),
+		),
+	);
 
 	yield* tasks.runTask({
 		path: paths.waitCreateProjectButton,

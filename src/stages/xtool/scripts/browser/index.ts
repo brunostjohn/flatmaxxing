@@ -9,6 +9,7 @@ export * from "./clickMode";
 export * from "./clickPaste";
 export * from "./clickSaveAs";
 export * from "./clickScaleToFit";
+export * from "./discardShellRestoreModal";
 export * from "./getCanvasBoundingBox";
 export * from "./getCutBoundingBox";
 export * from "./getFiberLaserSelector";

@@ -27,6 +27,11 @@ export const solderPasteStencilTasks = [
 								state: "pending",
 							},
 							{
+								id: "discard-restore-modal",
+								label: "Discard restore modal",
+								state: "pending",
+							},
+							{
 								id: "create-editor-project",
 								label: "Create editor project",
 								state: "pending",
@@ -203,6 +208,11 @@ export const solderPasteStencilTasks = [
 							{
 								id: "connect-shell",
 								label: "Connect to xTool shell window",
+								state: "pending",
+							},
+							{
+								id: "discard-restore-modal",
+								label: "Discard restore modal",
 								state: "pending",
 							},
 							{
