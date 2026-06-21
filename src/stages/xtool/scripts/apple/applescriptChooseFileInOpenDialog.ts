@@ -1,4 +1,7 @@
-export const applescriptChooseFileInOpenDialog = (app: string, file: string) => `
+export const applescriptChooseFileInOpenDialog = (
+	app: string,
+	file: string,
+) => `
 tell application "${app}" to activate
 tell application "System Events"
   tell process "${app}"

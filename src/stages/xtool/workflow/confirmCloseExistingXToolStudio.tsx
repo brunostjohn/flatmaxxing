@@ -9,8 +9,8 @@ export const confirmCloseExistingXToolStudio = Effect.fn(
 	return yield* renderWithOutput<boolean>((send) => (
 		<Box flexDirection="column">
 			<Text color="yellow">
-				xTool Studio is already open ({processIds.join(", ")}). Close it,
-				then continue?
+				xTool Studio is already open ({processIds.join(", ")}). Close it, then
+				continue?
 			</Text>
 			<ConfirmInput
 				defaultChoice="cancel"

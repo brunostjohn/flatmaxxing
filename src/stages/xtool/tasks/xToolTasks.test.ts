@@ -56,7 +56,9 @@ test("xTool lifecycle tasks run before project generation tasks", () => {
 		findTask(xToolTasks, xToolTaskPaths.lifecycle.waitExistingExit),
 	).toBeDefined();
 	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.launch)).toBeDefined();
-	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.waitShell)).toBeDefined();
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.waitShell),
+	).toBeDefined();
 	expect(
 		findTask(xToolTasks, xToolTaskPaths.lifecycle.discardRestoreModal),
 	).toBeDefined();

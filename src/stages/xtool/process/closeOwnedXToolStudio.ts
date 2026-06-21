@@ -15,9 +15,9 @@ export const closeOwnedXToolStudio = Effect.fn(
 
 	yield* killProcessIds(runningProcessIds, "SIGTERM");
 
-	const termWaitResult = yield* waitForProcessIdsToExit(process.processIds).pipe(
-		Effect.exit,
-	);
+	const termWaitResult = yield* waitForProcessIdsToExit(
+		process.processIds,
+	).pipe(Effect.exit);
 
 	if (termWaitResult._tag === "Success") {
 		return;

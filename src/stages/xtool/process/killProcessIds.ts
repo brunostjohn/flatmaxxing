@@ -19,11 +19,7 @@ export const killProcessIds = Effect.fn(
 				globalThis.process.kill(processId, signal);
 			} catch (error) {
 				if (
-					!(
-						error instanceof Error &&
-						"code" in error &&
-						error.code === "ESRCH"
-					)
+					!(error instanceof Error && "code" in error && error.code === "ESRCH")
 				) {
 					throw error;
 				}

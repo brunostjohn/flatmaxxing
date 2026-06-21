@@ -17,8 +17,6 @@ export const waitForProcessIdsToExit = Effect.fn(
 	});
 
 	yield* waitForNoProcesses.pipe(
-		Effect.retry(
-			Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(20))),
-		),
+		Effect.retry(Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(20)))),
 	);
 });
