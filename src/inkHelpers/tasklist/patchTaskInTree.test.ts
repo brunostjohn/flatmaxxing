@@ -52,3 +52,12 @@ test("expands ancestors of active or failed tasks", () => {
 	expect(root).toBeDefined();
 	expect(taskShouldExpand(root!)).toBe(true);
 });
+
+test("expands ancestors of warning tasks", () => {
+	const [root] = patchTaskInTree(tasks, ["root", "child", "leaf"], {
+		state: "warning",
+	});
+
+	expect(root).toBeDefined();
+	expect(taskShouldExpand(root!)).toBe(true);
+});

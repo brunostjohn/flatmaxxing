@@ -59,6 +59,7 @@ export const xToolTaskPaths = {
 			},
 			importDxf: {
 				root: frontStencilImport,
+				validateDxf: [...frontStencilImport, "validate-dxf"] as const,
 				copyDxf: [...frontStencilImport, "copy-dxf"] as const,
 				clearBefore: [...frontStencilImport, "clear-selection-before"] as const,
 				paste: [...frontStencilImport, "paste-dxf"] as const,
@@ -114,6 +115,7 @@ export const xToolTaskPaths = {
 			},
 			importDxf: {
 				root: backStencilImport,
+				validateDxf: [...backStencilImport, "validate-dxf"] as const,
 				copyDxf: [...backStencilImport, "copy-dxf"] as const,
 				clearBefore: [...backStencilImport, "clear-selection-before"] as const,
 				paste: [...backStencilImport, "paste-dxf"] as const,

@@ -59,6 +59,7 @@ test("paste stencil task branches include the fragile workflow steps", () => {
 		expect(findTask(xToolTasks, side.cdp.connectEditor)).toBeDefined();
 		expect(findTask(xToolTasks, side.cdp.waitForEditorReady)).toBeDefined();
 		expect(findTask(xToolTasks, side.device.selectF1Ultra)).toBeDefined();
+		expect(findTask(xToolTasks, side.importDxf.validateDxf)).toBeDefined();
 		expect(findTask(xToolTasks, side.importDxf.copyDxf)).toBeDefined();
 		expect(findTask(xToolTasks, side.importDxf.setX)).toBeDefined();
 		expect(findTask(xToolTasks, side.importDxf.setY)).toBeDefined();

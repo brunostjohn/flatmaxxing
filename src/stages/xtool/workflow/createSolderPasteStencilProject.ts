@@ -7,6 +7,7 @@ import { importSolderPasteStencilDxf } from "./importSolderPasteStencilDxf";
 import { saveXtoolProjectAndClose } from "./saveXtoolProjectAndClose";
 import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
 import type { SolderPasteStencilSide, XToolTasks } from "./types";
+import { validateSolderPasteStencilDxf } from "./validateSolderPasteStencilDxf";
 
 export const createSolderPasteStencilProject = Effect.fn(
 	"flatmaxx.xtool.createSolderPasteStencilProject",
@@ -24,6 +25,22 @@ export const createSolderPasteStencilProject = Effect.fn(
 		state: "loading",
 		status: `Creating ${config.label} solder paste stencil project...`,
 	});
+
+	const hasPlottableGeometry = yield* validateSolderPasteStencilDxf(
+		desiredAbsolutePath,
+		pcbName,
+		side,
+		tasks,
+	);
+
+	if (!hasPlottableGeometry) {
+		yield* tasks.patchTask(paths.root, {
+			state: "success",
+			label: `${config.label} solder paste stencil skipped.`,
+			status: `${config.fileSuffix} DXF has no plottable objects.`,
+		});
+		return true;
+	}
 
 	const newProjectTarget = yield* createNewXtoolProject(tasks, paths.cdp);
 
@@ -59,4 +76,6 @@ export const createSolderPasteStencilProject = Effect.fn(
 		label: `${config.label} solder paste stencil project created.`,
 		status: outputFilename,
 	});
+
+	return true;
 });

@@ -2,6 +2,7 @@ import { createTasklist } from "@/inkHelpers";
 import { Effect, FileSystem } from "effect";
 import { resolve } from "node:path";
 import { xToolTaskPaths, xToolTasks } from "../tasks";
+import { createSolderMaskProject } from "./createSolderMaskProject";
 import { createSolderPasteStencilProjects } from "./createSolderPasteStencilProjects";
 
 export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
@@ -33,21 +34,21 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
       });
     }
 
-    // yield* createSolderMaskProject(
-    // 	xtoolProjectPath,
-    // 	pcbName,
-    // 	tasks,
-    // 	offsetSecondToTheRightBy,
-    // 	offsetBackToTheBottomBy,
-    // ).pipe(
-    // 	Effect.tapError((error) =>
-    // 		tasks.patchTask(xToolTaskPaths.project, {
-    // 			state: "error",
-    // 			label: "Failed to create solder mask project.",
-    // 			output: error instanceof Error ? error.message : String(error),
-    // 		}),
-    // 	),
-    // );
+    yield* createSolderMaskProject(
+      xtoolProjectPath,
+      pcbName,
+      tasks,
+      offsetSecondToTheRightBy,
+      offsetBackToTheBottomBy,
+    ).pipe(
+      Effect.tapError((error) =>
+        tasks.patchTask(xToolTaskPaths.project, {
+          state: "error",
+          label: "Failed to create solder mask project.",
+          output: error instanceof Error ? error.message : String(error),
+        }),
+      ),
+    );
 
     yield* createSolderPasteStencilProjects(
       xtoolProjectPath,

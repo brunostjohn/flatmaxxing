@@ -81,6 +81,11 @@ export const solderPasteStencilTasks = [
 						state: "pending",
 						children: [
 							{
+								id: "validate-dxf",
+								label: "Validate front DXF has objects",
+								state: "pending",
+							},
+							{
 								id: "copy-dxf",
 								label: "Copy front DXF file",
 								state: "pending",
@@ -250,6 +255,11 @@ export const solderPasteStencilTasks = [
 						label: "Import back paste DXF",
 						state: "pending",
 						children: [
+							{
+								id: "validate-dxf",
+								label: "Validate back DXF has objects",
+								state: "pending",
+							},
 							{ id: "copy-dxf", label: "Copy back DXF file", state: "pending" },
 							{
 								id: "clear-selection-before",

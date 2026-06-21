@@ -43,7 +43,7 @@ export const createSolderPasteStencilProjects = Effect.fn(
 
 	yield* tasks.patchTask(xToolTaskPaths.pasteStencils.root, {
 		state: "success",
-		label: "Solder paste stencil projects created.",
+		label: "Solder paste stencil projects handled.",
 		status: "",
 	});
 });

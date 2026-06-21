@@ -1,8 +1,8 @@
 import { runAppleScript } from "@/utils";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
-import { resolve } from "node:path";
 import { applescriptCopyFileReferenceToClipboard } from "../scripts";
+import { getSolderPasteStencilDxfPath } from "./getSolderPasteStencilDxfPath";
 import { pasteDxfIntoXToolStudio } from "./pasteDxfIntoXToolStudio";
 import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
 import type { SolderPasteStencilSide, XToolTasks } from "./types";
@@ -18,12 +18,7 @@ export const importSolderPasteStencilDxf = Effect.fn(
 ) {
 	const config = solderPasteStencilSideConfig[side];
 	const paths = config.taskPaths.importDxf;
-	const dxfPath = resolve(
-		projectPath,
-		"..",
-		"dxf",
-		`${pcbName}-${config.fileSuffix}.dxf`,
-	);
+	const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
 
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",

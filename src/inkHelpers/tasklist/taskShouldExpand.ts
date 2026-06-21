@@ -6,6 +6,7 @@ export function taskShouldExpand(task: TaskDef): boolean {
 			(child) =>
 				child.state === "loading" ||
 				child.state === "error" ||
+				child.state === "warning" ||
 				taskShouldExpand(child),
 		) ?? false
 	);
