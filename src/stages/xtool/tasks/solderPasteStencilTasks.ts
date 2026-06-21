@@ -36,6 +36,11 @@ export const solderPasteStencilTasks = [
 								label: "Connect to new editor window",
 								state: "pending",
 							},
+							{
+								id: "wait-editor-ready",
+								label: "Wait for editor UI",
+								state: "pending",
+							},
 						],
 					},
 					{
@@ -106,8 +111,33 @@ export const solderPasteStencilTasks = [
 								state: "pending",
 							},
 							{
-								id: "settings-skeleton",
-								label: "Stencil settings skeleton",
+								id: "select-cut",
+								label: "Select Cut operation",
+								state: "pending",
+							},
+							{
+								id: "open-laser-type",
+								label: "Open laser type selector",
+								state: "pending",
+							},
+							{
+								id: "select-fiber-laser",
+								label: "Select Fiber IR laser",
+								state: "pending",
+							},
+							{
+								id: "set-power",
+								label: "Set power to 100%",
+								state: "pending",
+							},
+							{
+								id: "set-speed",
+								label: "Set speed to 6000",
+								state: "pending",
+							},
+							{
+								id: "set-passes",
+								label: "Set passes to 3",
 								state: "pending",
 							},
 						],
@@ -176,6 +206,11 @@ export const solderPasteStencilTasks = [
 								label: "Connect to new editor window",
 								state: "pending",
 							},
+							{
+								id: "wait-editor-ready",
+								label: "Wait for editor UI",
+								state: "pending",
+							},
 						],
 					},
 					{
@@ -242,8 +277,33 @@ export const solderPasteStencilTasks = [
 								state: "pending",
 							},
 							{
-								id: "settings-skeleton",
-								label: "Stencil settings skeleton",
+								id: "select-cut",
+								label: "Select Cut operation",
+								state: "pending",
+							},
+							{
+								id: "open-laser-type",
+								label: "Open laser type selector",
+								state: "pending",
+							},
+							{
+								id: "select-fiber-laser",
+								label: "Select Fiber IR laser",
+								state: "pending",
+							},
+							{
+								id: "set-power",
+								label: "Set power to 100%",
+								state: "pending",
+							},
+							{
+								id: "set-speed",
+								label: "Set speed to 6000",
+								state: "pending",
+							},
+							{
+								id: "set-passes",
+								label: "Set passes to 3",
 								state: "pending",
 							},
 						],

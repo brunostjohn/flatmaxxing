@@ -8,6 +8,7 @@ import {
 import { shellCreateProjectBrowserScript } from "../scripts";
 import { xToolTaskPaths } from "../tasks";
 import type { CreateProjectTaskPaths, XToolTasks } from "./types";
+import { waitForXToolEditorReady } from "./waitForXToolEditorReady";
 
 export const createNewXtoolProject = Effect.fn(
 	"flatmaxx.xtool.createNewProject",
@@ -55,6 +56,13 @@ export const createNewXtoolProject = Effect.fn(
 		),
 		loading: { status: "Waiting for new Untitled editor target..." },
 		success: { label: "Connected to new editor window." },
+	});
+
+	yield* tasks.runTask({
+		path: paths.waitForEditorReady,
+		effect: waitForXToolEditorReady(newProjectTarget),
+		loading: { status: "Waiting for #page-loading to unmount..." },
+		success: { label: "Editor UI ready." },
 	});
 
 	yield* tasks.patchTask(paths.root, {

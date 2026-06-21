@@ -37,6 +37,11 @@ export const xToolTasks = [
 						label: "Connect to new editor window",
 						state: "pending",
 					},
+					{
+						id: "wait-editor-ready",
+						label: "Wait for editor UI",
+						state: "pending",
+					},
 				],
 			},
 			{

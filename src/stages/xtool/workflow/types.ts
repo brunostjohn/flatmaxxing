@@ -24,6 +24,7 @@ export type CreateProjectTaskPaths = {
 	connectShell: TaskPath;
 	createEditorProject: TaskPath;
 	connectEditor: TaskPath;
+	waitForEditorReady: TaskPath;
 };
 
 export type DeviceSelectionTaskPaths = {
@@ -57,7 +58,12 @@ export type SolderPasteStencilImportTaskPaths = {
 export type SolderPasteStencilSettingsTaskPaths = {
 	root: TaskPath;
 	openParameters: TaskPath;
-	skeleton: TaskPath;
+	selectCut: TaskPath;
+	openLaserType: TaskPath;
+	selectFiberLaser: TaskPath;
+	setPower: TaskPath;
+	setSpeed: TaskPath;
+	setPasses: TaskPath;
 };
 
 export type XToolTasks = TaskScope;

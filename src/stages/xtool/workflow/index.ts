@@ -1,4 +1,5 @@
 export * from "./clearXToolSelection";
+export * from "./clickXToolBoundingBox";
 export * from "./configureDeviceForSolderMask";
 export * from "./configureDeviceForSolderPasteStencil";
 export * from "./configureSettingsForSolderMask";
@@ -21,4 +22,6 @@ export * from "./saveXtoolProjectAndClose";
 export * from "./selectXtoolDevice";
 export * from "./solderMaskSideConfig";
 export * from "./solderPasteStencilSideConfig";
+export * from "./typeIntoXToolSetting";
 export * from "./types";
+export * from "./waitForXToolEditorReady";
