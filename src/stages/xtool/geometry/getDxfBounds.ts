@@ -6,11 +6,14 @@ import type {
 	ILwpolylineEntity,
 	IPointEntity,
 	IPolylineEntity,
+	ISplineEntity,
 } from "dxf-parser";
 import { addArc } from "./addArc";
 import { addCircle } from "./addCircle";
 import { addEllipse } from "./addEllipse";
 import { addPoint } from "./addPoint";
+import { addPolyline } from "./addPolyline";
+import { addSpline } from "./addSpline";
 import { addVertices } from "./addVertices";
 import { emptyBox } from "./emptyBox";
 import { hasBounds } from "./hasBounds";
@@ -35,7 +38,7 @@ export function getDxfBounds(dxf: IDxf): { width: number; height: number } {
 			case "POLYLINE": {
 				const polyline = e as ILwpolylineEntity | IPolylineEntity;
 
-				addVertices(box, polyline.vertices);
+				addPolyline(box, polyline.vertices, polyline.shape === true);
 				break;
 			}
 
@@ -56,6 +59,11 @@ export function getDxfBounds(dxf: IDxf): { width: number; height: number } {
 				break;
 			}
 
+			case "SPLINE": {
+				addSpline(box, e as ISplineEntity);
+				break;
+			}
+
 			case "POINT": {
 				const point = e as IPointEntity;
 
@@ -64,7 +72,7 @@ export function getDxfBounds(dxf: IDxf): { width: number; height: number } {
 			}
 
 			default:
-				// TEXT, SPLINE, HATCH, INSERT, etc ignored here.
+				// TEXT, HATCH, INSERT, etc ignored here.
 				break;
 		}
 	}

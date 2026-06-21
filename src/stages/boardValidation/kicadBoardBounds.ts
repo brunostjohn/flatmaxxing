@@ -1,3 +1,4 @@
+import { cubicBezierBoundsPoints } from "@/geometry/cubicBezierBounds";
 import { BoardValidationError } from "@/stages/boardValidation/boardValidationTypes";
 import {
   At,
@@ -5,9 +6,11 @@ import {
   type Footprint,
   type FpArc,
   type FpCircle,
+  type FpCurve,
   type FpLine,
   type FpPoly,
   type FpRect,
+  type GrCurve,
   type GrPoly,
   type KicadPcb,
   type Layer,
@@ -72,9 +75,7 @@ export const findEdgeCutsBounds = (pcb: KicadPcb): BoardBounds => {
 
   for (const curve of pcb.graphicCurves) {
     if (!isEdgeCutsLayer(curve.layer)) continue;
-    throw new BoardValidationError(
-      "Edge.Cuts curves are not supported for board origin validation yet.",
-    );
+    includeCurve(bounds, curve, identityTransform);
   }
 
   for (const footprint of pcb.footprints) {
@@ -123,9 +124,7 @@ const includeFootprintEdgeCuts = (
 
   for (const curve of footprint.fpCurves) {
     if (!isEdgeCutsLayer(curve.layer)) continue;
-    throw new BoardValidationError(
-      "Edge.Cuts footprint curves are not supported for board origin validation yet.",
-    );
+    includeCurve(bounds, curve, transform);
   }
 };
 
@@ -315,6 +314,38 @@ const includePts = (
     }
 
     includePoint(bounds, transform(point));
+  }
+};
+
+const includeCurve = (
+  bounds: MutableBoardBounds,
+  curve: GrCurve | FpCurve,
+  transform: PointTransform,
+) => {
+  const pts = curve.points?.points;
+  if (!pts) return;
+
+  // A KiCad curve is a cubic Bézier (four control points). Transform the
+  // control points into board coordinates first, then take the exact extrema
+  // there — the footprint transform is affine, so this yields the correct
+  // axis-aligned bounds.
+  const controlPoints: Coordinate[] = [];
+  for (const point of pts) {
+    if (point instanceof PtsArc) {
+      includeArc(
+        bounds,
+        point.start ? transform(point.start) : undefined,
+        point.mid ? transform(point.mid) : undefined,
+        point.end ? transform(point.end) : undefined,
+      );
+      continue;
+    }
+
+    controlPoints.push(transform(point));
+  }
+
+  for (const point of cubicBezierBoundsPoints(controlPoints)) {
+    includePoint(bounds, point);
   }
 };
 
