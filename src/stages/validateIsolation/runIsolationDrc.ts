@@ -140,9 +140,18 @@ export const runIsolationDrc = Effect.fn("flatmaxx.validateIsolation.runDrc")(
 		yield* fs.copyFile(pcbFile, tempPcb);
 
 		// Preserve the project's real design rules / net classes when present.
+		// Skip an empty/missing .kicad_pro — copying it makes kicad-cli log a
+		// JSON parse error, and it carries no rules anyway (DRC falls back to
+		// defaults + our injected .kicad_dru).
 		const projectFile = join(dirname(pcbFile), `${base}.kicad_pro`);
-		if (yield* fs.exists(projectFile)) {
-			yield* fs.copyFile(projectFile, join(tempDir, `${base}.kicad_pro`));
+		const projectContent = yield* fs
+			.readFileString(projectFile)
+			.pipe(Effect.orElseSucceed(() => ""));
+		if (projectContent.trim().length > 0) {
+			yield* fs.writeFileString(
+				join(tempDir, `${base}.kicad_pro`),
+				projectContent,
+			);
 		}
 
 		yield* fs.writeFileString(

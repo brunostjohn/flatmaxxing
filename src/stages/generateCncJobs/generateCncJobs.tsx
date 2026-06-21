@@ -68,8 +68,9 @@ const parseBounds = (raw: string): BoardBounds => {
  * One headless FlatCAM run produces per-(side,tool) `.nc` files in a scratch dir
  * plus the board bounds; we then (a) write the alignment-drill Excellon into the
  * gerbers dir and (b) merge each side's tool files into a single Carvera program
- * (mills biggest→smallest, then the V-bit doing isolation + fine NCC, with clean
- * `M6 T<n>` toolchanges) in the gcode dir.
+ * with clean `M6 T<n>` toolchanges in the gcode dir — isolation first (V-bit),
+ * then the full NCC sequence (mills biggest→smallest, then the V-bit again as the
+ * fine finish, so the V-bit is loaded twice).
  */
 export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 	flatcam: string,
@@ -207,45 +208,36 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 			const sections: ToolSection[] = [];
 			let toolNumber = 0;
 
-			// Mills, biggest→smallest, only those that produced toolpaths.
-			for (const tool of options.plan.ncc.tools.filter(
-				(t) => t.kind === "mill",
-			)) {
+			// 1) Isolation first, as its own V-bit operation.
+			const isoBody = yield* readBody(isoNcName(side));
+			if (isoBody.length > 0) {
+				toolNumber += 1;
+				sections.push({
+					toolNumber,
+					label: `${options.plan.isolation.label} (isolation)`,
+					spindleSpeed: options.plan.isolation.spindleSpeed,
+					travelZ: options.plan.clearance.travelZ,
+					body: isoBody,
+				});
+			}
+
+			// 2) Then NCC, all of its tools in clearing order (mills biggest→
+			// smallest, then the V-bit again as the fine finish). Each tool that
+			// produced a toolpath is its own section/toolchange — so the V-bit is
+			// loaded twice (isolation, then NCC finish), which is expected.
+			for (const tool of options.plan.ncc.tools) {
 				const body = yield* readBody(nccNcName(side, tool.uid));
 				if (body.length > 0) {
 					toolNumber += 1;
 					sections.push({
 						toolNumber,
-						label: tool.label,
+						label:
+							tool.kind === "vbit" ? `${tool.label} (clearing)` : tool.label,
 						spindleSpeed: options.plan.ncc.spindleSpeed,
 						travelZ: options.plan.clearance.travelZ,
 						body,
 					});
 				}
-			}
-
-			// V-bit: isolation then its NCC fine-finish — one physical mount.
-			// Insert a full seam retract between the two so the iso→ncc
-			// transition lifts to a safe height (no cut-through moves).
-			const isoBody = yield* readBody(isoNcName(side));
-			const vbit = options.plan.ncc.tools.find((t) => t.kind === "vbit");
-			const vbitNccBody = vbit
-				? yield* readBody(nccNcName(side, vbit.uid))
-				: [];
-			const seam =
-				isoBody.length > 0 && vbitNccBody.length > 0
-					? [`G00 Z${options.plan.clearance.seamZ.toFixed(4)}`]
-					: [];
-			const vbitBody = [...isoBody, ...seam, ...vbitNccBody];
-			if (vbitBody.length > 0) {
-				toolNumber += 1;
-				sections.push({
-					toolNumber,
-					label: options.plan.isolation.label,
-					spindleSpeed: options.plan.isolation.spindleSpeed,
-					travelZ: options.plan.clearance.travelZ,
-					body: vbitBody,
-				});
 			}
 
 			if (sections.length === 0) {
