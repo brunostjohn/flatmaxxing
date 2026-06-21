@@ -5,6 +5,9 @@ import { ChildProcess } from "effect/unstable/process";
 import { basename, resolve } from "node:path";
 import sharp from "sharp";
 
+const pasteDxfLayers = "F.Paste,B.Paste";
+const maskDxfLayers = "F.Mask,B.Mask";
+
 interface RunWithKicadAndTaskOptions {
 	kicadCli: string;
 	project: string;
@@ -141,6 +144,18 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
 					id: "dxf",
 					label: "Generating DXF files...",
 					state: "loading",
+					children: [
+						{
+							id: "paste-without-edge-cuts",
+							label: "Generating paste DXF files without edge cuts...",
+							state: "loading",
+						},
+						{
+							id: "mask-with-edge-cuts",
+							label: "Generating mask DXF files with edge cuts...",
+							state: "loading",
+						},
+					],
 				},
 				{
 					id: "place",
@@ -166,6 +181,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
 		const boardFilename = yield* Effect.sync(() =>
 			basename(pcbFile, ".kicad_pcb"),
 		);
+		const fs = yield* FileSystem.FileSystem;
 
 		const gerbers = yield* runWithKicadAndTask({
 			kicadCli,
@@ -311,7 +327,9 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
 			});
 		}).pipe(Effect.forkChild);
 
-		const dxf = yield* runWithKicadAndTask({
+		yield* fs.makeDirectory(resolve(project, "dxf"), { recursive: true });
+
+		const pasteDxf = yield* runWithKicadAndTask({
 			kicadCli,
 			project,
 			pcbFile,
@@ -320,7 +338,37 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
 				"export",
 				"dxf",
 				"--layers",
-				"F.Paste,B.Paste,F.Mask,B.Mask",
+				pasteDxfLayers,
+				"--use-drill-origin",
+				"--output-units",
+				"mm",
+				"--output",
+				"./dxf",
+			],
+			setTaskOutput: (output) =>
+				setTaskOutput(["dxf", "paste-without-edge-cuts"], output),
+			setError: (error) =>
+				patchTask(["dxf", "paste-without-edge-cuts"], {
+					state: "error",
+					output: error,
+				}),
+			setSuccess: () =>
+				patchTask(["dxf", "paste-without-edge-cuts"], {
+					state: "success",
+					label: "Successfully generated paste DXF files without edge cuts.",
+				}),
+		}).pipe(Effect.forkChild);
+
+		const maskDxf = yield* runWithKicadAndTask({
+			kicadCli,
+			project,
+			pcbFile,
+			args: [
+				"pcb",
+				"export",
+				"dxf",
+				"--layers",
+				maskDxfLayers,
 				"--common-layers",
 				"Edge.Cuts",
 				"--use-drill-origin",
@@ -329,14 +377,38 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
 				"--output",
 				"./dxf",
 			],
-			setTaskOutput: (output) => setTaskOutput("dxf", output),
-			setError: (error) => patchTask("dxf", { state: "error", output: error }),
+			setTaskOutput: (output) =>
+				setTaskOutput(["dxf", "mask-with-edge-cuts"], output),
+			setError: (error) =>
+				patchTask(["dxf", "mask-with-edge-cuts"], {
+					state: "error",
+					output: error,
+				}),
 			setSuccess: () =>
+				patchTask(["dxf", "mask-with-edge-cuts"], {
+					state: "success",
+					label: "Successfully generated mask DXF files with edge cuts.",
+				}),
+		}).pipe(Effect.forkChild);
+
+		const dxf = yield* Effect.all([Fiber.join(pasteDxf), Fiber.join(maskDxf)], {
+			concurrency: "unbounded",
+		}).pipe(
+			Effect.andThen(() =>
 				patchTask("dxf", {
 					state: "success",
 					label: "Successfully generated DXF files.",
+					status: "",
 				}),
-		}).pipe(Effect.forkChild);
+			),
+			Effect.tapError((error) =>
+				patchTask("dxf", {
+					state: "error",
+					output: error instanceof Error ? error.message : String(error),
+				}),
+			),
+			Effect.forkChild,
+		);
 
 		const frontPlace = yield* runWithKicadAndTask({
 			kicadCli,

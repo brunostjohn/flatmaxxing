@@ -8,6 +8,7 @@ export * from "./clickMode";
 export * from "./clickSaveAs";
 export * from "./clickScaleToFit";
 export * from "./getCanvasBoundingBox";
+export * from "./getCutBoundingBox";
 export * from "./getIntensitySpanBox";
 export * from "./getParameterOverviewItemBox";
 export * from "./getPassesSpanBox";
