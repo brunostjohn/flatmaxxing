@@ -1,7 +1,7 @@
+import { dxfBounds } from "@/compute";
 import DxfParser from "dxf-parser";
 import { Effect, FileSystem } from "effect";
 import { resolve } from "node:path";
-import { getDxfBounds } from "../geometry";
 import { solderMaskSideConfig } from "./solderMaskSideConfig";
 import type { SolderMaskSide, XToolTasks } from "./types";
 
@@ -47,7 +47,8 @@ export const getSolderMaskBounds = Effect.fn(
 
 	return yield* tasks.runTask({
 		path: paths.measureBounds,
-		effect: Effect.sync(() => getDxfBounds(dxf)),
+		// Runs the bounds math (incl. spline Bézier extrema) in a Bun worker.
+		effect: dxfBounds(dxf),
 		loading: { status: `Measuring ${config.fileSuffix} geometry bounds...` },
 		success: { label: `Measured ${config.label} solder mask bounds.` },
 	});

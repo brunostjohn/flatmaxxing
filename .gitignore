@@ -39,6 +39,7 @@ testdir/svg
 testdir/gerbers
 testdir/pos
 testdir/gcode
+testdir/gcodes
 testdir/manufacture
 testdir/place
 testdir/xtool

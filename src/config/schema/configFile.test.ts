@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 import { Schema } from "effect";
 import {
 	ConfigFileSchema,
-	defaultCncSetting,
+	defaultCncIsolation,
+	defaultCncNonCopperClearing,
 	defaultValidationRanges,
 } from ".";
 
@@ -18,8 +19,8 @@ test("schema decodes defaults without compatibility casts", () => {
 	expect(config.stencil.generate).toBe(true);
 	expect(config.drills.generate).toBe(true);
 	expect(config.place.generate).toBe(true);
-	expect(config.cnc.isolation).toEqual(defaultCncSetting);
-	expect(config.cnc.nonCopperClearing).toEqual(defaultCncSetting);
+	expect(config.cnc.isolation).toEqual(defaultCncIsolation);
+	expect(config.cnc.nonCopperClearing).toEqual(defaultCncNonCopperClearing);
 });
 
 test("workflow side exclusions default to empty arrays", () => {

@@ -42,6 +42,7 @@ export type StencilXToolOptions = {
 export type ResolvedConfig = {
 	readonly dependencies: {
 		readonly kicadCli?: string | undefined;
+		readonly flatcam?: string | undefined;
 		readonly docker?: string | undefined;
 	};
 	readonly paths: OutputPaths;
@@ -53,6 +54,7 @@ export type ResolvedConfig = {
 	readonly alignmentDrills: {
 		readonly generate: boolean;
 		readonly distance: { readonly x: number; readonly y: number };
+		readonly diameter: number;
 	};
 	readonly electroplating: {
 		readonly generateEdgeCutsWithAlignmentDrills: boolean;
@@ -83,8 +85,10 @@ export type ResolvedConfig = {
 		readonly generate: boolean;
 	};
 	readonly cnc: {
-		readonly isolation: CncSettingOptions;
-		readonly nonCopperClearing: CncSettingOptions;
+		readonly isolation: CncIsolationOptions;
+		readonly nonCopperClearing: CncNonCopperClearingOptions;
+		readonly clearance: CncClearanceOptions;
+		readonly backside: CncBacksideOptions;
 		readonly availableDrills: readonly CncDrillOptions[];
 		readonly availableMills: readonly CncMillBitOptions[];
 	};
@@ -103,7 +107,19 @@ export type ResolvedConfig = {
 			readonly xtoolPasses: Range;
 			readonly xtoolSpeed: Range;
 		};
+		readonly isolationFeasibility: IsolationFeasibilityOptions;
 	};
+};
+
+export type IsolationFeasibilityOptions = {
+	readonly enabled: boolean;
+	readonly onFailure: "error" | "warn";
+	/**
+	 * Regexes matched against each clearance violation's text (its description
+	 * plus the features involved). Matching violations are excluded from the
+	 * gate — an escape hatch for intentional offenders (e.g. antenna footprints).
+	 */
+	readonly ignore: readonly string[];
 };
 
 export type CncVBitOptions = {
@@ -135,12 +151,66 @@ export type CncSettingOptions = {
 	readonly tool?: CncToolOptions | undefined;
 };
 
+export type IsoType = 0 | 1 | 2;
+
+export type NccMethod = "standard" | "seed" | "lines";
+
+export type CncIsolationOptions = CncSettingOptions & {
+	/** Number of overlapping isolation passes around each trace. */
+	readonly passes: number;
+	/** Percentage [0,99.99] of tool diameter to overlap between passes. */
+	readonly overlap: number;
+	/** 0 = exteriors, 1 = interiors, 2 = full isolation. */
+	readonly isoType: IsoType;
+};
+
+export type CncNonCopperClearingOptions = CncSettingOptions & {
+	/** Percentage [0,99.99] of tool diameter to overlap between passes. */
+	readonly overlap: number;
+	/** Bounding-box margin around the cleared area. */
+	readonly margin: number;
+	/** Clearing pattern. */
+	readonly method: NccMethod;
+	/** Cut depth for the (corn) mills; deeper than zCutDepth (the V-bit depth). */
+	readonly millZCutDepth: number;
+};
+
+export type CncClearanceOptions = {
+	/** Travel/clearance height between cuts. */
+	readonly travelZ: number;
+	/** Park height at job end. */
+	readonly endZ: number;
+	/** Rapid (G0) feedrate. */
+	readonly rapidFeedRate: number;
+	/** Retract height inserted at the seam between merged operations/tools. */
+	readonly seamZ: number;
+};
+
+export type CncBacksideOptions = {
+	/** Axis to mirror the back copper across before machining. */
+	readonly mirrorAxis: "X" | "Y";
+};
+
 export type BoardSelectionOptions = {
 	readonly boardFile?: string | undefined;
 };
 
 export type BoardValidationOptions = {
 	readonly autoFix: boolean;
+};
+
+export type IsolationValidationOptions = {
+	readonly enabled: boolean;
+	readonly onFailure: "error" | "warn";
+	/** The isolation tool, kept for human-readable diagnostics. */
+	readonly tool?: CncToolOptions | undefined;
+	readonly cutDepth: number;
+	/** Effective cutting width the tool produces at `cutDepth`. */
+	readonly effectiveDiameter: number;
+	/** KiCad copper layers to validate (e.g. ["F.Cu", "B.Cu"]). */
+	readonly layers: readonly string[];
+	/** Regexes; clearance violations whose text matches any are ignored. */
+	readonly ignorePatterns: readonly string[];
 };
 
 export type KicadOutputOptions = {

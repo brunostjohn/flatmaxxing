@@ -9,7 +9,8 @@ import {
 	deepMerge,
 	defaultAvailableDrills,
 	defaultAvailableMills,
-	defaultCncSetting,
+	defaultCncIsolation,
+	defaultCncNonCopperClearing,
 	loadFlatmaxxConfig,
 } from ".";
 
@@ -49,8 +50,8 @@ test("loads defaults when no auto config exists", async () => {
 		speed: 6000,
 		passes: 3,
 	});
-	expect(config.cnc.isolation).toEqual(defaultCncSetting);
-	expect(config.cnc.nonCopperClearing).toEqual(defaultCncSetting);
+	expect(config.cnc.isolation).toEqual(defaultCncIsolation);
+	expect(config.cnc.nonCopperClearing).toEqual(defaultCncNonCopperClearing);
 	expect(config.cnc.availableDrills).toEqual(defaultAvailableDrills);
 	expect(config.cnc.availableMills).toEqual(defaultAvailableMills);
 

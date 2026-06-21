@@ -5,14 +5,18 @@ import {
 	defaultAvailableDrills,
 	defaultAvailableMills,
 	defaultBoard,
+	defaultCncBackside,
+	defaultCncClearance,
 	defaultCncDrillTool,
+	defaultCncIsolation,
 	defaultCncMillTool,
-	defaultCncSetting,
+	defaultCncNonCopperClearing,
 	defaultCncVBitTool,
 	defaultDependencies,
 	defaultDrills,
 	defaultElectroplating,
 	defaultElectroplatingAdditionalDistance,
+	defaultIsolationFeasibility,
 	defaultPaths,
 	defaultPlace,
 	defaultSolderMask,
@@ -36,6 +40,9 @@ import {
 export const DependenciesSchema = Schema.Struct({
 	kicadCli: Schema.String.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultDependencies.kicadCli)),
+	),
+	flatcam: Schema.String.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultDependencies.flatcam)),
 	),
 	docker: Schema.String.pipe(Schema.optional),
 });
@@ -120,6 +127,9 @@ export const AlignmentDrillsSchema = Schema.Struct({
 	),
 	distance: DistanceSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultAlignmentDrillDistance)),
+	),
+	diameter: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultAlignmentDrills.diameter)),
 	),
 });
 
@@ -228,30 +238,120 @@ export const CncToolSchema = Schema.Union([
 	CncDrillSchema,
 ]);
 
-export const CncSettingSchema = Schema.Struct({
+export const CncIsolationSchema = Schema.Struct({
 	feedRate: Schema.Number.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting.feedRate)),
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.feedRate)),
 	),
 	spindleSpeed: Schema.Number.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting.spindleSpeed)),
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncIsolation.spindleSpeed),
+		),
 	),
 	zCutDepth: Schema.Number.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting.zCutDepth)),
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.zCutDepth)),
 	),
 	zCutFeedRate: Schema.Number.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting.zCutFeedRate)),
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncIsolation.zCutFeedRate),
+		),
 	),
 	tool: CncToolSchema.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting.tool)),
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.tool)),
+	),
+	passes: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.passes)),
+	),
+	overlap: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.overlap)),
+	),
+	isoType: Schema.Literals([0, 1, 2]).pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation.isoType)),
+	),
+});
+
+export const CncNonCopperClearingSchema = Schema.Struct({
+	feedRate: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.feedRate),
+		),
+	),
+	spindleSpeed: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.spindleSpeed),
+		),
+	),
+	zCutDepth: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.zCutDepth),
+		),
+	),
+	zCutFeedRate: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.zCutFeedRate),
+		),
+	),
+	tool: CncToolSchema.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.tool),
+		),
+	),
+	overlap: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.overlap),
+		),
+	),
+	margin: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.margin),
+		),
+	),
+	method: Schema.Literals(["standard", "seed", "lines"]).pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.method),
+		),
+	),
+	millZCutDepth: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncNonCopperClearing.millZCutDepth),
+		),
+	),
+});
+
+export const CncClearanceSchema = Schema.Struct({
+	travelZ: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncClearance.travelZ)),
+	),
+	endZ: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncClearance.endZ)),
+	),
+	rapidFeedRate: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncClearance.rapidFeedRate),
+		),
+	),
+	seamZ: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncClearance.seamZ)),
+	),
+});
+
+export const CncBacksideSchema = Schema.Struct({
+	mirrorAxis: Schema.Literals(["X", "Y"]).pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncBackside.mirrorAxis)),
 	),
 });
 
 export const CncSchema = Schema.Struct({
-	isolation: CncSettingSchema.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting)),
+	isolation: CncIsolationSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation)),
 	),
-	nonCopperClearing: CncSettingSchema.pipe(
-		Schema.withDecodingDefault(Effect.succeed(defaultCncSetting)),
+	nonCopperClearing: CncNonCopperClearingSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncNonCopperClearing)),
+	),
+	clearance: CncClearanceSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncClearance)),
+	),
+	backside: CncBacksideSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncBackside)),
 	),
 	availableDrills: Schema.Array(CncDrillSchema).pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultAvailableDrills)),
@@ -309,8 +409,31 @@ export const ValidationRangesSchema = Schema.Struct({
 	),
 });
 
+export const IsolationFeasibilitySchema = Schema.Struct({
+	enabled: Schema.Boolean.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultIsolationFeasibility.enabled),
+		),
+	),
+	onFailure: Schema.Literals(["error", "warn"]).pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultIsolationFeasibility.onFailure),
+		),
+	),
+	ignore: Schema.Array(Schema.String).pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultIsolationFeasibility.ignore),
+		),
+	),
+});
+
 export const ValidationSchema = Schema.Struct({
 	ranges: ValidationRangesSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultValidation.ranges)),
+	),
+	isolationFeasibility: IsolationFeasibilitySchema.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultValidation.isolationFeasibility),
+		),
 	),
 });

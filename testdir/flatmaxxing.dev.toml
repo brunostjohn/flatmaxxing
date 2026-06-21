@@ -1,8 +1,11 @@
 # Used by `bun run dev`. Keep this non-interactive and avoid launching xTool.
 extends = ["flatmaxxing.user.toml"]
 
+[validation.isolationFeasibility]
+ignore = ["AE1"]
+
 [board]
-file = "valid_board.kicad_pcb"
+file = "new-and-improved-zefir-btn.kicad_pcb"
 autoFix = false
 
 [solderMask]

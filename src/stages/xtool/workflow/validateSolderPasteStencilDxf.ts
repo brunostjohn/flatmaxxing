@@ -1,7 +1,7 @@
+import { dxfHasPlottableGeometry } from "@/compute";
 import DxfParser from "dxf-parser";
 import { Effect, FileSystem } from "effect";
 import { getSolderPasteStencilDxfPath } from "./getSolderPasteStencilDxfPath";
-import { hasPlottableDxfGeometry } from "./hasPlottableDxfGeometry";
 import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
 import type { SolderPasteStencilSide, XToolTasks } from "./types";
 
@@ -34,7 +34,8 @@ export const validateSolderPasteStencilDxf = Effect.fn(
 				return yield* Effect.fail(new Error("Failed to parse DXF file."));
 			}
 
-			return hasPlottableDxfGeometry(dxf);
+			// Runs the geometry check in a Bun worker (off the main thread).
+			return yield* dxfHasPlottableGeometry(dxf);
 		}),
 		loading: { status: `Validating ${dxfPath} has plottable geometry...` },
 		success: { label: `${config.fileSuffix} DXF checked.` },

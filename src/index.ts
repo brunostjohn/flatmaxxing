@@ -1,15 +1,19 @@
 import {
 	buildBoardSelectionOptions,
 	buildBoardValidationOptions,
+	buildIsolationValidationOptions,
 	buildKicadOutputOptions,
 	buildXToolProjectOptions,
 	loadFlatmaxxConfig,
 } from "@/config";
 import {
+	buildCncJobOptions,
 	createXtoolProjects,
 	ensureKicadExists,
 	findPCBProject,
+	generateCncJobs,
 	generateKicadOutputs,
+	validateIsolation,
 	validateKicadBoard,
 } from "@/stages";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
@@ -52,6 +56,7 @@ const Flatmaxx = Command.make(
 		const kicadCli =
 			config.dependencies.kicadCli ??
 			"/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
+		const flatcam = config.dependencies.flatcam ?? "flatcam";
 
 		yield* ensureKicadExists(kicadCli);
 
@@ -68,6 +73,15 @@ const Flatmaxx = Command.make(
 			pcbFile,
 			buildKicadOutputOptions(config),
 		);
+
+		// Gate CNC generation: the chosen V-bit must be able to isolate every trace.
+		yield* validateIsolation(
+			kicadCli,
+			pcbFile,
+			buildIsolationValidationOptions(config),
+		);
+
+		yield* generateCncJobs(flatcam, pcbFile, buildCncJobOptions(config));
 
 		const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
 		yield* createXtoolProjects(

@@ -1,6 +1,8 @@
+import { effectiveToolDiameter } from "@/cnc/effectiveToolDiameter";
 import type {
 	BoardSelectionOptions,
 	BoardValidationOptions,
+	IsolationValidationOptions,
 	KicadOutputOptions,
 	ResolvedConfig,
 	Side,
@@ -8,6 +10,11 @@ import type {
 } from "./types";
 
 const allSides = ["front", "back"] as const satisfies readonly Side[];
+
+const sideToCopperLayer: Record<Side, string> = {
+	front: "F.Cu",
+	back: "B.Cu",
+};
 
 export const enabledSidesFromConfig = (
 	config: ResolvedConfig,
@@ -112,6 +119,26 @@ export const buildKicadOutputOptions = (
 				"stencil",
 			),
 		},
+	};
+};
+
+export const buildIsolationValidationOptions = (
+	config: ResolvedConfig,
+): IsolationValidationOptions => {
+	const sides = enabledSidesFromConfig(config);
+	const tool = config.cnc.isolation.tool;
+	const cutDepth = config.cnc.isolation.zCutDepth;
+
+	return {
+		// Can only validate when an isolation tool is configured.
+		enabled:
+			config.validation.isolationFeasibility.enabled && tool !== undefined,
+		onFailure: config.validation.isolationFeasibility.onFailure,
+		tool,
+		cutDepth,
+		effectiveDiameter: tool ? effectiveToolDiameter(tool, cutDepth) : 0,
+		layers: sides.map((side) => sideToCopperLayer[side]),
+		ignorePatterns: config.validation.isolationFeasibility.ignore,
 	};
 };
 

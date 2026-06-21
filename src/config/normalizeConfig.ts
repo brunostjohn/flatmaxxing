@@ -1,6 +1,11 @@
 import type { ConfigFile } from "@/config/schema";
 import { resolveFrom } from "./paths";
-import type { CncToolOptions, Range, ResolvedConfig } from "./types";
+import type {
+	CncSettingOptions,
+	CncToolOptions,
+	Range,
+	ResolvedConfig,
+} from "./types";
 
 class ConfigValidationError extends Error {
 	constructor(readonly errors: readonly string[]) {
@@ -66,7 +71,7 @@ const validateTool = (
 };
 
 const validateCncSetting = (
-	setting: ResolvedConfig["cnc"]["isolation"],
+	setting: CncSettingOptions | undefined,
 	ranges: ResolvedConfig["validation"]["ranges"],
 	path: string,
 	errors: string[],

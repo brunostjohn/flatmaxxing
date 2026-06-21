@@ -4,4 +4,6 @@ export * from "./boardValidation/validateKicadBoard";
 export * from "./createXtoolProjects";
 export * from "./ensureKicadExists";
 export * from "./findPCBProject";
+export * from "./generateCncJobs";
 export * from "./generateKicadOutputs";
+export * from "./validateIsolation";

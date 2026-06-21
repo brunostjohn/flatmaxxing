@@ -45,15 +45,22 @@ availableMills = [
 ]
 
 [cnc.isolation]
-feedRate = 400
+feedRate = 120
 spindleSpeed = 15000
 zCutDepth = 0.05
-zCutFeedRate = 200
+zCutFeedRate = 60
 tool = { type = "vbit", diameter = 0.14, angle = 60 }
+passes = 3
+overlap = 60
+isoType = 2
 
 [cnc.nonCopperClearing]
-feedRate = 400
+feedRate = 120
 spindleSpeed = 15000
 zCutDepth = 0.05
-zCutFeedRate = 200
+zCutFeedRate = 60
 tool = { type = "vbit", diameter = 0.14, angle = 60 }
+overlap = 40
+margin = 0
+method = "seed"
+millZCutDepth = 0.075
