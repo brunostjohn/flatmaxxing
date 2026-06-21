@@ -222,6 +222,7 @@ export const normalizeConfig = (
 			dxf: resolveFrom(resolvedProjectRoot, config.paths.dxf),
 			png: resolveFrom(resolvedProjectRoot, config.paths.png),
 			gerbers: resolveFrom(resolvedProjectRoot, config.paths.gerbers),
+			drills: resolveFrom(resolvedProjectRoot, config.paths.drills),
 			xtool: resolveFrom(resolvedProjectRoot, config.paths.xtool),
 			place: resolveFrom(resolvedProjectRoot, config.paths.place),
 		},

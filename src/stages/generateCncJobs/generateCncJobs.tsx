@@ -63,7 +63,7 @@ const parseBounds = (raw: string): BoardBounds => {
 };
 
 /**
- * Step 3: turn the copper gerbers into Carvera-ready milling G-code.
+ * Step 4: turn the copper gerbers into Carvera-ready milling G-code.
  *
  * One headless FlatCAM run produces per-(side,tool) `.nc` files in a scratch dir
  * plus the board bounds; we then (a) write the alignment-drill Excellon into the
@@ -79,7 +79,7 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 ) {
 	const { setTaskOutput, patchTask, ...rest } = yield* createTasklist(
 		cncTasks,
-		"Step 3: Generate CNC jobs",
+		"Step 4: Generate CNC jobs",
 	);
 	const taskControls = { setTaskOutput, patchTask, ...rest };
 

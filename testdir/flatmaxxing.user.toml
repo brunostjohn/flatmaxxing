@@ -25,7 +25,7 @@ generate = true
 
 [cnc]
 availableDrills = [
-    { diameter = 0.3 },
+    { diameter = 0.4 },
     { diameter = 0.5 },
     { diameter = 0.7 },
     { diameter = 0.8 },
@@ -34,6 +34,7 @@ availableDrills = [
     { diameter = 1.2 },
 ]
 availableMills = [
+    { diameter = 0.6 },
     { diameter = 0.7 },
     { diameter = 0.8 },
     { diameter = 1.0 },

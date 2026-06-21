@@ -53,7 +53,7 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
 		const fs = yield* FileSystem.FileSystem;
 		const tasks = yield* createTasklist(
 			xToolTasks,
-			"Step 2: Create xTool projects",
+			"Step 5: Create xTool projects",
 		);
 
 		if (!options.enabled) {

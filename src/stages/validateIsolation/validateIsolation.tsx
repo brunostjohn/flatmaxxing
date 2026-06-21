@@ -72,7 +72,7 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
 
 		const eff = options.effectiveDiameter.toFixed(4);
 		const [success, error, stop, warning] = yield* renderWaiting({
-			loading: `Step 2: Validating traces are isolatable with the ${eff}mm V-bit...`,
+			loading: `Step 3: Validating traces are isolatable with the ${eff}mm V-bit...`,
 		});
 
 		// Compile ignore patterns up front so a bad regex fails fast and clearly.

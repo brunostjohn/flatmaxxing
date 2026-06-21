@@ -1,6 +1,8 @@
 import {
+	buildAlignmentDrillCategorizationOptions,
 	buildBoardSelectionOptions,
 	buildBoardValidationOptions,
+	buildDrillCategorizationOptions,
 	buildIsolationValidationOptions,
 	buildKicadOutputOptions,
 	buildXToolProjectOptions,
@@ -8,6 +10,8 @@ import {
 } from "@/config";
 import {
 	buildCncJobOptions,
+	categorizeAlignmentDrills,
+	categorizeDrills,
 	createXtoolProjects,
 	ensureKicadExists,
 	findPCBProject,
@@ -74,6 +78,9 @@ const Flatmaxx = Command.make(
 			buildKicadOutputOptions(config),
 		);
 
+		// Gate the run: every component hole must be makeable with the tools on hand.
+		yield* categorizeDrills(pcbFile, buildDrillCategorizationOptions(config));
+
 		// Gate CNC generation: the chosen V-bit must be able to isolate every trace.
 		yield* validateIsolation(
 			kicadCli,
@@ -82,6 +89,12 @@ const Flatmaxx = Command.make(
 		);
 
 		yield* generateCncJobs(flatcam, pcbFile, buildCncJobOptions(config));
+
+		// Copy the CNC-generated alignment drill into ./drills, categorized by tool.
+		yield* categorizeAlignmentDrills(
+			pcbFile,
+			buildAlignmentDrillCategorizationOptions(config),
+		);
 
 		const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
 		yield* createXtoolProjects(

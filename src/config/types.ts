@@ -12,6 +12,7 @@ export type OutputPaths = {
 	readonly dxf: string;
 	readonly png: string;
 	readonly gerbers: string;
+	readonly drills: string;
 	readonly xtool: string;
 	readonly place: string;
 };
@@ -89,6 +90,7 @@ export type ResolvedConfig = {
 		readonly nonCopperClearing: CncNonCopperClearingOptions;
 		readonly clearance: CncClearanceOptions;
 		readonly backside: CncBacksideOptions;
+		readonly drilling: CncDrillingOptions;
 		readonly availableDrills: readonly CncDrillOptions[];
 		readonly availableMills: readonly CncMillBitOptions[];
 	};
@@ -108,7 +110,13 @@ export type ResolvedConfig = {
 			readonly xtoolSpeed: Range;
 		};
 		readonly isolationFeasibility: IsolationFeasibilityOptions;
+		readonly drillFeasibility: DrillFeasibilityOptions;
 	};
+};
+
+export type DrillFeasibilityOptions = {
+	readonly enabled: boolean;
+	readonly onFailure: "error" | "warn";
 };
 
 export type IsolationFeasibilityOptions = {
@@ -142,6 +150,15 @@ export type CncMillBitOptions = {
 export type CncDrillOptions = {
 	readonly type: "drill";
 	readonly diameter: number;
+};
+
+export type CncDrillingOptions = {
+	/**
+	 * How far above a hole's true diameter an available drill bit may be and
+	 * still be used (rounding up — never undersize). A hole with no bit in
+	 * `[D, D + matchToleranceMm]` falls back to a pocket (largest cornmill ≤ D).
+	 */
+	readonly matchToleranceMm: number;
 };
 
 export type CncToolOptions =
@@ -217,6 +234,31 @@ export type IsolationValidationOptions = {
 	readonly layers: readonly string[];
 	/** Regexes; clearance violations whose text matches any are ignored. */
 	readonly ignorePatterns: readonly string[];
+};
+
+export type DrillCategorizationOptions = {
+	readonly enabled: boolean;
+	readonly onFailure: "error" | "warn";
+	/** Where the categorized per-(plating × method × tool) `.drl` files are written. */
+	readonly drillsDir: string;
+	/** Directory holding KiCad's exported drill files. */
+	readonly gerbersDir: string;
+	/** Drill bits on hand (for exact / round-up matching). */
+	readonly availableDrills: readonly CncDrillOptions[];
+	/** Cornmills on hand (for pocketing holes/slots no drill fits). */
+	readonly availableMills: readonly CncMillBitOptions[];
+	/** Oversize allowance for drilling (see CncDrillingOptions). */
+	readonly matchToleranceMm: number;
+};
+
+export type AlignmentDrillCategorizationOptions = {
+	/** Whether alignment drills are generated at all (alignmentDrills.generate). */
+	readonly enabled: boolean;
+	readonly drillsDir: string;
+	readonly gerbersDir: string;
+	readonly availableDrills: readonly CncDrillOptions[];
+	readonly availableMills: readonly CncMillBitOptions[];
+	readonly matchToleranceMm: number;
 };
 
 export type KicadOutputOptions = {

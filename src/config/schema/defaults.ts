@@ -1,5 +1,6 @@
 import type {
 	CncClearanceOptions,
+	CncDrillingOptions,
 	CncDrillOptions,
 	CncIsolationOptions,
 	CncMillBitOptions,
@@ -27,6 +28,7 @@ export const defaultPaths = {
 	dxf: "./dxf",
 	png: "./png",
 	gerbers: "./gerbers",
+	drills: "./drills",
 	xtool: "./xtool",
 	place: "./place",
 };
@@ -199,11 +201,19 @@ export const defaultAvailableMills = [
 	{ type: "mill", diameter: 1.5 },
 ] satisfies CncMillBitOptions[];
 
+// Hole→tool matching: a drill bit may be at most matchToleranceMm wider than a
+// hole and still be used (rounding up — never undersize). On tiny boards even
+// +0.05mm matters, so every round-up is warned and logged to ROUNDED_UP.txt.
+export const defaultCncDrilling = {
+	matchToleranceMm: 0.05,
+} satisfies CncDrillingOptions;
+
 export const defaultCnc = {
 	isolation: defaultCncIsolation,
 	nonCopperClearing: defaultCncNonCopperClearing,
 	clearance: defaultCncClearance,
 	backside: defaultCncBackside,
+	drilling: defaultCncDrilling,
 	availableDrills: defaultAvailableDrills,
 	availableMills: defaultAvailableMills,
 };
@@ -237,9 +247,19 @@ export const defaultIsolationFeasibility = {
 	ignore: [] as string[],
 };
 
+// Pre-flight gate: verify every component hole can be made with the tools on
+// hand (an exact/round-up drill, else a cornmill that fits as a pocket) before
+// generating any G-code. "error" aborts the run; "warn" only logs. No ignore
+// list — unlike isolation, an unmachinable hole is never intentional.
+export const defaultDrillFeasibility = {
+	enabled: true,
+	onFailure: "error" as const,
+};
+
 export const defaultValidation = {
 	ranges: defaultValidationRanges,
 	isolationFeasibility: defaultIsolationFeasibility,
+	drillFeasibility: defaultDrillFeasibility,
 };
 
 export const defaultConfigFile = {

@@ -1,7 +1,9 @@
 import { effectiveToolDiameter } from "@/cnc/effectiveToolDiameter";
 import type {
+	AlignmentDrillCategorizationOptions,
 	BoardSelectionOptions,
 	BoardValidationOptions,
+	DrillCategorizationOptions,
 	IsolationValidationOptions,
 	KicadOutputOptions,
 	ResolvedConfig,
@@ -141,6 +143,29 @@ export const buildIsolationValidationOptions = (
 		ignorePatterns: config.validation.isolationFeasibility.ignore,
 	};
 };
+
+export const buildDrillCategorizationOptions = (
+	config: ResolvedConfig,
+): DrillCategorizationOptions => ({
+	enabled: config.validation.drillFeasibility.enabled,
+	onFailure: config.validation.drillFeasibility.onFailure,
+	drillsDir: config.paths.drills,
+	gerbersDir: config.paths.gerbers,
+	availableDrills: config.cnc.availableDrills,
+	availableMills: config.cnc.availableMills,
+	matchToleranceMm: config.cnc.drilling.matchToleranceMm,
+});
+
+export const buildAlignmentDrillCategorizationOptions = (
+	config: ResolvedConfig,
+): AlignmentDrillCategorizationOptions => ({
+	enabled: config.alignmentDrills.generate,
+	drillsDir: config.paths.drills,
+	gerbersDir: config.paths.gerbers,
+	availableDrills: config.cnc.availableDrills,
+	availableMills: config.cnc.availableMills,
+	matchToleranceMm: config.cnc.drilling.matchToleranceMm,
+});
 
 export const buildXToolProjectOptions = (
 	config: ResolvedConfig,

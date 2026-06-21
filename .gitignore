@@ -37,9 +37,11 @@ testdir/dxf
 testdir/png
 testdir/svg
 testdir/gerbers
+testdir/drills
 testdir/pos
 testdir/gcode
 testdir/gcodes
 testdir/manufacture
 testdir/place
 testdir/xtool
+testdir/ROUNDED_UP.txt

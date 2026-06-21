@@ -7,12 +7,14 @@ import {
 	defaultBoard,
 	defaultCncBackside,
 	defaultCncClearance,
+	defaultCncDrilling,
 	defaultCncDrillTool,
 	defaultCncIsolation,
 	defaultCncMillTool,
 	defaultCncNonCopperClearing,
 	defaultCncVBitTool,
 	defaultDependencies,
+	defaultDrillFeasibility,
 	defaultDrills,
 	defaultElectroplating,
 	defaultElectroplatingAdditionalDistance,
@@ -65,6 +67,9 @@ export const PathsSchema = Schema.Struct({
 	),
 	gerbers: Schema.String.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultPaths.gerbers)),
+	),
+	drills: Schema.String.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultPaths.drills)),
 	),
 	xtool: Schema.String.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultPaths.xtool)),
@@ -345,6 +350,14 @@ export const CncBacksideSchema = Schema.Struct({
 	),
 });
 
+export const CncDrillingSchema = Schema.Struct({
+	matchToleranceMm: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultCncDrilling.matchToleranceMm),
+		),
+	),
+});
+
 export const CncSchema = Schema.Struct({
 	isolation: CncIsolationSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultCncIsolation)),
@@ -357,6 +370,9 @@ export const CncSchema = Schema.Struct({
 	),
 	backside: CncBacksideSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultCncBackside)),
+	),
+	drilling: CncDrillingSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultCncDrilling)),
 	),
 	availableDrills: Schema.Array(CncDrillSchema).pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultAvailableDrills)),
@@ -432,6 +448,17 @@ export const IsolationFeasibilitySchema = Schema.Struct({
 	),
 });
 
+export const DrillFeasibilitySchema = Schema.Struct({
+	enabled: Schema.Boolean.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultDrillFeasibility.enabled)),
+	),
+	onFailure: Schema.Literals(["error", "warn"]).pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultDrillFeasibility.onFailure),
+		),
+	),
+});
+
 export const ValidationSchema = Schema.Struct({
 	ranges: ValidationRangesSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultValidation.ranges)),
@@ -439,6 +466,11 @@ export const ValidationSchema = Schema.Struct({
 	isolationFeasibility: IsolationFeasibilitySchema.pipe(
 		Schema.withDecodingDefault(
 			Effect.succeed(defaultValidation.isolationFeasibility),
+		),
+	),
+	drillFeasibility: DrillFeasibilitySchema.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultValidation.drillFeasibility),
 		),
 	),
 });
