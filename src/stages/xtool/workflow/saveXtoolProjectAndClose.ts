@@ -10,21 +10,20 @@ import {
 	shellClickOnSaveScript,
 } from "../scripts";
 import { xToolTaskPaths } from "../tasks";
-import type { XToolTasks } from "./types";
+import type { SaveProjectTaskPaths, XToolTasks } from "./types";
 
 export const saveXtoolProjectAndClose = Effect.fn(
 	"flatmaxx.xtool.saveProjectAndClose",
 )(function* (
 	desiredAbsolutePath: string,
-	pcbName: string,
-	filetype: "solderMask" | "solderPaste",
+	filename: string,
 	{ Runtime }: Client,
 	tasks: XToolTasks,
+	paths: SaveProjectTaskPaths = xToolTaskPaths.save,
 ) {
 	const fs = yield* FileSystem.FileSystem;
-	const paths = xToolTaskPaths.save;
 	const absolutePath = yield* Effect.sync(() =>
-		resolve(desiredAbsolutePath, `${pcbName}-${filetype}.xs`),
+		resolve(desiredAbsolutePath, filename),
 	);
 
 	yield* tasks.patchTask(paths.root, {

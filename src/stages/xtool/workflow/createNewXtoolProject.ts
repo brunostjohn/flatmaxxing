@@ -7,13 +7,14 @@ import {
 } from "../cdp";
 import { shellCreateProjectBrowserScript } from "../scripts";
 import { xToolTaskPaths } from "../tasks";
-import type { XToolTasks } from "./types";
+import type { CreateProjectTaskPaths, XToolTasks } from "./types";
 
 export const createNewXtoolProject = Effect.fn(
 	"flatmaxx.xtool.createNewProject",
-)(function* (tasks: XToolTasks) {
-	const paths = xToolTaskPaths.cdp;
-
+)(function* (
+	tasks: XToolTasks,
+	paths: CreateProjectTaskPaths = xToolTaskPaths.cdp,
+) {
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
 		status: "Preparing CDP connection...",

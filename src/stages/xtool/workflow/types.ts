@@ -1,4 +1,4 @@
-import type { TaskScope } from "@/inkHelpers";
+import type { TaskPath, TaskScope } from "@/inkHelpers";
 
 export type RectBounds = {
 	x: number;
@@ -15,5 +15,49 @@ export type SolderMaskPasteOffsets = {
 };
 
 export type SolderMaskSide = "front" | "back";
+
+export type SolderPasteStencilSide = "front" | "back";
+
+export type CreateProjectTaskPaths = {
+	root: TaskPath;
+	listTargets: TaskPath;
+	connectShell: TaskPath;
+	createEditorProject: TaskPath;
+	connectEditor: TaskPath;
+};
+
+export type DeviceSelectionTaskPaths = {
+	root: TaskPath;
+	switchDevice: TaskPath;
+	openDeviceLibrary: TaskPath;
+	selectDevice: TaskPath;
+	confirmSwitch: TaskPath;
+	setWindowSize: TaskPath;
+};
+
+export type SaveProjectTaskPaths = {
+	root: TaskPath;
+	removeExisting: TaskPath;
+	openSaveAs: TaskPath;
+	clickSaveLocally: TaskPath;
+	focusDialog: TaskPath;
+	savePath: TaskPath;
+};
+
+export type SolderPasteStencilImportTaskPaths = {
+	root: TaskPath;
+	copyDxf: TaskPath;
+	clearBefore: TaskPath;
+	paste: TaskPath;
+	setX: TaskPath;
+	setY: TaskPath;
+	clearAfter: TaskPath;
+};
+
+export type SolderPasteStencilSettingsTaskPaths = {
+	root: TaskPath;
+	openParameters: TaskPath;
+	skeleton: TaskPath;
+};
 
 export type XToolTasks = TaskScope;

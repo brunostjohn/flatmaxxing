@@ -40,3 +40,18 @@ test("all xTool task path constants point at real task nodes", () => {
 		expect(findTask(xToolTasks, path), path.join(" > ")).toBeDefined();
 	}
 });
+
+test("paste stencil task branches include the fragile workflow steps", () => {
+	for (const side of [
+		xToolTaskPaths.pasteStencils.front,
+		xToolTaskPaths.pasteStencils.back,
+	]) {
+		expect(findTask(xToolTasks, side.cdp.connectEditor)).toBeDefined();
+		expect(findTask(xToolTasks, side.device.selectF1Ultra)).toBeDefined();
+		expect(findTask(xToolTasks, side.importDxf.copyDxf)).toBeDefined();
+		expect(findTask(xToolTasks, side.importDxf.setX)).toBeDefined();
+		expect(findTask(xToolTasks, side.importDxf.setY)).toBeDefined();
+		expect(findTask(xToolTasks, side.settings.skeleton)).toBeDefined();
+		expect(findTask(xToolTasks, side.save.savePath)).toBeDefined();
+	}
+});

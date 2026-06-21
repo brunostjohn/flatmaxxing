@@ -50,8 +50,7 @@ export const createSolderMaskProject = Effect.fn(
 
 	yield* saveXtoolProjectAndClose(
 		desiredAbsolutePath,
-		pcbName,
-		"solderMask",
+		`${pcbName}-solderMask.xs`,
 		newProjectTarget,
 		tasks,
 	);

@@ -1,6 +1,7 @@
 export * from "./clickConfirmSwitch";
 export * from "./clickDeviceLibrary";
 export * from "./clickDeviceSwitch";
+export * from "./clickF1Ultra";
 export * from "./clickInkjetPrinting";
 export * from "./clickM1Ultra";
 export * from "./clickMode";

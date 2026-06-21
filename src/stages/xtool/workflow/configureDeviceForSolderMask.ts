@@ -1,17 +1,9 @@
-import { runAppleScript } from "@/utils";
 import type { Client } from "chrome-remote-interface";
-import { Duration, Effect, Schedule } from "effect";
+import { Effect } from "effect";
 import { runScriptInXToolStudio } from "../cdp";
-import {
-	applescriptSetWindowSize,
-	clickConfirmSwitch,
-	clickDeviceLibrary,
-	clickDeviceSwitch,
-	clickInkjetPrinting,
-	clickM1Ultra,
-	clickMode,
-} from "../scripts";
+import { clickInkjetPrinting, clickM1Ultra, clickMode } from "../scripts";
 import { xToolTaskPaths } from "../tasks";
+import { selectXtoolDevice } from "./selectXtoolDevice";
 import type { XToolTasks } from "./types";
 
 export const configureDeviceForSolderMask = Effect.fn(
@@ -24,38 +16,20 @@ export const configureDeviceForSolderMask = Effect.fn(
 		status: "Selecting xTool M1 Ultra inkjet mode...",
 	});
 
-	yield* tasks.runTask({
-		path: paths.switchDevice,
-		effect: runScriptInXToolStudio(clickDeviceSwitch, newProjectTarget.Runtime),
-		loading: { status: "Clicking device switch..." },
-		success: { label: "Device switcher opened." },
-	});
+	yield* selectXtoolDevice(
+		newProjectTarget,
+		tasks,
+		{
+			...paths,
+			selectDevice: paths.selectM1Ultra,
+		},
+		"M1 Ultra",
+		clickM1Ultra,
+	);
 
-	yield* tasks.runTask({
-		path: paths.openDeviceLibrary,
-		effect: runScriptInXToolStudio(
-			clickDeviceLibrary,
-			newProjectTarget.Runtime,
-		),
-		loading: { status: "Clicking device library..." },
-		success: { label: "Device library opened." },
-	});
-
-	yield* tasks.runTask({
-		path: paths.selectM1Ultra,
-		effect: runScriptInXToolStudio(clickM1Ultra, newProjectTarget.Runtime),
-		loading: { status: "Clicking M1 Ultra..." },
-		success: { label: "M1 Ultra selected." },
-	});
-
-	yield* tasks.runTask({
-		path: paths.confirmSwitch,
-		effect: runScriptInXToolStudio(
-			clickConfirmSwitch,
-			newProjectTarget.Runtime,
-		),
-		loading: { status: "Confirming device switch..." },
-		success: { label: "Device switch confirmed." },
+	yield* tasks.patchTask(paths.root, {
+		state: "loading",
+		status: "Switching M1 Ultra to inkjet mode...",
 	});
 
 	yield* tasks.runTask({
@@ -73,18 +47,6 @@ export const configureDeviceForSolderMask = Effect.fn(
 		),
 		loading: { status: "Clicking Inkjet printing..." },
 		success: { label: "Inkjet printing selected." },
-	});
-
-	yield* tasks.runTask({
-		path: paths.setWindowSize,
-		effect: runAppleScript(
-			applescriptSetWindowSize("xTool Studio", 1280, 720),
-		).pipe(
-			Effect.retry(Schedule.exponential(1000)),
-			Effect.timeout(Duration.seconds(10)),
-		),
-		loading: { status: "Setting window to 1280x720..." },
-		success: { label: "xTool Studio window sized." },
 	});
 
 	yield* tasks.patchTask(paths.root, {

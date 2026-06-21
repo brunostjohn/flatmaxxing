@@ -1,4 +1,5 @@
 import type { TaskDef } from "@/inkHelpers";
+import { solderPasteStencilTasks } from "./solderPasteStencilTasks";
 
 export const xToolTasks = [
 	{
@@ -275,4 +276,5 @@ export const xToolTasks = [
 			},
 		],
 	},
+	...solderPasteStencilTasks,
 ] satisfies TaskDef[];
