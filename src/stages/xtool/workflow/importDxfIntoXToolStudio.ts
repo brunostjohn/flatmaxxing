@@ -3,7 +3,8 @@ import type { Client } from "chrome-remote-interface";
 import { Duration, Effect } from "effect";
 import { cdpClickOn, cdpTypeIn, runScriptInXToolStudio } from "../cdp";
 import {
-	applescriptOpenXtoolAndPaste,
+	applescriptChooseFileInOpenDialog,
+	clickImport,
 	getXBoundingBox,
 	getYBoundingBox,
 } from "../scripts";
@@ -14,30 +15,40 @@ import type {
 	XToolTasks,
 } from "./types";
 
-export const pasteDxfIntoXToolStudio = Effect.fn(
-	"flatmaxx.xtool.pasteDxfIntoStudio",
+export const importDxfIntoXToolStudio = Effect.fn(
+	"flatmaxx.xtool.importDxfIntoStudio",
 )(function* (
+	dxfPath: string,
 	{ Runtime, Input }: Pick<Client, "Runtime" | "Input">,
 	tasks: XToolTasks,
 	paths: SolderPasteStencilImportTaskPaths,
 ) {
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
-		status: "Pasting DXF and setting x=0, y=0...",
+		status: "Importing DXF and setting x=0, y=0...",
 	});
 
 	yield* tasks.runTask({
 		path: paths.clearBefore,
 		effect: clearXToolSelection({ Runtime, Input }),
 		loading: { status: "Escaping selection and clicking the canvas..." },
-		success: { label: "Selection cleared before DXF paste." },
+		success: { label: "Selection cleared before DXF import." },
 	});
 
 	yield* tasks.runTask({
-		path: paths.paste,
-		effect: runAppleScript(applescriptOpenXtoolAndPaste),
-		loading: { status: "Sending Command+V to xTool Studio..." },
-		success: { label: "DXF pasted." },
+		path: paths.openImportMenu,
+		effect: runScriptInXToolStudio(clickImport, Runtime),
+		loading: { status: "Opening xTool File > Import menu..." },
+		success: { label: "Import menu opened." },
+	});
+
+	yield* tasks.runTask({
+		path: paths.chooseDxfFile,
+		effect: runAppleScript(
+			applescriptChooseFileInOpenDialog("xTool Studio", dxfPath),
+		),
+		loading: { status: `Choosing ${dxfPath} in the import dialog...` },
+		success: { label: "DXF selected in import dialog." },
 	});
 
 	yield* Effect.sleep(Duration.millis(500));
@@ -91,7 +102,7 @@ export const pasteDxfIntoXToolStudio = Effect.fn(
 
 	yield* tasks.patchTask(paths.root, {
 		state: "success",
-		label: "DXF pasted at x=0, y=0.",
+		label: "DXF imported at x=0, y=0.",
 		status: "",
 	});
 });

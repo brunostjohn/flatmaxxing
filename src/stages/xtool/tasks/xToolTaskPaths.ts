@@ -74,9 +74,9 @@ export const xToolTaskPaths = {
 			importDxf: {
 				root: frontStencilImport,
 				validateDxf: [...frontStencilImport, "validate-dxf"] as const,
-				copyDxf: [...frontStencilImport, "copy-dxf"] as const,
 				clearBefore: [...frontStencilImport, "clear-selection-before"] as const,
-				paste: [...frontStencilImport, "paste-dxf"] as const,
+				openImportMenu: [...frontStencilImport, "open-import-menu"] as const,
+				chooseDxfFile: [...frontStencilImport, "choose-dxf-file"] as const,
 				setX: [...frontStencilImport, "set-x"] as const,
 				setY: [...frontStencilImport, "set-y"] as const,
 				clearAfter: [...frontStencilImport, "clear-selection-after"] as const,
@@ -130,9 +130,9 @@ export const xToolTaskPaths = {
 			importDxf: {
 				root: backStencilImport,
 				validateDxf: [...backStencilImport, "validate-dxf"] as const,
-				copyDxf: [...backStencilImport, "copy-dxf"] as const,
 				clearBefore: [...backStencilImport, "clear-selection-before"] as const,
-				paste: [...backStencilImport, "paste-dxf"] as const,
+				openImportMenu: [...backStencilImport, "open-import-menu"] as const,
+				chooseDxfFile: [...backStencilImport, "choose-dxf-file"] as const,
 				setX: [...backStencilImport, "set-x"] as const,
 				setY: [...backStencilImport, "set-y"] as const,
 				clearAfter: [...backStencilImport, "clear-selection-after"] as const,

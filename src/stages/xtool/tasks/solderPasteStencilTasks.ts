@@ -86,16 +86,20 @@ export const solderPasteStencilTasks = [
 								state: "pending",
 							},
 							{
-								id: "copy-dxf",
-								label: "Copy front DXF file",
+								id: "clear-selection-before",
+								label: "Clear selection before import",
 								state: "pending",
 							},
 							{
-								id: "clear-selection-before",
-								label: "Clear selection before paste",
+								id: "open-import-menu",
+								label: "Open File > Import",
 								state: "pending",
 							},
-							{ id: "paste-dxf", label: "Paste front DXF", state: "pending" },
+							{
+								id: "choose-dxf-file",
+								label: "Choose front DXF file",
+								state: "pending",
+							},
 							{ id: "set-x", label: "Set X position to 0", state: "pending" },
 							{ id: "set-y", label: "Set Y position to 0", state: "pending" },
 							{
@@ -260,13 +264,21 @@ export const solderPasteStencilTasks = [
 								label: "Validate back DXF has objects",
 								state: "pending",
 							},
-							{ id: "copy-dxf", label: "Copy back DXF file", state: "pending" },
 							{
 								id: "clear-selection-before",
-								label: "Clear selection before paste",
+								label: "Clear selection before import",
 								state: "pending",
 							},
-							{ id: "paste-dxf", label: "Paste back DXF", state: "pending" },
+							{
+								id: "open-import-menu",
+								label: "Open File > Import",
+								state: "pending",
+							},
+							{
+								id: "choose-dxf-file",
+								label: "Choose back DXF file",
+								state: "pending",
+							},
 							{ id: "set-x", label: "Set X position to 0", state: "pending" },
 							{ id: "set-y", label: "Set Y position to 0", state: "pending" },
 							{

@@ -59,9 +59,9 @@ export type SaveProjectTaskPaths = {
 export type SolderPasteStencilImportTaskPaths = {
 	root: TaskPath;
 	validateDxf: TaskPath;
-	copyDxf: TaskPath;
 	clearBefore: TaskPath;
-	paste: TaskPath;
+	openImportMenu: TaskPath;
+	chooseDxfFile: TaskPath;
 	setX: TaskPath;
 	setY: TaskPath;
 	clearAfter: TaskPath;

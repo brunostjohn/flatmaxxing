@@ -1,10 +1,9 @@
 import type { TaskPath } from "@/inkHelpers";
-import { runAppleScript } from "@/utils";
 import type { Client } from "chrome-remote-interface";
 import { Duration, Effect } from "effect";
 import { cdpClickOn, cdpTypeIn, runScriptInXToolStudio } from "../cdp";
 import {
-	applescriptOpenXtoolAndPaste,
+	clickPaste,
 	clickScaleToFit,
 	getWidthBoundingBox,
 	getXBoundingBox,
@@ -54,8 +53,8 @@ export const pasteIntoXToolStudio = Effect.fn("flatmaxx.xtool.pasteIntoStudio")(
 
 		yield* tasks.runTask({
 			path: taskPaths.paste,
-			effect: runAppleScript(applescriptOpenXtoolAndPaste),
-			loading: { status: "Sending Command+V to xTool Studio..." },
+			effect: runScriptInXToolStudio(clickPaste, Runtime),
+			loading: { status: "Opening xTool Edit > Paste menu..." },
 			success: { label: "PNG pasted." },
 		});
 
