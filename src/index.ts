@@ -8,6 +8,7 @@ import {
 	buildXToolProjectOptions,
 	loadFlatmaxxConfig,
 } from "@/config";
+import { resetSteps } from "@/inkHelpers";
 import {
 	buildCncJobOptions,
 	categorizeAlignmentDrills,
@@ -49,6 +50,8 @@ const Flatmaxx = Command.make(
 		configPath,
 	}) {
 		// yield* Effect.sync(() => askForAccessibilityAccess());
+
+		yield* Effect.sync(resetSteps);
 
 		const config = yield* loadFlatmaxxConfig({
 			projectRoot: kicadProject,

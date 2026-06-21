@@ -1,5 +1,5 @@
 import type { XToolProjectOptions } from "@/config";
-import { createTasklist, markTaskBranch } from "@/inkHelpers";
+import { createTasklist, markTaskBranch, nextStep } from "@/inkHelpers";
 import { Effect, FileSystem } from "effect";
 import { resolve } from "node:path";
 import { xToolTaskPaths, xToolTasks } from "../tasks";
@@ -51,10 +51,12 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
 		options: XToolProjectOptions = defaultXToolProjectOptions,
 	) {
 		const fs = yield* FileSystem.FileSystem;
-		const tasks = yield* createTasklist(
-			xToolTasks,
-			"Step 5: Create xTool projects",
-		);
+		// Only consume a step number when xTool projects are actually created, so a
+		// skipped xTool stage doesn't leave a gap in the displayed step sequence.
+		const title = options.enabled
+			? `Step ${nextStep()}: Create xTool projects`
+			: "Create xTool projects (skipped)";
+		const tasks = yield* createTasklist(xToolTasks, title);
 
 		if (!options.enabled) {
 			yield* markTaskBranch(tasks, xToolTasks, xToolTaskPaths.lifecycle.root, {

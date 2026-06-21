@@ -1,4 +1,9 @@
-import { createTasklist, markTaskBranch, type TaskDef } from "@/inkHelpers";
+import {
+	createTasklist,
+	markTaskBranch,
+	nextStep,
+	type TaskDef,
+} from "@/inkHelpers";
 import type { Side } from "@/config";
 import { Effect, FileSystem } from "effect";
 import { basename, join } from "node:path";
@@ -77,9 +82,14 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 	pcbFile: string,
 	options: CncJobOptions,
 ) {
+	// Only consume a step number when we're actually generating jobs, so a
+	// skipped CNC stage doesn't leave a gap in the displayed step sequence.
+	const title = options.enabled
+		? `Step ${nextStep()}: Generate CNC jobs`
+		: "Generate CNC jobs (skipped)";
 	const { setTaskOutput, patchTask, ...rest } = yield* createTasklist(
 		cncTasks,
-		"Step 4: Generate CNC jobs",
+		title,
 	);
 	const taskControls = { setTaskOutput, patchTask, ...rest };
 

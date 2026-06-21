@@ -3,7 +3,7 @@ import type {
 	AlignmentDrillCategorizationOptions,
 	DrillCategorizationOptions,
 } from "@/config";
-import { renderOnce, renderWaiting } from "@/inkHelpers";
+import { nextStep, renderOnce, renderWaiting } from "@/inkHelpers";
 import { Alert } from "@inkjs/ui";
 import { Effect, FileSystem } from "effect";
 import { Box, Text } from "ink";
@@ -115,8 +115,12 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 		const projectRoot = dirname(pcbFile);
 		const roundedUpPath = join(projectRoot, "ROUNDED_UP.txt");
 
+		// Compute the step once and prefix every terminal message with it, so the
+		// completed line keeps its "Step N:" title instead of dropping the number.
+		const step = nextStep();
+		const tag = (message: string): string => `Step ${step}: ${message}`;
 		const [success, error, stop, warning] = yield* renderWaiting({
-			loading: "Step 2: Categorizing drills & checking machinability...",
+			loading: tag("Categorizing drills & checking machinability..."),
 		});
 
 		const clearStaleRoundedUp = Effect.gen(function* () {
@@ -125,7 +129,7 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 
 		if (!(yield* fs.exists(options.gerbersDir))) {
 			yield* clearStaleRoundedUp;
-			yield* success("No gerbers directory — no drills to categorize.");
+			yield* success(tag("No gerbers directory — no drills to categorize."));
 			return;
 		}
 
@@ -134,7 +138,9 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 		);
 		if (drillFiles.length === 0) {
 			yield* clearStaleRoundedUp;
-			yield* success("No component drill files found — nothing to categorize.");
+			yield* success(
+				tag("No component drill files found — nothing to categorize."),
+			);
 			return;
 		}
 
@@ -148,7 +154,7 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 
 		if (holes.length === 0) {
 			yield* clearStaleRoundedUp;
-			yield* success("Drill files contain no holes.");
+			yield* success(tag("Drill files contain no holes."));
 			return;
 		}
 
@@ -161,7 +167,9 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 		// Hard gate — fail before writing anything (and before the CNC job).
 		if (unmachinable.length > 0 && options.onFailure === "error") {
 			yield* error(
-				`${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
+				tag(
+					`${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
+				),
 			);
 			yield* renderOnce(
 				<UnmachinableReport items={unmachinable} variant="error" />,
@@ -197,17 +205,21 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 		// terminal; otherwise it's a clean success.
 		if (unmachinable.length > 0) {
 			yield* warning(
-				`Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
+				tag(
+					`Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
+				),
 			);
 			yield* renderOnce(
 				<UnmachinableReport items={unmachinable} variant="warning" />,
 			);
 		} else if (roundUps.length > 0) {
 			yield* warning(
-				`Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ROUNDED_UP.txt).`,
+				tag(
+					`Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ROUNDED_UP.txt).`,
+				),
 			);
 		} else {
-			yield* success(`Categorized ${holes.length} holes → ${fileNote}.`);
+			yield* success(tag(`Categorized ${holes.length} holes → ${fileNote}.`));
 		}
 
 		if (roundUps.length > 0) {

@@ -1,5 +1,10 @@
 import type { KicadOutputOptions, Side } from "@/config";
-import { createTasklist, markTaskBranch, type TaskDef } from "@/inkHelpers";
+import {
+	createTasklist,
+	markTaskBranch,
+	nextStep,
+	type TaskDef,
+} from "@/inkHelpers";
 import { Resvg } from "@resvg/resvg-js";
 import { Effect, Fiber, FileSystem, Latch, Ref, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
@@ -235,7 +240,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
   ) {
     const { setTaskOutput, patchTask, ...tasks } = yield* createTasklist(
       kicadOutputTasks,
-      "Step 1: Create KiCAD outputs",
+      `Step ${nextStep()}: Create KiCAD outputs`,
     );
 
     const taskControls = {

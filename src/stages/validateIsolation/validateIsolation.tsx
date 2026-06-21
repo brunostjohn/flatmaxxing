@@ -1,5 +1,5 @@
 import type { IsolationValidationOptions } from "@/config";
-import { renderOnce, renderWaiting } from "@/inkHelpers";
+import { nextStep, renderOnce, renderWaiting } from "@/inkHelpers";
 import { Alert } from "@inkjs/ui";
 import { Effect } from "effect";
 import { Box, Text } from "ink";
@@ -71,8 +71,14 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
 		}
 
 		const eff = options.effectiveDiameter.toFixed(4);
+		// Compute the step once and prefix every terminal message with it, so the
+		// completed line keeps its "Step N:" title instead of dropping the number.
+		const step = nextStep();
+		const tag = (message: string): string => `Step ${step}: ${message}`;
 		const [success, error, stop, warning] = yield* renderWaiting({
-			loading: `Step 3: Validating traces are isolatable with the ${eff}mm V-bit...`,
+			loading: tag(
+				`Validating traces are isolatable with the ${eff}mm V-bit...`,
+			),
 		});
 
 		// Compile ignore patterns up front so a bad regex fails fast and clearly.
@@ -95,7 +101,9 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
 
 		if (blocking.length === 0) {
 			yield* success(
-				`All traces can be isolated with the ${eff}mm V-bit (DRC clean)${ignoredNote}.`,
+				tag(
+					`All traces can be isolated with the ${eff}mm V-bit (DRC clean)${ignoredNote}.`,
+				),
 			);
 			return;
 		}
@@ -104,7 +112,9 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
 
 		if (options.onFailure === "warn") {
 			yield* warning(
-				`${count} location(s) cannot be isolated with the ${eff}mm V-bit — continuing anyway${ignoredNote}.`,
+				tag(
+					`${count} location(s) cannot be isolated with the ${eff}mm V-bit — continuing anyway${ignoredNote}.`,
+				),
 			);
 			yield* renderOnce(
 				<ViolationReport
@@ -117,7 +127,9 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
 		}
 
 		yield* error(
-			`${count} location(s) cannot be isolated with the ${eff}mm V-bit${ignoredNote}.`,
+			tag(
+				`${count} location(s) cannot be isolated with the ${eff}mm V-bit${ignoredNote}.`,
+			),
 		);
 		yield* renderOnce(
 			<ViolationReport
