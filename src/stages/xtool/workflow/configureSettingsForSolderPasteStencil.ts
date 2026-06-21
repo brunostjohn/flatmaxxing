@@ -1,3 +1,4 @@
+import type { StencilXToolOptions } from "@/config";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
 import {
@@ -19,6 +20,12 @@ export const configureSettingsForSolderPasteStencil = Effect.fn(
 	{ Runtime, Input }: Pick<Client, "Runtime" | "Input">,
 	tasks: XToolTasks,
 	paths: SolderPasteStencilSettingsTaskPaths,
+	settings: StencilXToolOptions = {
+		device: "F1 Ultra",
+		power: 100,
+		speed: 6000,
+		passes: 3,
+	},
 ) {
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
@@ -58,23 +65,32 @@ export const configureSettingsForSolderPasteStencil = Effect.fn(
 
 	yield* tasks.runTask({
 		path: paths.setPower,
-		effect: typeIntoXToolSetting(getPowerSpanBox, "100", { Runtime, Input }),
-		loading: { status: "Typing power 100..." },
-		success: { label: "Power set to 100%." },
+		effect: typeIntoXToolSetting(getPowerSpanBox, String(settings.power), {
+			Runtime,
+			Input,
+		}),
+		loading: { status: `Typing power ${settings.power}...` },
+		success: { label: `Power set to ${settings.power}%.` },
 	});
 
 	yield* tasks.runTask({
 		path: paths.setSpeed,
-		effect: typeIntoXToolSetting(getSpeedSpanBox, "6000", { Runtime, Input }),
-		loading: { status: "Typing speed 6000..." },
-		success: { label: "Speed set to 6000." },
+		effect: typeIntoXToolSetting(getSpeedSpanBox, String(settings.speed), {
+			Runtime,
+			Input,
+		}),
+		loading: { status: `Typing speed ${settings.speed}...` },
+		success: { label: `Speed set to ${settings.speed}.` },
 	});
 
 	yield* tasks.runTask({
 		path: paths.setPasses,
-		effect: typeIntoXToolSetting(getPassesSpanBox, "3", { Runtime, Input }),
-		loading: { status: "Typing passes 3..." },
-		success: { label: "Passes set to 3." },
+		effect: typeIntoXToolSetting(getPassesSpanBox, String(settings.passes), {
+			Runtime,
+			Input,
+		}),
+		loading: { status: `Typing passes ${settings.passes}...` },
+		success: { label: `Passes set to ${settings.passes}.` },
 	});
 
 	yield* tasks.patchTask(paths.root, {

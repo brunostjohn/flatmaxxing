@@ -1,62 +1,103 @@
 import {
-  createXtoolProjects,
-  ensureKicadExists,
-  findPCBProject,
-  generateKicadOutputs,
-  validateKicadBoard,
+	buildBoardSelectionOptions,
+	buildBoardValidationOptions,
+	buildKicadOutputOptions,
+	buildXToolProjectOptions,
+	loadFlatmaxxConfig,
+} from "@/config";
+import {
+	createXtoolProjects,
+	ensureKicadExists,
+	findPCBProject,
+	generateKicadOutputs,
+	validateKicadBoard,
 } from "@/stages";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { basename } from "node:path";
 
 const Flatmaxx = Command.make(
-  "flatmaxx",
-  {
-    kicadProject: Argument.string("kicad-project").pipe(
-      Argument.withDescription("The path to the KiCAD project directory."),
-      Argument.withDefault(process.cwd()),
-    ),
-    pathTokKicad: Flag.string("path-to-kicad").pipe(
-      Flag.withAlias("-k"),
-      Flag.withDescription("The path to the KiCAD CLI executable."),
-      Flag.withDefault(
-        "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
-      ),
-    ),
-  },
-  Effect.fn("flatmaxx.main")(function* ({ kicadProject, pathTokKicad }) {
-    // yield* Effect.sync(() => askForAccessibilityAccess());
+	"flatmaxx",
+	{
+		kicadProject: Argument.string("kicad-project").pipe(
+			Argument.withDescription("The path to the KiCAD project directory."),
+			Argument.withDefault(process.cwd()),
+		),
+		pathTokKicad: Flag.string("path-to-kicad").pipe(
+			Flag.withAlias("-k"),
+			Flag.withDescription("The path to the KiCAD CLI executable."),
+			Flag.optional,
+		),
+		configPath: Flag.string("config").pipe(
+			Flag.withAlias("-c"),
+			Flag.withDescription("The path to a flatmaxxing TOML config file."),
+			Flag.optional,
+		),
+	},
+	Effect.fn("flatmaxx.main")(function* ({
+		kicadProject,
+		pathTokKicad,
+		configPath,
+	}) {
+		// yield* Effect.sync(() => askForAccessibilityAccess());
 
-    yield* ensureKicadExists(pathTokKicad);
+		const config = yield* loadFlatmaxxConfig({
+			projectRoot: kicadProject,
+			configPath: Option.getOrUndefined(configPath),
+			cliOverrides: {
+				kicadCli: Option.getOrUndefined(pathTokKicad),
+			},
+		});
+		const kicadCli =
+			config.dependencies.kicadCli ??
+			"/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
 
-    const pcbFile = yield* findPCBProject(kicadProject);
+		yield* ensureKicadExists(kicadCli);
 
-    yield* validateKicadBoard(pcbFile);
+		const pcbFile = yield* findPCBProject(
+			kicadProject,
+			buildBoardSelectionOptions(config),
+		);
 
-    yield* generateKicadOutputs(pathTokKicad, kicadProject, pcbFile);
+		yield* validateKicadBoard(pcbFile, buildBoardValidationOptions(config));
 
-    const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
-    yield* createXtoolProjects(kicadProject, pcbName, 10, 10);
-  }),
+		yield* generateKicadOutputs(
+			kicadCli,
+			kicadProject,
+			pcbFile,
+			buildKicadOutputOptions(config),
+		);
+
+		const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
+		yield* createXtoolProjects(
+			kicadProject,
+			pcbName,
+			buildXToolProjectOptions(config),
+		);
+	}),
 ).pipe(
-  Command.withDescription("Creates CNC files from a KiCAD project."),
-  Command.withExamples([
-    {
-      command: "flatmaxx <kicad-project>",
-      description: "Creates CNC files from a KiCAD project.",
-    },
-    {
-      command: "flatmaxx <kicad-project> -k <path-to-kicad>",
-      description:
-        "Creates CNC files from a KiCAD project with a custom KiCAD CLI executable.",
-    },
-  ]),
+	Command.withDescription("Creates CNC files from a KiCAD project."),
+	Command.withExamples([
+		{
+			command: "flatmaxx <kicad-project>",
+			description: "Creates CNC files from a KiCAD project.",
+		},
+		{
+			command: "flatmaxx <kicad-project> -k <path-to-kicad>",
+			description:
+				"Creates CNC files from a KiCAD project with a custom KiCAD CLI executable.",
+		},
+		{
+			command: "flatmaxx <kicad-project> --config flatmaxxing.toml",
+			description: "Creates CNC files using an explicit config file.",
+		},
+	]),
 );
 
 Flatmaxx.pipe(
-  Command.run({ version: "1.0.0" }),
-  Effect.provide(Layer.mergeAll(BunServices.layer)),
-  Effect.scoped,
-  BunRuntime.runMain({ disableErrorReporting: false }),
+	Command.run({ version: "1.0.0" }),
+	Effect.provide(Layer.mergeAll(BunServices.layer)),
+	Effect.scoped,
+	BunRuntime.runMain({ disableErrorReporting: false }),
 );

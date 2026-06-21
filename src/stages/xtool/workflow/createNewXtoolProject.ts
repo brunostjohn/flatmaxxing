@@ -1,3 +1,4 @@
+import type { XToolLifecycleOptions } from "@/config";
 import { Effect, Schedule } from "effect";
 import {
 	getNewProjectTarget,
@@ -16,6 +17,7 @@ export const createNewXtoolProject = Effect.fn(
 )(function* (
 	tasks: XToolTasks,
 	paths: CreateProjectTaskPaths = xToolTaskPaths.cdp,
+	options?: XToolLifecycleOptions,
 ) {
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
@@ -24,35 +26,39 @@ export const createNewXtoolProject = Effect.fn(
 
 	const targets = yield* tasks.runTask({
 		path: paths.listTargets,
-		effect: getTargets,
-		loading: { status: "Finding CDP targets on port 9333..." },
+		effect: getTargets(options),
+		loading: {
+			status: `Finding CDP targets on port ${options?.cdpPort ?? 9333}...`,
+		},
 		success: { label: "CDP targets listed." },
 	});
 
 	const shellClient = yield* tasks.runTask({
 		path: paths.connectShell,
-		effect: getXToolStudioShell(targets),
+		effect: getXToolStudioShell(targets, options),
 		loading: { status: "Connecting to atomm://renderer/shell..." },
 		success: { label: "Connected to xTool shell window." },
 	});
 
 	const { Runtime } = shellClient;
 
-	yield* tasks.runTask({
-		path: paths.discardRestoreModal,
-		effect: discardXToolShellRestoreModal(shellClient),
-		loading: { status: "Checking for xTool restore modal..." },
-		success: { label: "xTool restore modal check complete." },
-		error: { label: "Failed to check xTool restore modal." },
-	}).pipe(
-		Effect.andThen((discarded) =>
-			tasks.patchTask(paths.discardRestoreModal, {
-				output: discarded
-					? 'Clicked restore modal "Discard" button.'
-					: "No restore modal found.",
-			}),
-		),
-	);
+	yield* tasks
+		.runTask({
+			path: paths.discardRestoreModal,
+			effect: discardXToolShellRestoreModal(shellClient),
+			loading: { status: "Checking for xTool restore modal..." },
+			success: { label: "xTool restore modal check complete." },
+			error: { label: "Failed to check xTool restore modal." },
+		})
+		.pipe(
+			Effect.andThen((discarded) =>
+				tasks.patchTask(paths.discardRestoreModal, {
+					output: discarded
+						? 'Clicked restore modal "Discard" button.'
+						: "No restore modal found.",
+				}),
+			),
+		);
 
 	yield* tasks.runTask({
 		path: paths.createEditorProject,
@@ -66,7 +72,7 @@ export const createNewXtoolProject = Effect.fn(
 
 	const newProjectTarget = yield* tasks.runTask({
 		path: paths.connectEditor,
-		effect: getNewProjectTarget().pipe(
+		effect: getNewProjectTarget(options).pipe(
 			Effect.retry(
 				Schedule.exponential(1000).pipe(Schedule.both(Schedule.recurs(3))),
 			),

@@ -9,10 +9,12 @@ additionalDistance = { left = 16, right = 4, top = 4, bottom = 4 }
 [solderMask]
 generate = true
 double = true
+excludeSides = []
 distance = { x = 6, y = 6 }
 
 [stencil]
 generate = true
+excludeSides = []
 
 [drills]
 generate = true
@@ -22,7 +24,7 @@ withEdgeCuts = true
 generate = true
 
 [cnc]
-availbleDrills = [
+availableDrills = [
     { diameter = 0.3 },
     { diameter = 0.5 },
     { diameter = 0.7 },

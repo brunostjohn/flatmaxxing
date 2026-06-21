@@ -21,3 +21,25 @@ export const xToolStudioOpenArgs = [
 	"--args",
 	...xToolStudioLaunchArgs,
 ] as const;
+
+export const getXToolStudioTargetListUrl = ({
+	cdpHost = xToolStudioCdpHost,
+	cdpPort = xToolStudioCdpPort,
+}: {
+	readonly cdpHost?: string | undefined;
+	readonly cdpPort?: number | undefined;
+} = {}) => `http://${cdpHost}:${cdpPort}/json/list`;
+
+export const getXToolStudioLaunchArgs = ({
+	cdpPort = xToolStudioCdpPort,
+}: {
+	readonly cdpPort?: number | undefined;
+} = {}) => [`--remote-debugging-port=${cdpPort}`, "--remote-allow-origins=*"];
+
+export const getXToolStudioOpenArgs = ({
+	appPath = xToolStudioAppPath,
+	cdpPort = xToolStudioCdpPort,
+}: {
+	readonly appPath?: string | undefined;
+	readonly cdpPort?: number | undefined;
+} = {}) => ["-n", appPath, "--args", ...getXToolStudioLaunchArgs({ cdpPort })];

@@ -1,13 +1,15 @@
+import { markTaskBranch } from "@/inkHelpers";
 import { runAppleScript } from "@/utils";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
 import { resolve } from "node:path";
 import { applescriptCopyFileToClipboard } from "../scripts";
+import { xToolTasks } from "../tasks";
 import { getSolderMaskBounds } from "./getSolderMaskBounds";
 import { pasteIntoXToolStudio } from "./pasteIntoXToolStudio";
 import { solderMaskSideConfig } from "./solderMaskSideConfig";
 import type {
-	SolderMaskPasteOffsets,
+	SolderMaskImportOptions,
 	SolderMaskSide,
 	XToolTasks,
 } from "./types";
@@ -19,8 +21,7 @@ export const importSolderMask = Effect.fn("flatmaxx.xtool.importSolderMask")(
 		side: SolderMaskSide,
 		newProjectTarget: Client,
 		tasks: XToolTasks,
-		firstPasteOffsets: SolderMaskPasteOffsets,
-		secondPasteOffsets: SolderMaskPasteOffsets,
+		options: SolderMaskImportOptions,
 	) {
 		const config = solderMaskSideConfig[side];
 		const paths = config.taskPaths;
@@ -56,18 +57,27 @@ export const importSolderMask = Effect.fn("flatmaxx.xtool.importSolderMask")(
 		yield* pasteIntoXToolStudio(
 			newProjectTarget,
 			bounds,
-			firstPasteOffsets,
+			options.firstPasteOffsets,
 			tasks,
 			paths.pasteFirst,
 		);
 
-		yield* pasteIntoXToolStudio(
-			newProjectTarget,
-			bounds,
-			secondPasteOffsets,
-			tasks,
-			paths.pasteSecond,
-		);
+		if (options.pasteSecond) {
+			yield* pasteIntoXToolStudio(
+				newProjectTarget,
+				bounds,
+				options.secondPasteOffsets,
+				tasks,
+				paths.pasteSecond,
+			);
+		} else {
+			yield* markTaskBranch(tasks, xToolTasks, paths.pasteSecond.root, {
+				state: "success",
+				label: `Second ${config.label} solder mask paste skipped.`,
+				status: "solderMask.double=false",
+				childStatus: "solderMask.double=false",
+			});
+		}
 
 		yield* tasks.patchTask(paths.root, {
 			state: "success",

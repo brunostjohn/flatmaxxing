@@ -1,0 +1,12 @@
+# Used by `bun run dev`. Keep this non-interactive and avoid launching xTool.
+extends = ["flatmaxxing.user.toml"]
+
+[board]
+file = "valid_board.kicad_pcb"
+autoFix = false
+
+[solderMask]
+generate = false
+
+[stencil]
+generate = false

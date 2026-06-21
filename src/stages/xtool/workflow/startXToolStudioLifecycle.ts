@@ -1,14 +1,17 @@
+import type { XToolLifecycleOptions } from "@/config";
 import { Effect, Ref, Schedule } from "effect";
 import { getTargets, getXToolStudioShell } from "../cdp";
 import {
 	closeOwnedXToolStudio,
+	getXToolStudioLaunchArgs,
+	getXToolStudioOpenArgs,
 	getRunningProcessIds,
 	getXToolStudioProcessIds,
 	launchXToolStudio,
 	waitForXToolStudioToExit,
+	xToolStudioAppPath,
+	xToolStudioCdpHost,
 	xToolStudioCdpPort,
-	xToolStudioLaunchArgs,
-	xToolStudioOpenArgs,
 } from "../process";
 import { xToolTaskPaths } from "../tasks";
 import { confirmCloseExistingXToolStudio } from "./confirmCloseExistingXToolStudio";
@@ -16,11 +19,22 @@ import type { XToolLifecycleTaskPaths, XToolTasks } from "./types";
 import { discardXToolShellRestoreModal } from "./discardXToolShellRestoreModal";
 import { waitForXToolStudioShellCreateProjectButton } from "./waitForXToolStudioShellCreateProjectButton";
 
+const defaultLifecycleOptions: XToolLifecycleOptions = {
+	appPath: xToolStudioAppPath,
+	cdpHost: xToolStudioCdpHost,
+	cdpPort: xToolStudioCdpPort,
+	window: {
+		width: 1280,
+		height: 720,
+	},
+};
+
 export const startXToolStudioLifecycle = Effect.fn(
 	"flatmaxx.xtool.startLifecycle",
 )(function* (
 	tasks: XToolTasks,
 	paths: XToolLifecycleTaskPaths = xToolTaskPaths.lifecycle,
+	options: XToolLifecycleOptions = defaultLifecycleOptions,
 ) {
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
@@ -47,9 +61,8 @@ export const startXToolStudioLifecycle = Effect.fn(
 			status: "Waiting for y/n confirmation...",
 		});
 
-		const shouldWait = yield* confirmCloseExistingXToolStudio(
-			existingProcessIds,
-		);
+		const shouldWait =
+			yield* confirmCloseExistingXToolStudio(existingProcessIds);
 
 		if (!shouldWait) {
 			yield* tasks.patchTask(paths.confirmCloseExisting, {
@@ -102,14 +115,16 @@ export const startXToolStudioLifecycle = Effect.fn(
 
 	const handle = yield* tasks.runTask({
 		path: paths.launch,
-		effect: launchXToolStudio(),
-		loading: { status: `open ${xToolStudioOpenArgs.join(" ")}` },
+		effect: launchXToolStudio(options),
+		loading: {
+			status: `open ${getXToolStudioOpenArgs(options).join(" ")}`,
+		},
 		success: { label: "xTool Studio launched with CDP flags." },
 		error: { label: "Failed to launch xTool Studio." },
 	});
 
 	yield* tasks.patchTask(paths.launch, {
-		output: `PIDs: ${handle.processIds.join(", ")}; flags: ${xToolStudioLaunchArgs.join(" ")}`,
+		output: `PIDs: ${handle.processIds.join(", ")}; flags: ${getXToolStudioLaunchArgs(options).join(" ")}`,
 	});
 
 	const startupCompleted = yield* Ref.make(false);
@@ -162,8 +177,8 @@ export const startXToolStudioLifecycle = Effect.fn(
 	const shellClient = yield* tasks.runTask({
 		path: paths.waitShell,
 		effect: Effect.gen(function* () {
-			const targets = yield* getTargets;
-			return yield* getXToolStudioShell(targets);
+			const targets = yield* getTargets(options);
+			return yield* getXToolStudioShell(targets, options);
 		}).pipe(
 			Effect.catch((error) =>
 				Effect.gen(function* () {
@@ -174,11 +189,10 @@ export const startXToolStudioLifecycle = Effect.fn(
 						runningProcessIds.length > 0
 							? `xTool Studio still running as PID(s): ${runningProcessIds.join(", ")}`
 							: "xTool Studio process exited before CDP became ready";
-					const message = error instanceof Error ? error.message : String(error);
+					const message =
+						error instanceof Error ? error.message : String(error);
 
-					return yield* Effect.fail(
-						new Error(`${message}. ${processDetail}.`),
-					);
+					return yield* Effect.fail(new Error(`${message}. ${processDetail}.`));
 				}),
 			),
 			Effect.retry(
@@ -186,27 +200,29 @@ export const startXToolStudioLifecycle = Effect.fn(
 			),
 		),
 		loading: {
-			status: `Waiting for CDP shell target on ${xToolStudioCdpPort}...`,
+			status: `Waiting for CDP shell target on ${options.cdpPort}...`,
 		},
 		success: { label: "xTool shell CDP target connected." },
 		error: { label: "Failed to connect to xTool shell CDP target." },
 	});
 
-	yield* tasks.runTask({
-		path: paths.discardRestoreModal,
-		effect: discardXToolShellRestoreModal(shellClient),
-		loading: { status: "Checking for xTool restore modal..." },
-		success: { label: "xTool restore modal check complete." },
-		error: { label: "Failed to check xTool restore modal." },
-	}).pipe(
-		Effect.andThen((discarded) =>
-			tasks.patchTask(paths.discardRestoreModal, {
-				output: discarded
-					? 'Clicked restore modal "Discard" button.'
-					: "No restore modal found.",
-			}),
-		),
-	);
+	yield* tasks
+		.runTask({
+			path: paths.discardRestoreModal,
+			effect: discardXToolShellRestoreModal(shellClient),
+			loading: { status: "Checking for xTool restore modal..." },
+			success: { label: "xTool restore modal check complete." },
+			error: { label: "Failed to check xTool restore modal." },
+		})
+		.pipe(
+			Effect.andThen((discarded) =>
+				tasks.patchTask(paths.discardRestoreModal, {
+					output: discarded
+						? 'Clicked restore modal "Discard" button.'
+						: "No restore modal found.",
+				}),
+			),
+		);
 
 	yield* tasks.runTask({
 		path: paths.waitCreateProjectButton,
@@ -225,6 +241,6 @@ export const startXToolStudioLifecycle = Effect.fn(
 	yield* tasks.patchTask(paths.root, {
 		state: "loading",
 		label: "xTool Studio is running.",
-		status: `CDP port ${xToolStudioCdpPort} is ready.`,
+		status: `CDP port ${options.cdpPort} is ready.`,
 	});
 });

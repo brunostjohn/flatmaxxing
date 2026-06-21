@@ -1,11 +1,12 @@
 import CDP from "chrome-remote-interface";
 import { Effect } from "effect";
 import { xToolStudioCdpHost, xToolStudioCdpPort } from "../process";
+import type { XToolStudioRuntimeOptions } from "../process";
 import { getTargets } from "./getTargets";
 
 export const getNewProjectTarget = Effect.fn("flatmaxx.xtool.getEditor")(
-	function* () {
-		const targets = yield* getTargets;
+	function* (options?: Partial<XToolStudioRuntimeOptions>) {
+		const targets = yield* getTargets(options);
 
 		const target = targets.find(
 			(t) =>
@@ -20,8 +21,8 @@ export const getNewProjectTarget = Effect.fn("flatmaxx.xtool.getEditor")(
 
 		return yield* Effect.promise(() =>
 			CDP({
-				host: xToolStudioCdpHost,
-				port: xToolStudioCdpPort,
+				host: options?.cdpHost ?? xToolStudioCdpHost,
+				port: options?.cdpPort ?? xToolStudioCdpPort,
 				target: target.id,
 			}),
 		);

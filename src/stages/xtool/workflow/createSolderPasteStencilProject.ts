@@ -1,3 +1,4 @@
+import type { StencilXToolOptions, XToolLifecycleOptions } from "@/config";
 import { Effect } from "effect";
 import { configureDeviceForSolderPasteStencil } from "./configureDeviceForSolderPasteStencil";
 import { configureSettingsForSolderPasteStencil } from "./configureSettingsForSolderPasteStencil";
@@ -16,6 +17,13 @@ export const createSolderPasteStencilProject = Effect.fn(
 	pcbName: string,
 	side: SolderPasteStencilSide,
 	tasks: XToolTasks,
+	settings: StencilXToolOptions = {
+		device: "F1 Ultra",
+		power: 100,
+		speed: 6000,
+		passes: 3,
+	},
+	lifecycleOptions?: XToolLifecycleOptions,
 ) {
 	const config = solderPasteStencilSideConfig[side];
 	const paths = config.taskPaths;
@@ -42,12 +50,21 @@ export const createSolderPasteStencilProject = Effect.fn(
 		return true;
 	}
 
-	const newProjectTarget = yield* createNewXtoolProject(tasks, paths.cdp);
+	const newProjectTarget = yield* createNewXtoolProject(
+		tasks,
+		paths.cdp,
+		lifecycleOptions,
+	);
 
-	yield* configureDeviceForSolderPasteStencil(newProjectTarget, tasks, {
-		...paths.device,
-		selectDevice: paths.device.selectF1Ultra,
-	});
+	yield* configureDeviceForSolderPasteStencil(
+		newProjectTarget,
+		tasks,
+		{
+			...paths.device,
+			selectDevice: paths.device.selectF1Ultra,
+		},
+		lifecycleOptions,
+	);
 
 	yield* importSolderPasteStencilDxf(
 		desiredAbsolutePath,
@@ -61,6 +78,7 @@ export const createSolderPasteStencilProject = Effect.fn(
 		{ Runtime: newProjectTarget.Runtime, Input: newProjectTarget.Input },
 		tasks,
 		paths.settings,
+		settings,
 	);
 
 	yield* saveXtoolProjectAndClose(

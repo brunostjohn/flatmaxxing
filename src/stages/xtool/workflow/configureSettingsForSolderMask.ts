@@ -1,3 +1,4 @@
+import type { SolderMaskXToolOptions } from "@/config";
 import type { Client } from "chrome-remote-interface";
 import { Duration, Effect } from "effect";
 import { cdpClickOn, cdpTypeIn, runScriptInXToolStudio } from "../cdp";
@@ -15,6 +16,11 @@ export const configureSettingsForSolderMask = Effect.fn(
 )(function* (
 	{ Runtime, Input }: Pick<Client, "Runtime" | "Input">,
 	tasks: XToolTasks,
+	settings: SolderMaskXToolOptions = {
+		device: "M1 Ultra",
+		intensity: 100,
+		passes: 3,
+	},
 ) {
 	const paths = xToolTaskPaths.settings;
 
@@ -56,11 +62,11 @@ export const configureSettingsForSolderMask = Effect.fn(
 				intensityY + intensityHeight / 2,
 				Input,
 			);
-			yield* cdpTypeIn("100", Input, true);
+			yield* cdpTypeIn(String(settings.intensity), Input, true);
 			yield* Effect.sleep(Duration.millis(500));
 		}),
-		loading: { status: "Typing intensity 100..." },
-		success: { label: "Intensity set to 100." },
+		loading: { status: `Typing intensity ${settings.intensity}...` },
+		success: { label: `Intensity set to ${settings.intensity}.` },
 	});
 
 	yield* tasks.runTask({
@@ -81,11 +87,11 @@ export const configureSettingsForSolderMask = Effect.fn(
 				passesY + passesHeight / 2,
 				Input,
 			);
-			yield* cdpTypeIn("3", Input, true);
+			yield* cdpTypeIn(String(settings.passes), Input, true);
 			yield* Effect.sleep(Duration.millis(500));
 		}),
-		loading: { status: "Typing passes 3..." },
-		success: { label: "Passes set to 3." },
+		loading: { status: `Typing passes ${settings.passes}...` },
+		success: { label: `Passes set to ${settings.passes}.` },
 	});
 
 	yield* tasks.runTask({

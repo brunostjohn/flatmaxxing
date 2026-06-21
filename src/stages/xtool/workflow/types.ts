@@ -14,6 +14,12 @@ export type SolderMaskPasteOffsets = {
 	bottom?: number;
 };
 
+export type SolderMaskImportOptions = {
+	readonly firstPasteOffsets: SolderMaskPasteOffsets;
+	readonly secondPasteOffsets: SolderMaskPasteOffsets;
+	readonly pasteSecond: boolean;
+};
+
 export type SolderMaskSide = "front" | "back";
 
 export type SolderPasteStencilSide = "front" | "back";

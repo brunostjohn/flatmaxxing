@@ -1,3 +1,4 @@
+import type { XToolLifecycleOptions } from "@/config";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
 import { clickF1Ultra } from "../scripts";
@@ -10,6 +11,7 @@ export const configureDeviceForSolderPasteStencil = Effect.fn(
 	newProjectTarget: Client,
 	tasks: XToolTasks,
 	paths: DeviceSelectionTaskPaths,
+	options?: XToolLifecycleOptions,
 ) {
 	yield* selectXtoolDevice(
 		newProjectTarget,
@@ -17,5 +19,6 @@ export const configureDeviceForSolderPasteStencil = Effect.fn(
 		paths,
 		"F1 Ultra",
 		clickF1Ultra,
+		options?.window,
 	);
 });
