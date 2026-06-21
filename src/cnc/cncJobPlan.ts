@@ -18,6 +18,12 @@ export interface NccToolStep {
 	readonly diameter: number;
 	/** Positive cut depth (mm). */
 	readonly cutDepth: number;
+	/** XY cutting feedrate for this tool's cncjob. */
+	readonly feedRate: number;
+	/** Z plunge feedrate for this tool's cncjob. */
+	readonly zCutFeedRate: number;
+	/** Spindle speed for this tool. */
+	readonly spindleSpeed: number;
 	readonly label: string;
 }
 
@@ -58,8 +64,10 @@ export interface CncJobPlan {
  *    (biggest→smallest) plus the V-bit appended last as the fine finish.
  *
  * FlatCAM's non-rest path already clears complementary "rest" areas between
- * tools, so the broken `-rest` flag is unnecessary. Mills cut at `millZCutDepth`
- * (deeper, for unreliable corn-bit TLO); the V-bit cuts at the NCC cut depth.
+ * tools, so the broken `-rest` flag is unnecessary. Every tool has its own RPM
+ * and feeds: each mill resolves from its `availableMills` override → falls back
+ * to `cnc.nonCopperClearing`; the V-bit isolation pass uses `cnc.isolation`; the
+ * V-bit NCC-finish pass uses `cnc.nonCopperClearing` (independent of isolation).
  */
 export const buildCncJobPlan = (config: ResolvedConfig): CncJobPlan => {
 	const iso = config.cnc.isolation;
@@ -86,11 +94,17 @@ export const buildCncJobPlan = (config: ResolvedConfig): CncJobPlan => {
 			uid,
 			kind: "mill",
 			diameter: mill.diameter,
-			cutDepth: ncc.millZCutDepth,
+			cutDepth: mill.zCutDepth ?? ncc.millZCutDepth,
+			feedRate: mill.feedRate ?? ncc.feedRate,
+			zCutFeedRate: mill.zCutFeedRate ?? ncc.zCutFeedRate,
+			spindleSpeed: mill.spindleSpeed ?? ncc.spindleSpeed,
 			label: `${formatDia(mill.diameter)}mm mill`,
 		});
 	}
-	// V-bit finish: same physical bit as isolation, cut at the NCC depth.
+	// V-bit NCC finish: the same physical bit as isolation, but a separate NCC
+	// operation — its feeds, RPM and depth come from cnc.nonCopperClearing so it
+	// is tuned independently from the isolation pass (notably a different spindle
+	// RPM, since wrong RPM under the heavier clearing load can break the bit).
 	uid += 1;
 	const nccVbitDiameter = effectiveToolDiameter(isoTool, ncc.zCutDepth);
 	tools.push({
@@ -98,6 +112,9 @@ export const buildCncJobPlan = (config: ResolvedConfig): CncJobPlan => {
 		kind: "vbit",
 		diameter: nccVbitDiameter,
 		cutDepth: ncc.zCutDepth,
+		feedRate: ncc.feedRate,
+		zCutFeedRate: ncc.zCutFeedRate,
+		spindleSpeed: ncc.spindleSpeed,
 		label: `${formatDia(nccVbitDiameter)}mm V-bit`,
 	});
 

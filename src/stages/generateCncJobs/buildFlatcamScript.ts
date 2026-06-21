@@ -139,9 +139,9 @@ export const buildFlatcamScript = (input: FlatcamScriptInput): string => {
 			lines.push(
 				`        cncjob ${obj} ${cncjobArgs(
 					plan,
-					plan.ncc.feedRate,
-					plan.ncc.zCutFeedRate,
-					plan.ncc.spindleSpeed,
+					tool.feedRate,
+					tool.zCutFeedRate,
+					tool.spindleSpeed,
 					tool.diameter,
 					tool.cutDepth,
 				)} -outname ${obj}_cnc`,

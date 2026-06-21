@@ -156,7 +156,13 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 		"flatcam",
 		"isolation + clearing (this can take a while)",
 	);
-	yield* runFlatcam({ flatcam, shellFile, logFile, doneFile }).pipe(
+	yield* runFlatcam({
+		flatcam,
+		shellFile,
+		logFile,
+		doneFile,
+		onProgress: (line) => setTaskOutput("flatcam", line),
+	}).pipe(
 		Effect.tapError((error) =>
 			patchTask("flatcam", {
 				state: "error",
@@ -233,7 +239,7 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
 						toolNumber,
 						label:
 							tool.kind === "vbit" ? `${tool.label} (clearing)` : tool.label,
-						spindleSpeed: options.plan.ncc.spindleSpeed,
+						spindleSpeed: tool.spindleSpeed,
 						travelZ: options.plan.clearance.travelZ,
 						body,
 					});

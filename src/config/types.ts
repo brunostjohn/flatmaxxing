@@ -131,6 +131,12 @@ export type CncVBitOptions = {
 export type CncMillBitOptions = {
 	readonly type: "mill";
 	readonly diameter: number;
+	// Optional per-tool NCC overrides; each falls back to cnc.nonCopperClearing.
+	readonly feedRate?: number | undefined;
+	readonly zCutFeedRate?: number | undefined;
+	readonly spindleSpeed?: number | undefined;
+	/** Cut depth for this mill; falls back to nonCopperClearing.millZCutDepth. */
+	readonly zCutDepth?: number | undefined;
 };
 
 export type CncDrillOptions = {
