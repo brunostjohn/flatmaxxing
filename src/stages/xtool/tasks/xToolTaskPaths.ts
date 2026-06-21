@@ -1,4 +1,5 @@
 /** biome-ignore-all lint/correctness/noInvalidUseBeforeDeclaration: chill im not at work */
+const lifecycle = ["xtool-studio-lifecycle"] as const;
 const project = ["solder-mask-project"] as const;
 const pasteStencils = ["solder-paste-stencils"] as const;
 
@@ -29,6 +30,19 @@ const frontStencilSave = [...frontStencil, "save-project"] as const;
 const backStencilSave = [...backStencil, "save-project"] as const;
 
 export const xToolTaskPaths = {
+	lifecycle: {
+		root: lifecycle,
+		checkExisting: [...lifecycle, "check-existing-process"] as const,
+		confirmCloseExisting: [...lifecycle, "confirm-close-existing"] as const,
+		waitExistingExit: [...lifecycle, "wait-existing-exit"] as const,
+		launch: [...lifecycle, "launch-with-cdp-flags"] as const,
+		waitShell: [...lifecycle, "wait-shell-target"] as const,
+		waitCreateProjectButton: [
+			...lifecycle,
+			"wait-create-project-button",
+		] as const,
+		close: [...lifecycle, "close-owned-process"] as const,
+	},
 	outputFolder: ["output-folder"] as const,
 	project,
 	pasteStencils: {

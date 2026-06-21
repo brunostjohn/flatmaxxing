@@ -21,5 +21,6 @@ export * from "./getXBoundingBox";
 export * from "./getYBoundingBox";
 export * from "./installSavePatchScript";
 export * from "./isPageLoadingUnmounted";
+export * from "./isShellCreateProjectButtonReady";
 export * from "./shellClickOnSaveScript";
 export * from "./shellCreateProjectBrowserScript";

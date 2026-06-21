@@ -3,6 +3,48 @@ import { solderPasteStencilTasks } from "./solderPasteStencilTasks";
 
 export const xToolTasks = [
 	{
+		id: "xtool-studio-lifecycle",
+		label: "Own xTool Studio process",
+		state: "pending",
+		children: [
+			{
+				id: "check-existing-process",
+				label: "Check for existing xTool Studio",
+				state: "pending",
+			},
+			{
+				id: "confirm-close-existing",
+				label: "Confirm existing xTool Studio is closed",
+				state: "pending",
+			},
+			{
+				id: "wait-existing-exit",
+				label: "Wait for existing xTool Studio to exit",
+				state: "pending",
+			},
+			{
+				id: "launch-with-cdp-flags",
+				label: "Launch xTool Studio with CDP flags",
+				state: "pending",
+			},
+			{
+				id: "wait-shell-target",
+				label: "Wait for xTool shell CDP target",
+				state: "pending",
+			},
+			{
+				id: "wait-create-project-button",
+				label: "Wait for shell plus button",
+				state: "pending",
+			},
+			{
+				id: "close-owned-process",
+				label: "Close app-owned xTool Studio",
+				state: "pending",
+			},
+		],
+	},
+	{
 		id: "output-folder",
 		label: "Prepare xTool output folder",
 		state: "pending",

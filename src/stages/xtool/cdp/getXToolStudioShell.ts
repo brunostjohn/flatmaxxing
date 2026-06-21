@@ -1,5 +1,6 @@
 import CDP from "chrome-remote-interface";
 import { Effect } from "effect";
+import { xToolStudioCdpHost, xToolStudioCdpPort } from "../process";
 
 export const getXToolStudioShell = Effect.fn("flatmaxx.xtool.getShell")(
 	function* (targets: CDP.Target[]) {
@@ -11,6 +12,12 @@ export const getXToolStudioShell = Effect.fn("flatmaxx.xtool.getShell")(
 			return yield* Effect.fail(new Error("No xTool Studio shell found."));
 		}
 
-		return yield* Effect.promise(() => CDP({ port: 9333, target: target.id }));
+		return yield* Effect.promise(() =>
+			CDP({
+				host: xToolStudioCdpHost,
+				port: xToolStudioCdpPort,
+				target: target.id,
+			}),
+		);
 	},
 );

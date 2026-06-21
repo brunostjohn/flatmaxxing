@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { xToolTaskPaths, xToolTasks } from "../tasks";
 import { createSolderMaskProject } from "./createSolderMaskProject";
 import { createSolderPasteStencilProjects } from "./createSolderPasteStencilProjects";
+import { startXToolStudioLifecycle } from "./startXToolStudioLifecycle";
 
 export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
   function* (
@@ -18,6 +19,16 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
       "Step 2: Create xTool projects",
     );
     const xtoolProjectPath = resolve(projectPath, "xtool");
+
+    yield* startXToolStudioLifecycle(tasks).pipe(
+      Effect.tapError((error) =>
+        tasks.patchTask(xToolTaskPaths.lifecycle.root, {
+          state: "error",
+          label: "Failed to prepare xTool Studio.",
+          output: error instanceof Error ? error.message : String(error),
+        }),
+      ),
+    );
 
     if (!(yield* fs.exists(xtoolProjectPath))) {
       yield* tasks.runTask({

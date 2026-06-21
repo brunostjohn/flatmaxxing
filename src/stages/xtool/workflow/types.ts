@@ -18,6 +18,17 @@ export type SolderMaskSide = "front" | "back";
 
 export type SolderPasteStencilSide = "front" | "back";
 
+export type XToolLifecycleTaskPaths = {
+	root: TaskPath;
+	checkExisting: TaskPath;
+	confirmCloseExisting: TaskPath;
+	waitExistingExit: TaskPath;
+	launch: TaskPath;
+	waitShell: TaskPath;
+	waitCreateProjectButton: TaskPath;
+	close: TaskPath;
+};
+
 export type CreateProjectTaskPaths = {
 	root: TaskPath;
 	listTargets: TaskPath;

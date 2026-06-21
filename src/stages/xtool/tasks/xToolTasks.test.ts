@@ -41,6 +41,28 @@ test("all xTool task path constants point at real task nodes", () => {
 	}
 });
 
+test("xTool lifecycle tasks run before project generation tasks", () => {
+	expect(xToolTasks[0]?.id).toBe("xtool-studio-lifecycle");
+	expect(xToolTasks[1]?.id).toBe("output-folder");
+	expect(xToolTasks[2]?.id).toBe("solder-mask-project");
+
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.checkExisting),
+	).toBeDefined();
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.confirmCloseExisting),
+	).toBeDefined();
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.waitExistingExit),
+	).toBeDefined();
+	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.launch)).toBeDefined();
+	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.waitShell)).toBeDefined();
+	expect(
+		findTask(xToolTasks, xToolTaskPaths.lifecycle.waitCreateProjectButton),
+	).toBeDefined();
+	expect(findTask(xToolTasks, xToolTaskPaths.lifecycle.close)).toBeDefined();
+});
+
 test("solder mask project waits for the editor UI before M1 setup", () => {
 	expect(findTask(xToolTasks, xToolTaskPaths.cdp.connectEditor)).toBeDefined();
 	expect(
