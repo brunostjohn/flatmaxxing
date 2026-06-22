@@ -16,8 +16,8 @@ import {
   selectLayerGraphics,
   setContourOutsideTabs,
   setEndDepth,
-  setStockMaterialPCB,
   setSequentialToolNumbers,
+  setStockMaterialPCB,
 } from "./actions";
 import { type LifecycleReport, withMakeraCamSession } from "./lifecycle";
 import { selectStepDrills } from "./selectStepDrills";
@@ -129,7 +129,7 @@ export const orchestrateMakeracamStep = Effect.fn(
           );
 
           const layerTitle = yield* importPcbFile(pid, tp.absPath);
-          yield* selectLayerGraphics(pid, layerTitle);
+          yield* selectLayerGraphics(pid, layerTitle.title ?? "");
 
           yield* openToolpath(pid, tp.kind);
           yield* setEndDepth(pid, tp.kind, options.cutDepthMm);

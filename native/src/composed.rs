@@ -92,7 +92,7 @@ pub async fn wait_for_element(
   pid: i32,
   query: AxQuery,
   opts: Option<WaitOptions>,
-) -> Result<(), napi::Error> {
+) -> Result<AxElementInfo, napi::Error> {
   let WaitOptions {
     timeout_ms,
     every_ms,
@@ -110,8 +110,8 @@ pub async fn wait_for_element(
 
   for _ in 0..attempts {
     let elements = ax_find(pid, query.clone()).unwrap_or_default();
-    if elements.get(nth_index as usize).is_some() {
-      return Ok(());
+    if let Some(element) = elements.get(nth_index as usize) {
+      return Ok(element.clone());
     }
 
     tokio::time::sleep(Duration::from_millis(every_ms as u64)).await;

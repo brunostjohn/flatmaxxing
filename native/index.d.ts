@@ -83,7 +83,7 @@ export interface Titles {
   value?: string
 }
 
-export declare function waitForElement(pid: number, query: AxQuery, opts?: WaitOptions | undefined | null): Promise<void>
+export declare function waitForElement(pid: number, query: AxQuery, opts?: WaitOptions | undefined | null): Promise<AxElementInfo>
 
 export declare function waitForGone(pid: number, query: AxQuery, opts?: WaitOptions | undefined | null): Promise<void>
 

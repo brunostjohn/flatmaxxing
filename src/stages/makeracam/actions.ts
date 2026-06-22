@@ -88,14 +88,14 @@ export const newProject3Axis = Effect.fn("flatmaxx.makeracam.newProject3Axis")(
 
     const boxes = (yield* axFind(pid, { role: "AXCheckBox" }))
       .slice()
-      .sort((a, b) => a.click.x - b.click.x);
+      .sort((a, b) => a.x - b.x);
     const threeAxis = boxes[0];
     if (threeAxis === undefined) {
       return yield* Effect.fail(
         new Error("Welcome: no 3-AXIS project-type checkbox found."),
       );
     }
-    yield* clickAt(threeAxis.click.x, threeAxis.click.y);
+    yield* clickAt({ x: threeAxis.x, y: threeAxis.y });
 
     yield* waitForElement(
       pid,
@@ -166,7 +166,10 @@ export const importPcbFile = Effect.fn("flatmaxx.makeracam.importPcbFile")(
           (t) => !before.has(t),
         );
         if (added.length > 0) {
-          return added.find((t) => t.includes(stem)) ?? added[0]!;
+          return (
+            added.find((t) => Object.values(t).some((v) => v.includes(stem))) ??
+            added[0]!
+          );
         }
         yield* Effect.sleep(Duration.millis(300));
       }
@@ -189,7 +192,7 @@ const KEY_ESCAPE = 53;
 const contextMenuOpen = Effect.fn("flatmaxx.makeracam.contextMenuOpen")(
   function* (pid: number) {
     const menus = yield* axFind(pid, { role: "AXMenu" });
-    return menus.some((m) => m.frame.w > 0 && m.frame.h > 0);
+    return menus.some((m) => m.w > 0 && m.h > 0);
   },
 );
 
@@ -209,13 +212,13 @@ const invokeRowMenuFromBottom = Effect.fn(
   yield* ensureFrontmost(MAKERACAM_APP);
   yield* dismissContextMenus(pid);
 
-  const { x, y } = row.click;
+  const { cx: x, cy: y } = row;
   const tryOpen = Effect.fn("tryOpen")(function* () {
-    yield* mouseMove(x - 40, y);
+    yield* mouseMove({ x: x - 40, y });
     yield* Effect.sleep(Duration.millis(50));
-    yield* mouseMove(x, y);
+    yield* mouseMove({ x, y });
     yield* Effect.sleep(Duration.millis(100));
-    yield* rightClickAt(x, y);
+    yield* rightClickAt({ x, y });
     for (let j = 0; j < 25; j++) {
       yield* Effect.sleep(Duration.millis(100));
       if (yield* contextMenuOpen(pid)) return true;
@@ -295,18 +298,14 @@ export const setValueByLabel = Effect.fn("flatmaxx.makeracam.setValueByLabel")(
       return yield* Effect.fail(new Error(`no label "${labelTitle}" found`));
     }
     const field = (yield* axFind(pid, { role: "AXTextField" }))
-      .filter(
-        (f) =>
-          Math.abs(f.frame.y - label.frame.y) <= 12 &&
-          f.frame.x > label.frame.x,
-      )
-      .sort((a, b) => a.frame.x - b.frame.x)[0];
+      .filter((f) => Math.abs(f.y - label.y) <= 12 && f.x > label.x)
+      .sort((a, b) => a.x - b.x)[0];
     if (field === undefined) {
       return yield* Effect.fail(
         new Error(`no text field on the row of "${labelTitle}"`),
       );
     }
-    yield* doubleClickAt(field.click.x, field.click.y);
+    yield* doubleClickAt({ x: field.cx, y: field.cy });
     yield* Effect.sleep(Duration.millis(200));
     yield* pressKeyCode(0, ["command"]);
     yield* typeText(value);
@@ -334,8 +333,8 @@ const toolListTable = Effect.fn("flatmaxx.makeracam.toolListTable")(function* (
   pid: number,
 ) {
   const tables = (yield* axFind(pid, { role: "AXTable" }))
-    .filter((t) => t.frame.x < 900)
-    .sort((a, b) => a.frame.y - b.frame.y);
+    .filter((t) => t.x < 900)
+    .sort((a, b) => a.y - b.y);
   return tables[0];
 });
 
@@ -348,10 +347,10 @@ const selectToolRow = Effect.fn("flatmaxx.makeracam.selectToolRow")(function* (
   if (table === undefined) {
     return yield* Effect.fail(new Error("Tool Magazine: no tool-list table"));
   }
-  const bandTop = table.frame.y + 8;
-  const bandBottom = table.frame.y + table.frame.h - 18;
-  const cx = table.frame.x + Math.round(table.frame.w / 2);
-  const cy = table.frame.y + Math.round(table.frame.h / 2);
+  const bandTop = table.y + 8;
+  const bandBottom = table.y + table.h - 18;
+  const cx = table.x + Math.round(table.w / 2);
+  const cy = table.y + Math.round(table.h / 2);
   const EPS = 1e-6;
 
   for (let i = 0; i < 12; i++) {
@@ -360,18 +359,18 @@ const selectToolRow = Effect.fn("flatmaxx.makeracam.selectToolRow")(function* (
       underTitle: "Tool Magazine",
     });
     const target = cells.find((c) =>
-      c.titles.some((t) => Math.abs(diaPrefix(t) - diaMm) < EPS),
+      Object.values(c.titles).some((t) => Math.abs(diaPrefix(t) - diaMm) < EPS),
     );
     if (target === undefined) {
       return yield* Effect.fail(
         new Error(`Tool Magazine: no ${category} row with diameter ${diaMm}`),
       );
     }
-    if (target.click.y >= bandTop && target.click.y <= bandBottom) {
-      yield* clickAt(target.click.x, target.click.y);
+    if (target.cy >= bandTop && target.cy <= bandBottom) {
+      yield* clickAt({ x: target.cx, y: target.cy });
       return;
     }
-    yield* mouseScroll(cx, cy, target.click.y > bandBottom ? -8 : 8);
+    yield* mouseScroll({ x: cx, y: cy }, target.cy > bandBottom ? -8 : 8);
     yield* Effect.sleep(SETTLE);
   }
   return yield* Effect.fail(
@@ -429,9 +428,7 @@ const setTabLayoutNumber = Effect.fn("flatmaxx.makeracam.setTabLayoutNumber")(
       if (label === undefined) return false;
       const popups = yield* axFind(pid, { role: "AXPopUpButton" });
       const idx = popups.findIndex(
-        (p) =>
-          Math.abs(p.frame.y - label.frame.y) <= 14 &&
-          p.frame.x > label.frame.x,
+        (p) => Math.abs(p.y - label.y) <= 14 && p.x > label.x,
       );
       if (idx < 0) return false;
       yield* performAction(
@@ -483,20 +480,20 @@ const clickTabsGenerate = Effect.fn("flatmaxx.makeracam.clickTabsGenerate")(
       title: "Calculate",
     }))[0];
     const bandTop = 360;
-    const bandBottom = (calc?.frame.y ?? 990) - 2;
+    const bandBottom = (calc?.y ?? 990) - 2;
     for (let i = 0; i < 25; i++) {
       const gen = (yield* axFind(pid, {
         role: "AXButton",
         title: "Generate",
       }))[0];
       if (gen === undefined) return;
-      if (gen.click.y >= bandTop && gen.click.y <= bandBottom) {
+      if (gen.cy >= bandTop && gen.cy <= bandBottom) {
         yield* Effect.sleep(Duration.millis(250));
-        yield* clickAt(gen.click.x, gen.click.y);
+        yield* clickAt({ x: gen.cx, y: gen.cy });
         yield* Effect.sleep(Duration.millis(400));
         return;
       }
-      yield* mouseScroll(1480, 600, gen.click.y > bandBottom ? -8 : 8);
+      yield* mouseScroll({ x: 1480, y: 600 }, gen.cy > bandBottom ? -8 : 8);
       yield* Effect.sleep(Duration.millis(120));
     }
   },
@@ -512,13 +509,13 @@ const setTabParam = Effect.fn("flatmaxx.makeracam.setTabParam")(function* (
     title: "Calculate",
   }))[0];
   const bandTop = 360;
-  const bandBottom = (calc?.frame.y ?? 980) - 24;
+  const bandBottom = (calc?.y ?? 980) - 24;
   const panelMidY = Math.round((bandTop + bandBottom) / 2);
   for (let i = 0; i < 30; i++) {
     const lbl = (yield* axFind(pid, { role: "AXStaticText", title: label }))[0];
     if (lbl === undefined) return;
-    if (lbl.click.y >= bandTop && lbl.click.y <= bandBottom) break;
-    yield* mouseScroll(1480, panelMidY, lbl.click.y > bandBottom ? -8 : 8);
+    if (lbl.cy >= bandTop && lbl.cy <= bandBottom) break;
+    yield* mouseScroll({ x: 1480, y: panelMidY }, lbl.cy > bandBottom ? -8 : 8);
     yield* Effect.sleep(Duration.millis(120));
   }
   yield* setValueByLabel(pid, label, value).pipe(Effect.ignore);
@@ -531,7 +528,7 @@ const selectTabsRadio = Effect.fn("flatmaxx.makeracam.selectTabsRadio")(
       title: "Calculate",
     }))[0];
     const bandTop = 360;
-    const bandBottom = (calc?.frame.y ?? 980) - 24;
+    const bandBottom = (calc?.y ?? 980) - 24;
     const panelX = 1480;
     const panelMidY = Math.round((bandTop + bandBottom) / 2);
 
@@ -542,14 +539,13 @@ const selectTabsRadio = Effect.fn("flatmaxx.makeracam.selectTabsRadio")(
           new Error(`Contour: Tabs '${title}' radio not found`),
         );
       }
-      if (radio.click.y >= bandTop && radio.click.y <= bandBottom) {
-        yield* clickAt(radio.click.x, radio.click.y);
+      if (radio.cy >= bandTop && radio.cy <= bandBottom) {
+        yield* clickAt({ x: radio.cx, y: radio.cy });
         return;
       }
       yield* mouseScroll(
-        panelX,
-        panelMidY,
-        radio.click.y > bandBottom ? -8 : 8,
+        { x: panelX, y: panelMidY },
+        radio.cy > bandBottom ? -8 : 8,
       );
       yield* Effect.sleep(Duration.millis(120));
     }
@@ -562,7 +558,9 @@ const selectTabsRadio = Effect.fn("flatmaxx.makeracam.selectTabsRadio")(
 const countPathNodes = Effect.fn("flatmaxx.makeracam.countPathNodes")(
   function* (pid: number) {
     const groups = yield* axFind(pid, { role: "AXGroup" });
-    return groups.filter((g) => g.titles.some((t) => /^\[T\d/.test(t))).length;
+    return groups.filter((g) =>
+      Object.values(g.titles).some((t) => /^\[T\d/.test(t)),
+    ).length;
   },
 );
 
@@ -603,8 +601,8 @@ const toolpathNodes = Effect.fn("flatmaxx.makeracam.toolpathNodes")(function* (
   pid: number,
 ) {
   return (yield* axFind(pid, { role: "AXGroup" }))
-    .filter((g) => g.titles.some((t) => /^\[T\d/.test(t)))
-    .sort((a, b) => a.frame.y - b.frame.y);
+    .filter((g) => Object.values(g.titles).some((t) => /^\[T\d/.test(t)))
+    .sort((a, b) => a.y - b.y);
 });
 
 export const reorderContourLast = Effect.fn(
@@ -612,7 +610,9 @@ export const reorderContourLast = Effect.fn(
 )(function* (pid: number) {
   for (let i = 0; i < 24; i++) {
     const nodes = yield* toolpathNodes(pid);
-    const idx = nodes.findIndex((g) => g.titles.some((t) => /Contour/.test(t)));
+    const idx = nodes.findIndex((g) =>
+      Object.values(g.titles).some((t) => /Contour/.test(t)),
+    );
     const contour = nodes[idx];
     if (contour === undefined || idx >= nodes.length - 1) return;
     yield* invokeRowMenuFromBottom(pid, contour, 5);
@@ -650,19 +650,21 @@ const readToolNumberColumn = Effect.fn(
   });
 
   const numberCells = cells.filter((c) =>
-    c.titles.some((t) => /^\d+$/.test(t.trim())),
+    Object.values(c.titles).some((t) => /^\d+$/.test(t.trim())),
   );
   if (numberCells.length === 0) return [] as readonly ExportRow[];
-  const maxX = Math.max(...numberCells.map((c) => c.frame.x));
-  const colCells = numberCells.filter((c) => Math.abs(c.frame.x - maxX) < 40);
+  const maxX = Math.max(...numberCells.map((c) => c.x));
+  const colCells = numberCells.filter((c) => Math.abs(c.x - maxX) < 40);
 
   return colCells
     .slice()
-    .sort((a, b) => a.frame.y - b.frame.y)
+    .sort((a, b) => a.y - b.y)
     .map(
       (c): ExportRow => ({
         toolNumberCell: c,
-        value: (c.titles.find((t) => /^\d+$/.test(t.trim())) ?? "").trim(),
+        value: (
+          Object.values(c.titles).find((t) => /^\d+$/.test(t.trim())) ?? ""
+        ).trim(),
       }),
     );
 });
@@ -679,8 +681,8 @@ export const setSequentialToolNumbers = Effect.fn(
     for (let i = 0; i < rows.length && i < desired.length; i++) {
       const row = rows[i];
       if (row === undefined || row.value === want(i)) continue;
-      const { x, y } = row.toolNumberCell.click;
-      yield* doubleClickAt(x, y);
+      const { cx: x, cy: y } = row.toolNumberCell;
+      yield* doubleClickAt({ x, y });
       yield* Effect.sleep(SETTLE);
       yield* pressKeyCode(0, ["command"]);
       yield* typeText(want(i));
