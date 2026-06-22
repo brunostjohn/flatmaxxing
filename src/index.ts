@@ -105,7 +105,6 @@ const Flatmaxx = Command.make(
 			buildAlignmentDrillCategorizationOptions(config),
 		);
 
-		// Generate the plating + final edge-cut outline Gerbers for MakeraCAM import.
 		yield* generateEdgeCutGerbers(pcbFile, buildEdgeCutGerberOptions(config));
 
 		const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
@@ -115,8 +114,6 @@ const Flatmaxx = Command.make(
 			buildXToolProjectOptions(config),
 		);
 
-		// Final machining steps: drive MakeraCAM to build + export the plated and
-		// final G-code/.mkc. Skippable per step; requires Accessibility when enabled.
 		const makeracamEnabled =
 			config.makeracam.platedHoles.generate ||
 			config.makeracam.finalCut.generate;

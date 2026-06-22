@@ -167,11 +167,6 @@ const includeArc = (
 const distance = (a: Coordinate, b: Coordinate): number =>
 	Math.hypot(a.x - b.x, a.y - b.y);
 
-/**
- * The signed angle (in `[0, 2π)`) of `point` as seen from `center`. Exported so
- * the Edge.Cuts outline extractor can reuse the exact same arc geometry the
- * bounds inference uses.
- */
 export const angleOf = (center: Coordinate, point: Coordinate): number =>
 	normalizeAngle(Math.atan2(point.y - center.y, point.x - center.x));
 
@@ -186,7 +181,6 @@ const clockwiseDistance = (from: number, to: number): number =>
 const counterClockwiseDistance = (from: number, to: number): number =>
 	normalizeAngle(to - from);
 
-/** True if `angle` is reached going clockwise from `start` before `end` is. */
 export const isAngleBetweenClockwise = (
 	angle: number,
 	start: number,
@@ -201,11 +195,6 @@ const isAngleBetweenCounterClockwise = (
 	counterClockwiseDistance(start, angle) <=
 	counterClockwiseDistance(start, end);
 
-/**
- * The circle through three points, or `undefined` when they are collinear.
- * Exported for reuse by the Edge.Cuts outline extractor, which converts KiCad's
- * start/mid/end arcs into centre + winding for the Gerber writer.
- */
 export const circleFromThreePoints = (
 	a: Coordinate,
 	b: Coordinate,

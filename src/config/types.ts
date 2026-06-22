@@ -15,7 +15,6 @@ export type OutputPaths = {
 	readonly drills: string;
 	readonly xtool: string;
 	readonly place: string;
-	/** Where MakeraCAM project files (.mkc) are saved. */
 	readonly cnc: string;
 };
 
@@ -31,9 +30,7 @@ export type XToolRuntimeOptions = {
 
 export type MakeracamRuntimeOptions = {
 	readonly appPath: string;
-	/** Cut depth (mm) applied to drilling/pocket/contour End Depth. */
 	readonly cutDepthMm: number;
-	/** Auto-tab count per contour (Tab Layout = "Number"). */
 	readonly tabsPerContour: number;
 	readonly existingProcess: "prompt";
 	readonly window: {

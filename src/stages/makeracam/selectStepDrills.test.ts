@@ -49,16 +49,13 @@ test("plated step selects alignment (pocket!) + PTH, drills before pockets, asc 
 		(s) => `${s.category}-${s.method}-${s.diameterMm}`,
 	);
 
-	// alignment-pockets-1.5, PTH-drills-{0.4,0.5,0.8}, PTH-pockets-0.6 all present.
 	expect(labels).toContain("alignment-pockets-1.5");
 	expect(labels).toContain("PTH-drills-0.4");
 	expect(labels).toContain("PTH-drills-0.5");
 	expect(labels).toContain("PTH-drills-0.8");
 	expect(labels).toContain("PTH-pockets-0.6");
-	// No NPTH leaks into the plated step.
 	expect(labels.some((l) => l.startsWith("NPTH"))).toBe(false);
 
-	// Order: every drill comes before every pocket.
 	const lastDrill = selected.map((s) => s.method).lastIndexOf("drills");
 	const firstPocket = selected.map((s) => s.method).indexOf("pockets");
 	expect(lastDrill).toBeLessThan(firstPocket);

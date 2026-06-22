@@ -7,18 +7,6 @@ import {
 	type Pts,
 } from "kicadts";
 
-/**
- * Shared Edge.Cuts traversal.
- *
- * Both the board-bounds inference ({@link findEdgeCutsBounds}) and the true
- * outline extractor (`collectEdgeCutsPrimitives` in subsystem C) need to walk the
- * exact same set of graphic primitives on the `Edge.Cuts` layer — board-level
- * graphics plus footprint-level graphics with their affine placement transform
- * applied. Rather than duplicate that walk (and risk the two drifting apart),
- * this module yields a flat list of geometry primitives in **board millimetres**,
- * with footprint transforms already baked in. Consumers fold over the result.
- */
-
 export type Coordinate = {
 	readonly x: number;
 	readonly y: number;
@@ -28,14 +16,12 @@ export type PointTransform = (point: Coordinate) => Coordinate;
 
 const GEOMETRY_EPSILON = 1e-9;
 
-/** A straight Edge.Cuts segment. */
 export type EdgeCutSegment = {
 	readonly kind: "segment";
 	readonly start: Coordinate;
 	readonly end: Coordinate;
 };
 
-/** A circular Edge.Cuts arc, given by start / mid / end (KiCad's representation). */
 export type EdgeCutArc = {
 	readonly kind: "arc";
 	readonly start: Coordinate;
@@ -43,33 +29,24 @@ export type EdgeCutArc = {
 	readonly end: Coordinate;
 };
 
-/** A full Edge.Cuts circle (closed), center + a point on the circle. */
 export type EdgeCutCircle = {
 	readonly kind: "circle";
 	readonly center: Coordinate;
 	readonly edge: Coordinate;
 };
 
-/** An axis-aligned (pre-transform) Edge.Cuts rectangle, by opposite corners. */
 export type EdgeCutRect = {
 	readonly kind: "rect";
 	readonly start: Coordinate;
 	readonly end: Coordinate;
-	/** Transform to apply to the four corners (identity for board-level rects). */
 	readonly transform: PointTransform;
 };
 
-/** A KiCad cubic-Bézier Edge.Cuts curve, control points in board coordinates. */
 export type EdgeCutCurve = {
 	readonly kind: "curve";
 	readonly controlPoints: readonly Coordinate[];
 };
 
-/**
- * A KiCad polyline (gr_poly / fp_poly). Its points may themselves contain arc
- * spans (PtsArc); those are surfaced as nested arc primitives by the walk, so a
- * poly here only carries its straight vertices.
- */
 export type EdgeCutPoly = {
 	readonly kind: "poly";
 	readonly points: readonly Coordinate[];
@@ -114,12 +91,6 @@ const getFootprintTransform = (footprint: Footprint): PointTransform => {
 	});
 };
 
-/**
- * Collect every Edge.Cuts graphic primitive on the board into a flat list, in
- * board millimetres with footprint placement transforms already applied. Order
- * follows KiCad's element order (board graphics first, then per-footprint) — the
- * outline extractor re-orders into a connected loop afterwards.
- */
 export const collectEdgeCutPrimitives = (pcb: KicadPcb): EdgeCutPrimitive[] => {
 	const primitives: EdgeCutPrimitive[] = [];
 

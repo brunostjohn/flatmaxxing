@@ -3,17 +3,6 @@ import { Effect } from "effect";
 import { orchestrateMakeracamStep } from "./orchestrateMakeracamStep";
 import type { MakeracamStepOptions } from "./types";
 
-/**
- * Step 1 (plated): drive MakeraCAM to build the alignment + PTH drill/pocket
- * toolpaths plus the plating edge-cut contour, then export the `.gcode` and
- * `.mkc`. Skippable — when `options.enabled` is false it renders "skipped" and
- * consumes no step number (mirrors `categorizeDrills`).
- *
- * @param pcbName             Board name (basename of the `.kicad_pcb`).
- * @param edgeCutGerberPath   Absolute path to the generated *plating* edge-cut
- *                            Gerber (subsystem C produces this).
- * @param contourMillDiameter Corn Bit diameter (mm) used for the contour.
- */
 export const runPlatedHoles = Effect.fn("flatmaxx.makeracam.runPlatedHoles")(
 	function* (
 		pcbName: string,

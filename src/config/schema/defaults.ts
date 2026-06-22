@@ -75,10 +75,7 @@ export const defaultMakeracamWindow = {
 
 export const defaultMakeracam = {
 	appPath: "/Applications/MakeraCAM.app",
-	// Single cut depth applied to drill/pocket/contour End Depth (mm).
 	cutDepthMm: 2,
-	// Auto-tab count per contour (Tab Layout = "Number"). 4 = one per side of a
-	// rectangular plating cut; user-overridable for larger/irregular outlines.
 	tabsPerContour: 4,
 	existingProcess: "prompt" as const,
 	window: defaultMakeracamWindow,
@@ -109,8 +106,6 @@ export const defaultAlignmentDrills = {
 export const defaultElectroplating = {
 	generateEdgeCutsWithAlignmentDrills: true,
 	additionalDistance: defaultElectroplatingAdditionalDistance,
-	// Rounded-corner radius (mm) of the plating edge-cut rectangle — rounded
-	// corners give uniform current distribution during electroplating.
 	cornerRadius: 2,
 };
 

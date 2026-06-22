@@ -24,15 +24,13 @@ test("kicadToGerberTransform maps a point via gx=x-auxX, gy=auxY-y", () => {
 	);
 	const t = kicadToGerberTransform(pcb);
 
-	// The aux origin itself maps to (0, 0).
 	const origin = t({ x: 104.065444, y: 82.878393 });
 	expect(origin.x).toBeCloseTo(0, 6);
 	expect(origin.y).toBeCloseTo(0, 6);
 
-	// A point 10mm right and 5mm "up" (smaller KiCad Y) of the origin.
 	const p = t({ x: 114.065444, y: 77.878393 });
 	expect(p.x).toBeCloseTo(10, 6);
-	expect(p.y).toBeCloseTo(5, 6); // auxY - y = 82.878393 - 77.878393
+	expect(p.y).toBeCloseTo(5, 6);
 });
 
 test("kicadToGerberTransform THROWS when aux_axis_origin is absent", () => {
@@ -41,7 +39,6 @@ test("kicadToGerberTransform THROWS when aux_axis_origin is absent", () => {
 });
 
 test("the Y-flip transform inverts arc winding", () => {
-	// A board outlined by a single CCW arc-pair (a circle split into two arcs).
 	const pcb = parseKicadPcb(
 		makeBoard(`
       (setup (aux_axis_origin 0 0))
@@ -60,7 +57,6 @@ test("the Y-flip transform inverts arc winding", () => {
 			c.kind === "arc",
 	);
 
-	// Each arc's winding is inverted by the orientation-reversing Y-flip.
 	for (let i = 0; i < rawArcs.length; i++) {
 		const raw = rawArcs[i]!;
 		if (raw.kind !== "arc") continue;
@@ -69,7 +65,6 @@ test("the Y-flip transform inverts arc winding", () => {
 });
 
 test("a footprint-level edge cut chains into the outline with its transform", () => {
-	// A rectangle drawn as four fp_lines inside a footprint translated to (5,5).
 	const pcb = parseKicadPcb(
 		makeBoard(`
       (setup (aux_axis_origin 0 0))
@@ -84,7 +79,6 @@ test("a footprint-level edge cut chains into the outline with its transform", ()
 
 	const outline = collectEdgeCutsPrimitives(pcb);
 	expect(outline.cmds).toHaveLength(4);
-	// Translated by (5,5): the rect spans [5,15] x [5,13].
 	const xs = [outline.start.x, ...outline.cmds.map((c) => c.to.x)];
 	const ys = [outline.start.y, ...outline.cmds.map((c) => c.to.y)];
 	expect(Math.min(...xs)).toBeCloseTo(5);
@@ -102,19 +96,14 @@ test("the real zefir Edge.Cuts closes into a single loop matching the golden sta
 
 	const outline = collectEdgeCutsPrimitives(pcb);
 
-	// 3 arcs + 3 flattened curves -> one closed loop. The tiny aux-origin
-	// gr_circle is excluded, so it never breaks the chain.
 	const arcs = outline.cmds.filter((c) => c.kind === "arc");
 	expect(arcs).toHaveLength(3);
-	expect(outline.cmds.length).toBeGreaterThan(arcs.length); // curves flattened
+	expect(outline.cmds.length).toBeGreaterThan(arcs.length);
 
-	// Loop is closed: last command returns to the start point.
 	const last = outline.cmds.at(-1)!;
 	expect(last.to.x).toBeCloseTo(outline.start.x, 6);
 	expect(last.to.y).toBeCloseTo(outline.start.y, 6);
 
-	// Transformed, the start matches the golden Gerber's first D02 (1.184556,
-	// 14.878393 mm). The first arc is clockwise (golden emits G02).
 	const transformed = transformOutline(outline, kicadToGerberTransform(pcb));
 	expect(transformed.start.x).toBeCloseTo(1.184556, 4);
 	expect(transformed.start.y).toBeCloseTo(14.878393, 4);

@@ -11,40 +11,23 @@ import {
 } from "@/stages/boardValidation/edgeCutsTraversal";
 import type { KicadPcb } from "kicadts";
 
-/** Raised when the board lacks a `setup.aux_axis_origin` to anchor the Gerber. */
 export class MissingAuxAxisOriginError extends Error {
 	override readonly name = "MissingAuxAxisOriginError";
 }
 
-/** Raised when the Edge.Cuts geometry cannot be walked into a closed outline. */
 export class EdgeCutsOutlineError extends Error {
 	override readonly name = "EdgeCutsOutlineError";
 }
 
-/** An ordered, closed outline ready for {@link renderGerberOutline}. */
 export interface Outline {
 	readonly start: Coordinate;
 	readonly cmds: PathCmd[];
 }
 
-/**
- * Endpoint match tolerance (mm). KiCad writes Edge.Cuts vertices to 6 dp; two
- * primitives "meet" when their endpoints agree to well within a micron.
- */
 const JOIN_TOLERANCE_MM = 1e-3;
 
-/** Cubic-Bézier flattening tolerance (mm) — max chord deviation per segment. */
 const BEZIER_TOLERANCE_MM = 0.01;
 
-/**
- * Build the affine map from KiCad board millimetres to Gerber millimetres. KiCad
- * gerbers are emitted relative to the auxiliary axis origin with Y flipped (KiCad
- * Y grows downward, Gerber Y grows upward): `gx = x - auxX`, `gy = auxY - y`.
- *
- * THROWS {@link MissingAuxAxisOriginError} if the board has no `aux_axis_origin`.
- * There is deliberately no silent identity fallback: without the origin the
- * outline would be offset (and un-mirrored) off the stock, ruining registration.
- */
 export const kicadToGerberTransform = (
 	pcb: KicadPcb,
 ): ((point: Coordinate) => Coordinate) => {
@@ -61,13 +44,6 @@ export const kicadToGerberTransform = (
 	return (point) => ({ x: point.x - auxX, y: auxY - point.y });
 };
 
-/**
- * Apply a point transform to every coordinate of an outline. If the transform is
- * orientation-reversing (e.g. {@link kicadToGerberTransform}'s Y-flip), arc
- * winding is inverted so `cw` still describes the geometry in the *transformed*
- * frame — without this the Gerber would emit G02 where G03 is needed and the
- * rounded corners would bulge the wrong way.
- */
 export const transformOutline = (
 	outline: Outline,
 	transform: (point: Coordinate) => Coordinate,
@@ -88,11 +64,6 @@ export const transformOutline = (
 	};
 };
 
-/**
- * Numerically test whether an affine point transform reverses orientation, by
- * the sign of its Jacobian determinant sampled around the origin. A Y-flip
- * (det < 0) is orientation-reversing and inverts arc winding.
- */
 const isOrientationReversing = (
 	transform: (point: Coordinate) => Coordinate,
 ): boolean => {
@@ -107,19 +78,6 @@ const isOrientationReversing = (
 	return determinant < 0;
 };
 
-/**
- * Extract the board's TRUE Edge.Cuts outline as an ordered, closed loop of line
- * segments and arcs (cubic Béziers flattened to short segments). Coordinates are
- * in KiCad board millimetres — apply {@link kicadToGerberTransform} before
- * writing the Gerber.
- *
- * The walk reuses the shared {@link collectEdgeCutPrimitives} traversal (so it
- * sees footprint edge cuts with their transforms too), converts each primitive
- * into one or more directed {@link Edge}s, then chains them end-to-end into a
- * single connected loop. Full circles and degenerate zero-length primitives are
- * excluded (KiCad emits a tiny `gr_circle` as the aux-origin marker, which is not
- * part of the profile).
- */
 export const collectEdgeCutsPrimitives = (pcb: KicadPcb): Outline => {
 	const primitives = collectEdgeCutPrimitives(pcb);
 	const edges = primitives.flatMap(toEdges);
@@ -133,11 +91,6 @@ export const collectEdgeCutsPrimitives = (pcb: KicadPcb): Outline => {
 	return chainIntoLoop(edges);
 };
 
-/**
- * A directed piece of the outline: a single line or arc move from `start` to
- * `end`. A flattened Bézier yields several line edges; an arc yields one arc
- * edge carrying the centre and winding the Gerber writer needs.
- */
 type Edge =
 	| {
 			readonly kind: "line";
@@ -171,13 +124,8 @@ const toEdges = (primitive: EdgeCutPrimitive): Edge[] => {
 		case "poly":
 			return polyToEdges(primitive.points);
 		case "rect":
-			// A rect is a closed loop on its own; treat its four sides as edges so
-			// a board outlined by a single gr_rect still chains.
 			return rectToEdges(primitive.start, primitive.end, primitive.transform);
 		case "circle":
-			// A full circle is its own closed contour; it never chains with the
-			// connected board outline, so it is excluded here (and the tiny KiCad
-			// aux-origin marker circle is correctly ignored).
 			return [];
 	}
 };
@@ -187,12 +135,9 @@ const arcToEdge = (arc: EdgeCutArc): Edge[] => {
 
 	const circle = circleFromThreePoints(arc.start, arc.mid, arc.end);
 	if (!circle) {
-		// Collinear / degenerate: fall back to a straight chord.
 		return [{ kind: "line", start: arc.start, end: arc.end }];
 	}
 
-	// Winding: KiCad arcs go start -> mid -> end. If sweeping clockwise from
-	// start passes through mid before end, the arc is clockwise.
 	const startAngle = angleOf(circle.center, arc.start);
 	const midAngle = angleOf(circle.center, arc.mid);
 	const endAngle = angleOf(circle.center, arc.end);
@@ -216,7 +161,6 @@ const polyToEdges = (points: readonly Coordinate[]): Edge[] => {
 		const b = points[i + 1]!;
 		if (!isZeroLength(a, b)) edges.push({ kind: "line", start: a, end: b });
 	}
-	// gr_poly is implicitly closed: connect last back to first.
 	const first = points[0];
 	const last = points[points.length - 1];
 	if (first && last && !isZeroLength(first, last)) {
@@ -247,7 +191,6 @@ const rectToEdges = (
 
 const flattenCurve = (controlPoints: readonly Coordinate[]): Edge[] => {
 	if (controlPoints.length !== 4) {
-		// Not a cubic: connect the control points as a polyline (rare).
 		return polyToEdges(controlPoints);
 	}
 	const [p0, p1, p2, p3] = controlPoints as [
@@ -285,11 +228,6 @@ const cubicAt = (
 	};
 };
 
-/**
- * Flatten a cubic Bézier into a polyline whose chords deviate from the true curve
- * by at most `tolerance` mm. Uniform subdivision sized from the control-point
- * span — simple, deterministic, and more than fine for board outlines.
- */
 const flattenCubicAdaptive = (
 	p0: Coordinate,
 	p1: Coordinate,
@@ -297,8 +235,6 @@ const flattenCubicAdaptive = (
 	p3: Coordinate,
 	tolerance: number,
 ): Coordinate[] => {
-	// Upper bound on the second derivative magnitude gives a segment count that
-	// guarantees the flatness tolerance (de Casteljau flatness criterion).
 	const ax = p0.x - 2 * p1.x + p2.x;
 	const ay = p0.y - 2 * p1.y + p2.y;
 	const bx = p1.x - 2 * p2.x + p3.x;
@@ -318,12 +254,6 @@ const flattenCubicAdaptive = (
 	return points;
 };
 
-/**
- * Chain directed edges into one connected loop. Starts from the first edge and
- * repeatedly appends an unused edge whose endpoint touches the current frontier,
- * reversing it if necessary. Reports a clear error if the geometry doesn't form a
- * single closed loop (open ends, disjoint pieces).
- */
 const chainIntoLoop = (edges: readonly Edge[]): Outline => {
 	const remaining = [...edges];
 	const ordered: Edge[] = [];
@@ -365,8 +295,6 @@ const chainIntoLoop = (edges: readonly Edge[]): Outline => {
 			? { kind: "line", to: edge.end }
 			: { kind: "arc", to: edge.end, center: edge.center, cw: edge.cw },
 	);
-	// Force the final vertex to coincide exactly with the start so the contour is
-	// numerically closed in the emitted Gerber.
 	const last = cmds[cmds.length - 1];
 	if (last) {
 		cmds[cmds.length - 1] =
@@ -386,6 +314,5 @@ const reverseEdge = (edge: Edge): Edge =>
 				start: edge.end,
 				end: edge.start,
 				center: edge.center,
-				// Reversing direction flips the winding.
 				cw: !edge.cw,
 			};

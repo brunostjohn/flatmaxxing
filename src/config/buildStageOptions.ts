@@ -236,7 +236,6 @@ export const buildXToolProjectOptions = (
 export const buildEdgeCutGerberOptions = (
 	config: ResolvedConfig,
 ): EdgeCutGerberOptions => ({
-	// Generate the outlines whenever either MakeraCAM step will run.
 	enabled:
 		config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
 	platingOffsets: config.electroplating.additionalDistance,

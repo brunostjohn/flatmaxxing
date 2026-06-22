@@ -12,44 +12,14 @@ import {
 } from "./extractEdgeCutsOutline";
 import { buildPlatingRoundedRect, type PlatingOffsets } from "./platingOutline";
 
-/**
- * Options for the edge-cut DXF generator (subsystem C). The stage is skippable
- * via {@link enabled}; when enabled it writes two profile DXFs into
- * {@link gerbersDir} for MakeraCAM to import.
- */
 export interface EdgeCutGerberOptions {
-	/** When false, the stage renders a "skipped" line and consumes no step number. */
 	readonly enabled: boolean;
-	/** Asymmetric outward expansion (mm) for the plating rounded rect. */
 	readonly platingOffsets: PlatingOffsets;
-	/** Corner radius (mm) for the plating rounded rect (clamped to half-shorter-side). */
 	readonly cornerRadius: number;
-	/** Outward alignment-drill offset (mm) per axis, matching the CNC stage. */
 	readonly alignmentDistance: { readonly x: number; readonly y: number };
-	/** Directory the two `.dxf` files are written to. */
 	readonly gerbersDir: string;
 }
 
-/**
- * Subsystem C: generate the two edge-cut profile DXFs MakeraCAM imports for final
- * machining. (DXF, not Gerber: MakeraCAM mishandles stroked-profile Gerbers — the
- * import seats oddly and Auto-tab generation is unreliable on it — whereas clean
- * DXF centreline geometry imports as a single contour it tabs correctly.)
- *
- * - `<board>-PTH_EdgeCuts.dxf` (plating step): a rounded rectangle enclosing the
- *   board bounds AND the four alignment-drill points, expanded by the configured
- *   per-side offsets.
- * - `<board>-Final_EdgeCuts.dxf` (final step): the board's TRUE outer Edge.Cuts
- *   OUTLINE only — the release cut. We extract the perimeter ourselves rather than
- *   using kicad-cli's DXF, because kicad-cli emits every Edge.Cuts primitive incl.
- *   internal holes/cutouts (which must NOT be milled on the release cut) and splits
- *   them across colour layers MakeraCAM imports separately.
- *
- * Both are placed by {@link kicadToGerberTransform} (aux-origin, Y-flipped) so they
- * seat on the same stock as the drill exports. Each is a single clean closed loop,
- * which MakeraCAM imports as one selectable contour and can Auto-tab. Tabs are NOT
- * part of the geometry — MakeraCAM adds them at import.
- */
 export const generateEdgeCutGerbers = Effect.fn(
 	"flatmaxx.generateEdgeCutGerbers",
 )(function* (pcbFile: string, options: EdgeCutGerberOptions) {
@@ -79,14 +49,11 @@ export const generateEdgeCutGerbers = Effect.fn(
 			const pcb = parseKicadPcb(source);
 			const toGerber = kicadToGerberTransform(pcb);
 
-			// --- Final outline: the board's TRUE outer Edge.Cuts perimeter, zero
-			// offset. Outline only (no internal holes/cutouts). ---
 			const finalOutline = transformOutline(
 				collectEdgeCutsPrimitives(pcb),
 				toGerber,
 			);
 
-			// --- Plating outline: rounded rect around board + alignment holes. ---
 			const bounds = findEdgeCutsBounds(pcb);
 			const alignment = alignmentDrillPoints(
 				{

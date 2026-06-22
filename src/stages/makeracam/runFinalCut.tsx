@@ -3,17 +3,6 @@ import { Effect } from "effect";
 import { orchestrateMakeracamStep } from "./orchestrateMakeracamStep";
 import type { MakeracamStepOptions } from "./types";
 
-/**
- * Step 2 (final): drive MakeraCAM to build the NPTH drill/pocket toolpaths plus
- * the final edge-cut contour (true KiCad Edge.Cuts, zero offset), then export
- * the `.gcode` and `.mkc`. Skippable — when `options.enabled` is false it
- * renders "skipped" and consumes no step number (mirrors `categorizeDrills`).
- *
- * @param pcbName             Board name (basename of the `.kicad_pcb`).
- * @param edgeCutGerberPath   Absolute path to the generated *final* edge-cut
- *                            Gerber (subsystem C produces this).
- * @param contourMillDiameter Corn Bit diameter (mm) used for the contour.
- */
 export const runFinalCut = Effect.fn("flatmaxx.makeracam.runFinalCut")(
 	function* (
 		pcbName: string,

@@ -16,7 +16,7 @@ import {
 	type AxQuery,
 	type MousePos,
 } from "@flatmaxxing/accessibility";
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 import { AXError, MouseError } from "./errors";
 
 export const axTrusted = Effect.fn("flatmaxx.macos.axTrusted")(function* () {
@@ -40,7 +40,7 @@ export const axFind = Effect.fn("flatmaxx.macos.axFind")(function* (
 	query: AxQuery,
 ) {
 	return yield* Effect.sync(() => axFindNative(pid, query)).pipe(
-		Effect.map(Option.fromNullishOr),
+		Effect.andThen(Effect.fromNullishOr),
 	);
 });
 
