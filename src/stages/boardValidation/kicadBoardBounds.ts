@@ -1,25 +1,13 @@
 import { cubicBezierBoundsPoints } from "@/geometry/cubicBezierBounds";
 import { BoardValidationError } from "@/stages/boardValidation/boardValidationTypes";
 import {
-	At,
-	PtsArc,
-	type Footprint,
-	type FpArc,
-	type FpCircle,
-	type FpCurve,
-	type FpLine,
-	type FpPoly,
-	type FpRect,
-	type GrCurve,
-	type GrPoly,
-	type KicadPcb,
-	type Layer,
-} from "kicadts";
+	collectEdgeCutPrimitives,
+	type Coordinate,
+	type EdgeCutPrimitive,
+} from "@/stages/boardValidation/edgeCutsTraversal";
+import type { KicadPcb } from "kicadts";
 
-export type Coordinate = {
-	readonly x: number;
-	readonly y: number;
-};
+export type { Coordinate } from "@/stages/boardValidation/edgeCutsTraversal";
 
 export type BoardBounds = {
 	readonly minX: number;
@@ -35,8 +23,6 @@ type MutableBoardBounds = {
 	maxY: number;
 };
 
-type PointTransform = (point: Coordinate) => Coordinate;
-
 const CARDINAL_ANGLES = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2] as const;
 const GEOMETRY_EPSILON = 1e-9;
 
@@ -48,38 +34,8 @@ export const getBottomLeftBoardOrigin = (pcb: KicadPcb): Coordinate => {
 export const findEdgeCutsBounds = (pcb: KicadPcb): BoardBounds => {
 	const bounds = createEmptyBounds();
 
-	for (const line of pcb.graphicLines) {
-		if (!isEdgeCutsLayer(line.layer)) continue;
-		includeLine(bounds, line.startPoint, line.endPoint);
-	}
-
-	for (const rect of pcb.graphicRects) {
-		if (!isEdgeCutsLayer(rect.layer)) continue;
-		includeRect(bounds, rect.startPoint, rect.endPoint);
-	}
-
-	for (const circle of pcb.graphicCircles) {
-		if (!isEdgeCutsLayer(circle.layer)) continue;
-		includeCircle(bounds, circle.centerPoint, circle.endPoint);
-	}
-
-	for (const arc of pcb.graphicArcs) {
-		if (!isEdgeCutsLayer(arc.layer)) continue;
-		includeArc(bounds, arc.startPoint, arc.midPoint, arc.endPoint);
-	}
-
-	for (const poly of pcb.graphicPolys) {
-		if (!isEdgeCutsLayer(poly.layer)) continue;
-		includePoly(bounds, poly);
-	}
-
-	for (const curve of pcb.graphicCurves) {
-		if (!isEdgeCutsLayer(curve.layer)) continue;
-		includeCurve(bounds, curve, identityTransform);
-	}
-
-	for (const footprint of pcb.footprints) {
-		includeFootprintEdgeCuts(bounds, footprint);
+	for (const primitive of collectEdgeCutPrimitives(pcb)) {
+		includePrimitive(bounds, primitive);
 	}
 
 	if (!hasBounds(bounds)) {
@@ -91,45 +47,34 @@ export const findEdgeCutsBounds = (pcb: KicadPcb): BoardBounds => {
 	return bounds;
 };
 
-const includeFootprintEdgeCuts = (
+const includePrimitive = (
 	bounds: MutableBoardBounds,
-	footprint: Footprint,
-) => {
-	const transform = getFootprintTransform(footprint);
-
-	for (const line of footprint.fpLines) {
-		if (!isEdgeCutsLayer(line.layer)) continue;
-		includeFootprintLine(bounds, line, transform);
-	}
-
-	for (const rect of footprint.fpRects) {
-		if (!isEdgeCutsLayer(rect.layer)) continue;
-		includeFootprintRect(bounds, rect, transform);
-	}
-
-	for (const circle of footprint.fpCircles) {
-		if (!isEdgeCutsLayer(circle.layer)) continue;
-		includeFootprintCircle(bounds, circle, transform);
-	}
-
-	for (const arc of footprint.fpArcs) {
-		if (!isEdgeCutsLayer(arc.layer)) continue;
-		includeFootprintArc(bounds, arc, transform);
-	}
-
-	for (const poly of footprint.fpPolys) {
-		if (!isEdgeCutsLayer(poly.layer)) continue;
-		includeFootprintPoly(bounds, poly, transform);
-	}
-
-	for (const curve of footprint.fpCurves) {
-		if (!isEdgeCutsLayer(curve.layer)) continue;
-		includeCurve(bounds, curve, transform);
+	primitive: EdgeCutPrimitive,
+): void => {
+	switch (primitive.kind) {
+		case "segment":
+			includePoint(bounds, primitive.start);
+			includePoint(bounds, primitive.end);
+			return;
+		case "arc":
+			includeArc(bounds, primitive.start, primitive.mid, primitive.end);
+			return;
+		case "circle":
+			includeCircle(bounds, primitive.center, primitive.edge);
+			return;
+		case "rect":
+			includeRect(bounds, primitive.start, primitive.end, primitive.transform);
+			return;
+		case "poly":
+			for (const point of primitive.points) includePoint(bounds, point);
+			return;
+		case "curve":
+			for (const point of cubicBezierBoundsPoints(primitive.controlPoints)) {
+				includePoint(bounds, point);
+			}
+			return;
 	}
 };
-
-const isEdgeCutsLayer = (layer: Layer | undefined) =>
-	layer?.names.includes("Edge.Cuts") ?? false;
 
 const createEmptyBounds = (): MutableBoardBounds => ({
 	minX: Number.POSITIVE_INFINITY,
@@ -138,7 +83,7 @@ const createEmptyBounds = (): MutableBoardBounds => ({
 	maxY: Number.NEGATIVE_INFINITY,
 });
 
-const hasBounds = (bounds: MutableBoardBounds) =>
+const hasBounds = (bounds: MutableBoardBounds): boolean =>
 	Number.isFinite(bounds.minX) &&
 	Number.isFinite(bounds.minY) &&
 	Number.isFinite(bounds.maxX) &&
@@ -147,7 +92,7 @@ const hasBounds = (bounds: MutableBoardBounds) =>
 const includePoint = (
 	bounds: MutableBoardBounds,
 	point: Coordinate | undefined,
-) => {
+): void => {
 	if (!point) return;
 	bounds.minX = Math.min(bounds.minX, point.x);
 	bounds.minY = Math.min(bounds.minY, point.y);
@@ -155,35 +100,24 @@ const includePoint = (
 	bounds.maxY = Math.max(bounds.maxY, point.y);
 };
 
-const includeLine = (
-	bounds: MutableBoardBounds,
-	start: Coordinate | undefined,
-	end: Coordinate | undefined,
-) => {
-	includePoint(bounds, start);
-	includePoint(bounds, end);
-};
-
 const includeRect = (
 	bounds: MutableBoardBounds,
-	start: Coordinate | undefined,
-	end: Coordinate | undefined,
-) => {
-	if (!start || !end) return;
-	includePoint(bounds, start);
-	includePoint(bounds, { x: start.x, y: end.y });
-	includePoint(bounds, end);
-	includePoint(bounds, { x: end.x, y: start.y });
+	start: Coordinate,
+	end: Coordinate,
+	transform: (point: Coordinate) => Coordinate,
+): void => {
+	includePoint(bounds, transform(start));
+	includePoint(bounds, transform({ x: start.x, y: end.y }));
+	includePoint(bounds, transform(end));
+	includePoint(bounds, transform({ x: end.x, y: start.y }));
 };
 
 const includeCircle = (
 	bounds: MutableBoardBounds,
-	center: Coordinate | undefined,
-	end: Coordinate | undefined,
-) => {
-	if (!center || !end) return;
-	const radius = distance(center, end);
-
+	center: Coordinate,
+	edge: Coordinate,
+): void => {
+	const radius = distance(center, edge);
 	includePoint(bounds, { x: center.x - radius, y: center.y });
 	includePoint(bounds, { x: center.x + radius, y: center.y });
 	includePoint(bounds, { x: center.x, y: center.y - radius });
@@ -192,12 +126,10 @@ const includeCircle = (
 
 const includeArc = (
 	bounds: MutableBoardBounds,
-	start: Coordinate | undefined,
-	mid: Coordinate | undefined,
-	end: Coordinate | undefined,
-) => {
-	if (!start || !mid || !end) return;
-
+	start: Coordinate,
+	mid: Coordinate,
+	end: Coordinate,
+): void => {
 	const circle = circleFromThreePoints(start, mid, end);
 	if (!circle) {
 		includePoint(bounds, start);
@@ -232,180 +164,49 @@ const includeArc = (
 	}
 };
 
-const includePoly = (bounds: MutableBoardBounds, poly: GrPoly) => {
-	includePts(bounds, poly.points, identityTransform);
-};
-
-const includeFootprintLine = (
-	bounds: MutableBoardBounds,
-	line: FpLine,
-	transform: PointTransform,
-) => {
-	includeLine(
-		bounds,
-		transformOptional(line.start),
-		transformOptional(line.end),
-	);
-
-	function transformOptional(point: Coordinate | undefined) {
-		return point ? transform(point) : undefined;
-	}
-};
-
-const includeFootprintRect = (
-	bounds: MutableBoardBounds,
-	rect: FpRect,
-	transform: PointTransform,
-) => {
-	if (!rect.start || !rect.end) return;
-
-	includePoint(bounds, transform(rect.start));
-	includePoint(bounds, transform({ x: rect.start.x, y: rect.end.y }));
-	includePoint(bounds, transform(rect.end));
-	includePoint(bounds, transform({ x: rect.end.x, y: rect.start.y }));
-};
-
-const includeFootprintCircle = (
-	bounds: MutableBoardBounds,
-	circle: FpCircle,
-	transform: PointTransform,
-) => {
-	if (!circle.center || !circle.end) return;
-	includeCircle(bounds, transform(circle.center), transform(circle.end));
-};
-
-const includeFootprintArc = (
-	bounds: MutableBoardBounds,
-	arc: FpArc,
-	transform: PointTransform,
-) => {
-	includeArc(
-		bounds,
-		arc.start ? transform(arc.start) : undefined,
-		arc.mid ? transform(arc.mid) : undefined,
-		arc.end ? transform(arc.end) : undefined,
-	);
-};
-
-const includeFootprintPoly = (
-	bounds: MutableBoardBounds,
-	poly: FpPoly,
-	transform: PointTransform,
-) => {
-	includePts(bounds, poly.points, transform);
-};
-
-const includePts = (
-	bounds: MutableBoardBounds,
-	pts: GrPoly["points"] | FpPoly["points"],
-	transform: PointTransform,
-) => {
-	if (!pts) return;
-
-	for (const point of pts.points) {
-		if (point instanceof PtsArc) {
-			includeArc(
-				bounds,
-				point.start ? transform(point.start) : undefined,
-				point.mid ? transform(point.mid) : undefined,
-				point.end ? transform(point.end) : undefined,
-			);
-			continue;
-		}
-
-		includePoint(bounds, transform(point));
-	}
-};
-
-const includeCurve = (
-	bounds: MutableBoardBounds,
-	curve: GrCurve | FpCurve,
-	transform: PointTransform,
-) => {
-	const pts = curve.points?.points;
-	if (!pts) return;
-
-	// A KiCad curve is a cubic Bézier (four control points). Transform the
-	// control points into board coordinates first, then take the exact extrema
-	// there — the footprint transform is affine, so this yields the correct
-	// axis-aligned bounds.
-	const controlPoints: Coordinate[] = [];
-	for (const point of pts) {
-		if (point instanceof PtsArc) {
-			includeArc(
-				bounds,
-				point.start ? transform(point.start) : undefined,
-				point.mid ? transform(point.mid) : undefined,
-				point.end ? transform(point.end) : undefined,
-			);
-			continue;
-		}
-
-		controlPoints.push(transform(point));
-	}
-
-	for (const point of cubicBezierBoundsPoints(controlPoints)) {
-		includePoint(bounds, point);
-	}
-};
-
-const getFootprintTransform = (footprint: Footprint): PointTransform => {
-	const position = footprint.position;
-	if (!position) return identityTransform;
-
-	const offset = { x: position.x, y: position.y };
-	const angle = position instanceof At ? (position.angle ?? 0) : 0;
-
-	if (Math.abs(angle) < GEOMETRY_EPSILON) {
-		return (point) => ({ x: point.x + offset.x, y: point.y + offset.y });
-	}
-
-	const radians = degreesToRadians(angle);
-	const cos = Math.cos(radians);
-	const sin = Math.sin(radians);
-
-	return (point) => ({
-		x: offset.x + point.x * cos - point.y * sin,
-		y: offset.y + point.x * sin + point.y * cos,
-	});
-};
-
-const identityTransform = (point: Coordinate): Coordinate => ({
-	x: point.x,
-	y: point.y,
-});
-
-const distance = (a: Coordinate, b: Coordinate) =>
+const distance = (a: Coordinate, b: Coordinate): number =>
 	Math.hypot(a.x - b.x, a.y - b.y);
 
-const degreesToRadians = (degrees: number) => (degrees * Math.PI) / 180;
-
-const angleOf = (center: Coordinate, point: Coordinate) =>
+/**
+ * The signed angle (in `[0, 2π)`) of `point` as seen from `center`. Exported so
+ * the Edge.Cuts outline extractor can reuse the exact same arc geometry the
+ * bounds inference uses.
+ */
+export const angleOf = (center: Coordinate, point: Coordinate): number =>
 	normalizeAngle(Math.atan2(point.y - center.y, point.x - center.x));
 
-const normalizeAngle = (angle: number) => {
+const normalizeAngle = (angle: number): number => {
 	const normalized = angle % (2 * Math.PI);
 	return normalized < 0 ? normalized + 2 * Math.PI : normalized;
 };
 
-const clockwiseDistance = (from: number, to: number) =>
+const clockwiseDistance = (from: number, to: number): number =>
 	normalizeAngle(from - to);
 
-const counterClockwiseDistance = (from: number, to: number) =>
+const counterClockwiseDistance = (from: number, to: number): number =>
 	normalizeAngle(to - from);
 
-const isAngleBetweenClockwise = (angle: number, start: number, end: number) =>
-	clockwiseDistance(start, angle) <= clockwiseDistance(start, end);
+/** True if `angle` is reached going clockwise from `start` before `end` is. */
+export const isAngleBetweenClockwise = (
+	angle: number,
+	start: number,
+	end: number,
+): boolean => clockwiseDistance(start, angle) <= clockwiseDistance(start, end);
 
 const isAngleBetweenCounterClockwise = (
 	angle: number,
 	start: number,
 	end: number,
-) =>
+): boolean =>
 	counterClockwiseDistance(start, angle) <=
 	counterClockwiseDistance(start, end);
 
-const circleFromThreePoints = (
+/**
+ * The circle through three points, or `undefined` when they are collinear.
+ * Exported for reuse by the Edge.Cuts outline extractor, which converts KiCad's
+ * start/mid/end arcs into centre + winding for the Gerber writer.
+ */
+export const circleFromThreePoints = (
 	a: Coordinate,
 	b: Coordinate,
 	c: Coordinate,

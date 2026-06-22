@@ -45,3 +45,6 @@ testdir/manufacture
 testdir/place
 testdir/xtool
 testdir/ROUNDED_UP.txt
+testdir/cnc
+
+*.dylib

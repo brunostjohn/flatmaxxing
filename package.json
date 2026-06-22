@@ -3,9 +3,16 @@
 	"module": "src/index.ts",
 	"type": "module",
 	"private": true,
+	"workspaces": [
+		"native"
+	],
 	"scripts": {
-		"dev": "bun src/index.ts testdir --config flatmaxxing.dev.toml",
-		"format": "biome format --write ."
+		"dev": "bun run build:native && FLATMAXX_DEV=1 bun src/index.ts testdir --config flatmaxxing.dev.toml",
+		"format": "biome format --write .",
+		"build:native": "bun run --cwd native build",
+		"build": "bun run build:native && bun scripts/build.ts && bun run codesign",
+		"codesign": "codesign --force --options runtime --entitlements flatmaxx.entitlements --sign - dist/flatmaxx",
+		"typecheck": "tsgo --noEmit"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.0",
@@ -30,16 +37,13 @@
 		"ink-select-input": "^6.2.0",
 		"ink-task-list": "^2.0.0",
 		"kicadts": "^0.0.47",
-		"node-mac-permissions": "^2.5.0",
 		"react": "^19.2.7",
 		"sharp": "^0.35.2",
-		"toml": "^4.1.1"
+		"toml": "^4.1.1",
+		"@flatmaxxing/accessibility": "workspace:*"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
 	},
-	"dependencies": {},
-	"trustedDependencies": [
-		"node-mac-permissions"
-	]
+	"dependencies": {}
 }

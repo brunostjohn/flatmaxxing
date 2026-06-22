@@ -1,5 +1,7 @@
 import {
 	buildAlignmentDrillCategorizationOptions,
+	buildEdgeCutGerberOptions,
+	buildMakeracamStepOptions,
 	buildBoardSelectionOptions,
 	buildBoardValidationOptions,
 	buildDrillCategorizationOptions,
@@ -9,6 +11,7 @@ import {
 	loadFlatmaxxConfig,
 } from "@/config";
 import { resetSteps } from "@/inkHelpers";
+import { preflightAccessibility } from "@/macos";
 import {
 	buildCncJobOptions,
 	categorizeAlignmentDrills,
@@ -17,14 +20,17 @@ import {
 	ensureKicadExists,
 	findPCBProject,
 	generateCncJobs,
+	generateEdgeCutGerbers,
 	generateKicadOutputs,
+	runFinalCut,
+	runPlatedHoles,
 	validateIsolation,
 	validateKicadBoard,
 } from "@/stages";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Effect, Layer, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 const Flatmaxx = Command.make(
 	"flatmaxx",
@@ -99,11 +105,38 @@ const Flatmaxx = Command.make(
 			buildAlignmentDrillCategorizationOptions(config),
 		);
 
+		// Generate the plating + final edge-cut outline Gerbers for MakeraCAM import.
+		yield* generateEdgeCutGerbers(pcbFile, buildEdgeCutGerberOptions(config));
+
 		const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
 		yield* createXtoolProjects(
 			kicadProject,
 			pcbName,
 			buildXToolProjectOptions(config),
+		);
+
+		// Final machining steps: drive MakeraCAM to build + export the plated and
+		// final G-code/.mkc. Skippable per step; requires Accessibility when enabled.
+		const makeracamEnabled =
+			config.makeracam.platedHoles.generate ||
+			config.makeracam.finalCut.generate;
+		if (makeracamEnabled) {
+			yield* preflightAccessibility();
+		}
+		const contourMillDiameter = Math.max(
+			...config.cnc.availableMills.map((mill) => mill.diameter),
+		);
+		yield* runPlatedHoles(
+			pcbName,
+			join(config.paths.gerbers, `${pcbName}-PTH_EdgeCuts.dxf`),
+			contourMillDiameter,
+			buildMakeracamStepOptions(config, "plated"),
+		);
+		yield* runFinalCut(
+			pcbName,
+			join(config.paths.gerbers, `${pcbName}-Final_EdgeCuts.dxf`),
+			contourMillDiameter,
+			buildMakeracamStepOptions(config, "final"),
 		);
 	}),
 ).pipe(

@@ -31,6 +31,7 @@ export const defaultPaths = {
 	drills: "./drills",
 	xtool: "./xtool",
 	place: "./place",
+	cnc: "./cnc",
 };
 
 export const defaultBoard = {
@@ -67,6 +68,24 @@ export const defaultXTool = {
 	existingProcess: "prompt" as const,
 };
 
+export const defaultMakeracamWindow = {
+	width: 1728,
+	height: 1037,
+};
+
+export const defaultMakeracam = {
+	appPath: "/Applications/MakeraCAM.app",
+	// Single cut depth applied to drill/pocket/contour End Depth (mm).
+	cutDepthMm: 2,
+	// Auto-tab count per contour (Tab Layout = "Number"). 4 = one per side of a
+	// rectangular plating cut; user-overridable for larger/irregular outlines.
+	tabsPerContour: 4,
+	existingProcess: "prompt" as const,
+	window: defaultMakeracamWindow,
+	platedHoles: { generate: true },
+	finalCut: { generate: true },
+};
+
 export const defaultSolderMaskXTool = {
 	device: "M1 Ultra" as const,
 	intensity: 100,
@@ -90,6 +109,9 @@ export const defaultAlignmentDrills = {
 export const defaultElectroplating = {
 	generateEdgeCutsWithAlignmentDrills: true,
 	additionalDistance: defaultElectroplatingAdditionalDistance,
+	// Rounded-corner radius (mm) of the plating edge-cut rectangle — rounded
+	// corners give uniform current distribution during electroplating.
+	cornerRadius: 2,
 };
 
 export const defaultSolderMask = {
@@ -275,5 +297,6 @@ export const defaultConfigFile = {
 	place: defaultPlace,
 	cnc: defaultCnc,
 	xtool: defaultXTool,
+	makeracam: defaultMakeracam,
 	validation: defaultValidation,
 };

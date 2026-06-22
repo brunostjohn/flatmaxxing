@@ -1,0 +1,19 @@
+
+[package]
+authors = ["Bruno St John <brunost.john@icloud.com>"]
+edition = "2021"
+name = "accessibility"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = {version="3.0.0", features=["async"]}
+napi-derive = "3.0.0"
+core-graphics = { version = "0.25", features = ["highsierra"] }
+axuielement = { version = "0.9", default-features = false }
+tokio = { version = "1.52.3", features = ["time"] }
+
+[build-dependencies]
+napi-build = "2"

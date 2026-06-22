@@ -7,4 +7,6 @@ export * from "./ensureKicadExists";
 export * from "./findPCBProject";
 export * from "./generateCncJobs";
 export * from "./generateKicadOutputs";
+export * from "./generateEdgeCutGerbers/generateEdgeCutGerbers";
+export * from "./makeracam";
 export * from "./validateIsolation";

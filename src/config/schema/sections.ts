@@ -28,6 +28,8 @@ import {
 	defaultStencilXTool,
 	defaultValidation,
 	defaultValidationRanges,
+	defaultMakeracam,
+	defaultMakeracamWindow,
 	defaultXTool,
 	defaultXToolWindow,
 } from "./defaults";
@@ -77,6 +79,9 @@ export const PathsSchema = Schema.Struct({
 	place: Schema.String.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultPaths.place)),
 	),
+	cnc: Schema.String.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultPaths.cnc)),
+	),
 });
 
 export const XToolSchema = Schema.Struct({
@@ -94,6 +99,38 @@ export const XToolSchema = Schema.Struct({
 	),
 	existingProcess: Schema.Literals(["prompt"]).pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultXTool.existingProcess)),
+	),
+});
+
+export const MakeracamStepSchema = Schema.Struct({
+	generate: Schema.Boolean.pipe(
+		Schema.withDecodingDefault(Effect.succeed(true)),
+	),
+});
+
+export const MakeracamSchema = Schema.Struct({
+	appPath: Schema.String.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracam.appPath)),
+	),
+	cutDepthMm: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracam.cutDepthMm)),
+	),
+	tabsPerContour: Schema.Number.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracam.tabsPerContour)),
+	),
+	existingProcess: Schema.Literals(["prompt"]).pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultMakeracam.existingProcess),
+		),
+	),
+	window: WindowSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracamWindow)),
+	),
+	platedHoles: MakeracamStepSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracam.platedHoles)),
+	),
+	finalCut: MakeracamStepSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultMakeracam.finalCut)),
 	),
 });
 
@@ -147,6 +184,11 @@ export const ElectroplatingSchema = Schema.Struct({
 	additionalDistance: EdgeDistanceSchema.pipe(
 		Schema.withDecodingDefault(
 			Effect.succeed(defaultElectroplatingAdditionalDistance),
+		),
+	),
+	cornerRadius: Schema.Number.pipe(
+		Schema.withDecodingDefault(
+			Effect.succeed(defaultElectroplating.cornerRadius),
 		),
 	),
 });

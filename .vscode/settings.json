@@ -7,5 +7,9 @@
 		"source.fixAll.biome": "explicit",
 		"source.organizeImports.biome": "never"
 	},
-	"typescript.native-preview.tsdk": "node_modules/@typescript/native-preview"
+	"typescript.native-preview.tsdk": "node_modules/@typescript/native-preview",
+	"rust-analyzer.check.command": "clippy",
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer"
+	}
 }

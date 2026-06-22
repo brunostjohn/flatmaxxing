@@ -15,6 +15,8 @@ export type OutputPaths = {
 	readonly drills: string;
 	readonly xtool: string;
 	readonly place: string;
+	/** Where MakeraCAM project files (.mkc) are saved. */
+	readonly cnc: string;
 };
 
 export type XToolRuntimeOptions = {
@@ -25,6 +27,21 @@ export type XToolRuntimeOptions = {
 		readonly width: number;
 		readonly height: number;
 	};
+};
+
+export type MakeracamRuntimeOptions = {
+	readonly appPath: string;
+	/** Cut depth (mm) applied to drilling/pocket/contour End Depth. */
+	readonly cutDepthMm: number;
+	/** Auto-tab count per contour (Tab Layout = "Number"). */
+	readonly tabsPerContour: number;
+	readonly existingProcess: "prompt";
+	readonly window: {
+		readonly width: number;
+		readonly height: number;
+	};
+	readonly platedHoles: { readonly generate: boolean };
+	readonly finalCut: { readonly generate: boolean };
 };
 
 export type SolderMaskXToolOptions = {
@@ -65,6 +82,7 @@ export type ResolvedConfig = {
 			readonly top: number;
 			readonly bottom: number;
 		};
+		readonly cornerRadius: number;
 	};
 	readonly solderMask: {
 		readonly generate: boolean;
@@ -97,6 +115,7 @@ export type ResolvedConfig = {
 	readonly xtool: XToolRuntimeOptions & {
 		readonly existingProcess: "prompt";
 	};
+	readonly makeracam: MakeracamRuntimeOptions;
 	readonly validation: {
 		readonly ranges: {
 			readonly distanceMm: Range;

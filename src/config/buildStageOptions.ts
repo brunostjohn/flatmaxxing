@@ -10,6 +10,11 @@ import type {
 	Side,
 	XToolProjectOptions,
 } from "./types";
+import type { EdgeCutGerberOptions } from "@/stages/generateEdgeCutGerbers/generateEdgeCutGerbers";
+import type {
+	MakeracamStep,
+	MakeracamStepOptions,
+} from "@/stages/makeracam/types";
 
 const allSides = ["front", "back"] as const satisfies readonly Side[];
 
@@ -227,3 +232,40 @@ export const buildXToolProjectOptions = (
 		},
 	};
 };
+
+export const buildEdgeCutGerberOptions = (
+	config: ResolvedConfig,
+): EdgeCutGerberOptions => ({
+	// Generate the outlines whenever either MakeraCAM step will run.
+	enabled:
+		config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
+	platingOffsets: config.electroplating.additionalDistance,
+	cornerRadius: config.electroplating.cornerRadius,
+	alignmentDistance: config.alignmentDrills.distance,
+	gerbersDir: config.paths.gerbers,
+});
+
+export const buildMakeracamStepOptions = (
+	config: ResolvedConfig,
+	step: MakeracamStep,
+): MakeracamStepOptions => ({
+	enabled:
+		step === "plated"
+			? config.makeracam.platedHoles.generate
+			: config.makeracam.finalCut.generate,
+	step,
+	appPath: config.makeracam.appPath,
+	existingProcess: config.makeracam.existingProcess,
+	cutDepthMm: config.makeracam.cutDepthMm,
+	tabsPerContour: config.makeracam.tabsPerContour,
+	drillsDir: config.paths.drills,
+	gcodeDir: config.paths.gcode,
+	cncDir: config.paths.cnc,
+	gerbersDir: config.paths.gerbers,
+	windowBounds: {
+		x: 0,
+		y: 33,
+		w: config.makeracam.window.width,
+		h: config.makeracam.window.height,
+	},
+});

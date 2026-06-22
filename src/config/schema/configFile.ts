@@ -7,6 +7,7 @@ import {
 	DependenciesSchema,
 	DrillsSchema,
 	ElectroplatingSchema,
+	MakeracamSchema,
 	PathsSchema,
 	PlaceSchema,
 	SolderMaskSchema,
@@ -55,6 +56,9 @@ export const ConfigFileSchema = Schema.Struct({
 	),
 	xtool: XToolSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.xtool)),
+	),
+	makeracam: MakeracamSchema.pipe(
+		Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.makeracam)),
 	),
 	validation: ValidationSchema.pipe(
 		Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.validation)),

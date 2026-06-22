@@ -225,6 +225,7 @@ export const normalizeConfig = (
 			drills: resolveFrom(resolvedProjectRoot, config.paths.drills),
 			xtool: resolveFrom(resolvedProjectRoot, config.paths.xtool),
 			place: resolveFrom(resolvedProjectRoot, config.paths.place),
+			cnc: resolveFrom(resolvedProjectRoot, config.paths.cnc),
 		},
 		board: {
 			...config.board,
@@ -240,6 +241,7 @@ export const normalizeConfig = (
 		place: config.place,
 		cnc: config.cnc,
 		xtool: config.xtool,
+		makeracam: config.makeracam,
 		validation: config.validation,
 	};
 
