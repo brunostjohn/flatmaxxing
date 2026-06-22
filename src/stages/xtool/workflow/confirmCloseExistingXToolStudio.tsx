@@ -4,19 +4,19 @@ import { Effect } from "effect";
 import { Box, Text } from "ink";
 
 export const confirmCloseExistingXToolStudio = Effect.fn(
-	"flatmaxx.xtool.confirmCloseExisting",
+  "flatmaxx.xtool.confirmCloseExisting",
 )(function* (processIds: readonly number[]) {
-	return yield* renderWithOutput<boolean>((send) => (
-		<Box flexDirection="column">
-			<Text color="yellow">
-				xTool Studio is already open ({processIds.join(", ")}). Close it, then
-				continue?
-			</Text>
-			<ConfirmInput
-				defaultChoice="cancel"
-				onConfirm={() => send(true)}
-				onCancel={() => send(false)}
-			/>
-		</Box>
-	));
+  return yield* renderWithOutput<boolean>((send) => (
+    <Box flexDirection="column">
+      <Text color="yellow">
+        xTool Studio is already open ({processIds.join(", ")}). Close it, then
+        continue?
+      </Text>
+      <ConfirmInput
+        defaultChoice="cancel"
+        onConfirm={() => send(true)}
+        onCancel={() => send(false)}
+      />
+    </Box>
+  ));
 });

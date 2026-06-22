@@ -1,7 +1,7 @@
 export const applescriptSetWindowSize = (
-	app: string,
-	width: number,
-	height: number,
+  app: string,
+  width: number,
+  height: number,
 ) => `
 tell application "${app}" to activate
 tell application "System Events"

@@ -10,11 +10,11 @@ import type { Box } from "./types";
  * bounds position artwork and must not come out too small.
  */
 export function addSpline(box: Box, spline: ISplineEntity) {
-	for (const point of spline.controlPoints ?? []) {
-		addPoint(box, point);
-	}
+  for (const point of spline.controlPoints ?? []) {
+    addPoint(box, point);
+  }
 
-	for (const point of spline.fitPoints ?? []) {
-		addPoint(box, point);
-	}
+  for (const point of spline.fitPoints ?? []) {
+    addPoint(box, point);
+  }
 }

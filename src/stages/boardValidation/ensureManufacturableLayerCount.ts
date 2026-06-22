@@ -3,19 +3,19 @@ import { BoardValidationError } from "@/stages/boardValidation/boardValidationTy
 import { Effect } from "effect";
 
 export const ensureManufacturableLayerCount: BoardValidator = (context) =>
-	Effect.gen(function* () {
-		const copperLayers =
-			context.pcb.layers?.definitions.filter((layer) =>
-				(layer.name ?? "").endsWith(".Cu"),
-			) ?? [];
+  Effect.gen(function* () {
+    const copperLayers =
+      context.pcb.layers?.definitions.filter((layer) =>
+        (layer.name ?? "").endsWith(".Cu"),
+      ) ?? [];
 
-		if (copperLayers.length === 1 || copperLayers.length === 2) {
-			return null;
-		}
+    if (copperLayers.length === 1 || copperLayers.length === 2) {
+      return null;
+    }
 
-		return yield* Effect.fail(
-			new BoardValidationError(
-				`Board stackup has ${copperLayers.length} copper layers (${copperLayers.map((layer) => layer.name).join(", ")}). flatmaxx can only manufacture 1- or 2-layer boards.`,
-			),
-		);
-	});
+    return yield* Effect.fail(
+      new BoardValidationError(
+        `Board stackup has ${copperLayers.length} copper layers (${copperLayers.map((layer) => layer.name).join(", ")}). flatmaxx can only manufacture 1- or 2-layer boards.`,
+      ),
+    );
+  });

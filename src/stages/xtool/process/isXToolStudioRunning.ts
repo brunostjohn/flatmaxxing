@@ -2,9 +2,9 @@ import { Effect } from "effect";
 import { getXToolStudioProcessIds } from "./getXToolStudioProcessIds";
 
 export const isXToolStudioRunning = Effect.fn(
-	"flatmaxx.xtool.process.isRunning",
+  "flatmaxx.xtool.process.isRunning",
 )(function* () {
-	const processIds = yield* getXToolStudioProcessIds();
+  const processIds = yield* getXToolStudioProcessIds();
 
-	return processIds.length > 0;
+  return processIds.length > 0;
 });

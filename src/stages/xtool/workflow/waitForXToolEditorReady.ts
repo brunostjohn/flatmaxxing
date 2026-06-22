@@ -4,23 +4,23 @@ import { runScriptInXToolStudio } from "../cdp";
 import { isPageLoadingUnmounted } from "../scripts";
 
 export const waitForXToolEditorReady = Effect.fn(
-	"flatmaxx.xtool.waitForEditorReady",
+  "flatmaxx.xtool.waitForEditorReady",
 )(function* ({ Runtime }: Pick<Client, "Runtime">) {
-	const waitForPageLoading = Effect.gen(function* () {
-		const isUnmounted = yield* runScriptInXToolStudio(
-			isPageLoadingUnmounted,
-			Runtime,
-			true,
-		);
+  const waitForPageLoading = Effect.gen(function* () {
+    const isUnmounted = yield* runScriptInXToolStudio(
+      isPageLoadingUnmounted,
+      Runtime,
+      true,
+    );
 
-		if (!isUnmounted) {
-			return yield* Effect.fail(new Error("#page-loading is still mounted"));
-		}
-	});
+    if (!isUnmounted) {
+      return yield* Effect.fail(new Error("#page-loading is still mounted"));
+    }
+  });
 
-	yield* waitForPageLoading.pipe(
-		Effect.retry(
-			Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(120))),
-		),
-	);
+  yield* waitForPageLoading.pipe(
+    Effect.retry(
+      Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(120))),
+    ),
+  );
 });

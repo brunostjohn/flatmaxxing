@@ -9,10 +9,10 @@
 let current = 0;
 
 export const nextStep = (): number => {
-	current += 1;
-	return current;
+  current += 1;
+  return current;
 };
 
 export const resetSteps = (): void => {
-	current = 0;
+  current = 0;
 };

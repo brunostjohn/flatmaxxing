@@ -1,6 +1,6 @@
 export const applescriptChooseFileInOpenDialog = (
-	app: string,
-	file: string,
+  app: string,
+  file: string,
 ) => `
 tell application "${app}" to activate
 tell application "System Events"

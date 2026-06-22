@@ -1,7 +1,7 @@
 export const installSaveDialogPatchScript = (desiredAbsolutePath: string) => {
-	const pathLiteral = JSON.stringify(desiredAbsolutePath);
+  const pathLiteral = JSON.stringify(desiredAbsolutePath);
 
-	return `
+  return `
 (() => {
   const desiredAbsolutePath = ${pathLiteral};
 

@@ -10,28 +10,28 @@ export type BulgeVertex = Coordinate & { bulge?: number };
  * a closed polyline additionally arcs from the last vertex back to the first.
  */
 export function addPolyline(
-	box: Box,
-	vertices: readonly BulgeVertex[] | undefined,
-	closed: boolean,
+  box: Box,
+  vertices: readonly BulgeVertex[] | undefined,
+  closed: boolean,
 ) {
-	const points = vertices ?? [];
+  const points = vertices ?? [];
 
-	for (const point of points) {
-		addPoint(box, point);
-	}
+  for (const point of points) {
+    addPoint(box, point);
+  }
 
-	for (let i = 0; i + 1 < points.length; i++) {
-		const start = points[i];
-		const end = points[i + 1];
-		if (!start || !end) continue;
-		addBulgeArc(box, start, end, start.bulge ?? 0);
-	}
+  for (let i = 0; i + 1 < points.length; i++) {
+    const start = points[i];
+    const end = points[i + 1];
+    if (!start || !end) continue;
+    addBulgeArc(box, start, end, start.bulge ?? 0);
+  }
 
-	if (closed && points.length > 1) {
-		const last = points[points.length - 1];
-		const first = points[0];
-		if (last && first) {
-			addBulgeArc(box, last, first, last.bulge ?? 0);
-		}
-	}
+  if (closed && points.length > 1) {
+    const last = points[points.length - 1];
+    const first = points[0];
+    if (last && first) {
+      addBulgeArc(box, last, first, last.bulge ?? 0);
+    }
+  }
 }

@@ -1,270 +1,270 @@
 import { effectiveToolDiameter } from "@/cnc/effectiveToolDiameter";
 import type {
-	AlignmentDrillCategorizationOptions,
-	BoardSelectionOptions,
-	BoardValidationOptions,
-	DrillCategorizationOptions,
-	IsolationValidationOptions,
-	KicadOutputOptions,
-	ResolvedConfig,
-	Side,
-	XToolProjectOptions,
+  AlignmentDrillCategorizationOptions,
+  BoardSelectionOptions,
+  BoardValidationOptions,
+  DrillCategorizationOptions,
+  IsolationValidationOptions,
+  KicadOutputOptions,
+  ResolvedConfig,
+  Side,
+  XToolProjectOptions,
 } from "./types";
 import type { EdgeCutGerberOptions } from "@/stages/generateEdgeCutGerbers/generateEdgeCutGerbers";
 import type {
-	MakeracamStep,
-	MakeracamStepOptions,
+  MakeracamStep,
+  MakeracamStepOptions,
 } from "@/stages/makeracam/types";
 
 const allSides = ["front", "back"] as const satisfies readonly Side[];
 
 const sideToCopperLayer: Record<Side, string> = {
-	front: "F.Cu",
-	back: "B.Cu",
+  front: "F.Cu",
+  back: "B.Cu",
 };
 
 export const enabledSidesFromConfig = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): readonly Side[] =>
-	config.board.ignoreSide === null
-		? allSides
-		: allSides.filter((side) => side !== config.board.ignoreSide);
+  config.board.ignoreSide === null
+    ? allSides
+    : allSides.filter((side) => side !== config.board.ignoreSide);
 
 const withoutExcludedSides = (
-	sides: readonly Side[],
-	excludeSides: readonly Side[],
+  sides: readonly Side[],
+  excludeSides: readonly Side[],
 ): readonly Side[] => sides.filter((side) => !excludeSides.includes(side));
 
 const workflowSkipReason = (
-	generate: boolean,
-	sides: readonly Side[],
-	workflowName: "solderMask" | "stencil",
+  generate: boolean,
+  sides: readonly Side[],
+  workflowName: "solderMask" | "stencil",
 ) => {
-	if (!generate) {
-		return `${workflowName}.generate=false`;
-	}
+  if (!generate) {
+    return `${workflowName}.generate=false`;
+  }
 
-	if (sides.length === 0) {
-		return `${workflowName}.excludeSides excludes all enabled board sides`;
-	}
+  if (sides.length === 0) {
+    return `${workflowName}.excludeSides excludes all enabled board sides`;
+  }
 
-	return undefined;
+  return undefined;
 };
 
 const sideSkipStatus = (
-	boardSides: readonly Side[],
-	excludeSides: readonly Side[],
-	workflowName: "solderMask" | "stencil",
+  boardSides: readonly Side[],
+  excludeSides: readonly Side[],
+  workflowName: "solderMask" | "stencil",
 ): Partial<Record<Side, string>> => {
-	const statuses: Partial<Record<Side, string>> = {};
+  const statuses: Partial<Record<Side, string>> = {};
 
-	for (const side of allSides) {
-		if (!boardSides.includes(side)) {
-			statuses[side] = `board.ignoreSide=${side}`;
-			continue;
-		}
+  for (const side of allSides) {
+    if (!boardSides.includes(side)) {
+      statuses[side] = `board.ignoreSide=${side}`;
+      continue;
+    }
 
-		if (excludeSides.includes(side)) {
-			statuses[side] = `${workflowName}.excludeSides includes ${side}`;
-		}
-	}
+    if (excludeSides.includes(side)) {
+      statuses[side] = `${workflowName}.excludeSides includes ${side}`;
+    }
+  }
 
-	return statuses;
+  return statuses;
 };
 
 export const buildBoardSelectionOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): BoardSelectionOptions => ({
-	boardFile: config.board.file,
+  boardFile: config.board.file,
 });
 
 export const buildBoardValidationOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): BoardValidationOptions => ({
-	autoFix: config.board.autoFix,
+  autoFix: config.board.autoFix,
 });
 
 export const buildKicadOutputOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): KicadOutputOptions => {
-	const boardSides = enabledSidesFromConfig(config);
-	const solderMaskSides = withoutExcludedSides(
-		boardSides,
-		config.solderMask.excludeSides,
-	);
-	const stencilSides = withoutExcludedSides(
-		boardSides,
-		config.stencil.excludeSides,
-	);
+  const boardSides = enabledSidesFromConfig(config);
+  const solderMaskSides = withoutExcludedSides(
+    boardSides,
+    config.solderMask.excludeSides,
+  );
+  const stencilSides = withoutExcludedSides(
+    boardSides,
+    config.stencil.excludeSides,
+  );
 
-	return {
-		paths: {
-			svg: config.paths.svg,
-			dxf: config.paths.dxf,
-			png: config.paths.png,
-			gerbers: config.paths.gerbers,
-			place: config.paths.place,
-		},
-		sides: boardSides,
-		drills: config.drills,
-		place: config.place,
-		solderMask: {
-			generate: config.solderMask.generate,
-			sides: solderMaskSides,
-			skipReason: workflowSkipReason(
-				config.solderMask.generate,
-				solderMaskSides,
-				"solderMask",
-			),
-		},
-		stencil: {
-			generate: config.stencil.generate,
-			sides: stencilSides,
-			skipReason: workflowSkipReason(
-				config.stencil.generate,
-				stencilSides,
-				"stencil",
-			),
-		},
-	};
+  return {
+    paths: {
+      svg: config.paths.svg,
+      dxf: config.paths.dxf,
+      png: config.paths.png,
+      gerbers: config.paths.gerbers,
+      place: config.paths.place,
+    },
+    sides: boardSides,
+    drills: config.drills,
+    place: config.place,
+    solderMask: {
+      generate: config.solderMask.generate,
+      sides: solderMaskSides,
+      skipReason: workflowSkipReason(
+        config.solderMask.generate,
+        solderMaskSides,
+        "solderMask",
+      ),
+    },
+    stencil: {
+      generate: config.stencil.generate,
+      sides: stencilSides,
+      skipReason: workflowSkipReason(
+        config.stencil.generate,
+        stencilSides,
+        "stencil",
+      ),
+    },
+  };
 };
 
 export const buildIsolationValidationOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): IsolationValidationOptions => {
-	const sides = enabledSidesFromConfig(config);
-	const tool = config.cnc.isolation.tool;
-	const cutDepth = config.cnc.isolation.zCutDepth;
+  const sides = enabledSidesFromConfig(config);
+  const tool = config.cnc.isolation.tool;
+  const cutDepth = config.cnc.isolation.zCutDepth;
 
-	return {
-		// Can only validate when an isolation tool is configured.
-		enabled:
-			config.validation.isolationFeasibility.enabled && tool !== undefined,
-		onFailure: config.validation.isolationFeasibility.onFailure,
-		tool,
-		cutDepth,
-		effectiveDiameter: tool ? effectiveToolDiameter(tool, cutDepth) : 0,
-		layers: sides.map((side) => sideToCopperLayer[side]),
-		ignorePatterns: config.validation.isolationFeasibility.ignore,
-	};
+  return {
+    // Can only validate when an isolation tool is configured.
+    enabled:
+      config.validation.isolationFeasibility.enabled && tool !== undefined,
+    onFailure: config.validation.isolationFeasibility.onFailure,
+    tool,
+    cutDepth,
+    effectiveDiameter: tool ? effectiveToolDiameter(tool, cutDepth) : 0,
+    layers: sides.map((side) => sideToCopperLayer[side]),
+    ignorePatterns: config.validation.isolationFeasibility.ignore,
+  };
 };
 
 export const buildDrillCategorizationOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): DrillCategorizationOptions => ({
-	enabled: config.validation.drillFeasibility.enabled,
-	onFailure: config.validation.drillFeasibility.onFailure,
-	drillsDir: config.paths.drills,
-	gerbersDir: config.paths.gerbers,
-	availableDrills: config.cnc.availableDrills,
-	availableMills: config.cnc.availableMills,
-	matchToleranceMm: config.cnc.drilling.matchToleranceMm,
+  enabled: config.validation.drillFeasibility.enabled,
+  onFailure: config.validation.drillFeasibility.onFailure,
+  drillsDir: config.paths.drills,
+  gerbersDir: config.paths.gerbers,
+  availableDrills: config.cnc.availableDrills,
+  availableMills: config.cnc.availableMills,
+  matchToleranceMm: config.cnc.drilling.matchToleranceMm,
 });
 
 export const buildAlignmentDrillCategorizationOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): AlignmentDrillCategorizationOptions => ({
-	enabled: config.alignmentDrills.generate,
-	drillsDir: config.paths.drills,
-	gerbersDir: config.paths.gerbers,
-	availableDrills: config.cnc.availableDrills,
-	availableMills: config.cnc.availableMills,
-	matchToleranceMm: config.cnc.drilling.matchToleranceMm,
+  enabled: config.alignmentDrills.generate,
+  drillsDir: config.paths.drills,
+  gerbersDir: config.paths.gerbers,
+  availableDrills: config.cnc.availableDrills,
+  availableMills: config.cnc.availableMills,
+  matchToleranceMm: config.cnc.drilling.matchToleranceMm,
 });
 
 export const buildXToolProjectOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): XToolProjectOptions => {
-	const boardSides = enabledSidesFromConfig(config);
-	const solderMaskSides = withoutExcludedSides(
-		boardSides,
-		config.solderMask.excludeSides,
-	);
-	const stencilSides = withoutExcludedSides(
-		boardSides,
-		config.stencil.excludeSides,
-	);
-	const solderMaskSkipReason = workflowSkipReason(
-		config.solderMask.generate,
-		solderMaskSides,
-		"solderMask",
-	);
-	const stencilSkipReason = workflowSkipReason(
-		config.stencil.generate,
-		stencilSides,
-		"stencil",
-	);
-	const solderMaskEnabled = solderMaskSkipReason === undefined;
-	const stencilEnabled = stencilSkipReason === undefined;
+  const boardSides = enabledSidesFromConfig(config);
+  const solderMaskSides = withoutExcludedSides(
+    boardSides,
+    config.solderMask.excludeSides,
+  );
+  const stencilSides = withoutExcludedSides(
+    boardSides,
+    config.stencil.excludeSides,
+  );
+  const solderMaskSkipReason = workflowSkipReason(
+    config.solderMask.generate,
+    solderMaskSides,
+    "solderMask",
+  );
+  const stencilSkipReason = workflowSkipReason(
+    config.stencil.generate,
+    stencilSides,
+    "stencil",
+  );
+  const solderMaskEnabled = solderMaskSkipReason === undefined;
+  const stencilEnabled = stencilSkipReason === undefined;
 
-	return {
-		enabled: solderMaskEnabled || stencilEnabled,
-		outputPath: config.paths.xtool,
-		lifecycle: {
-			appPath: config.xtool.appPath,
-			cdpHost: config.xtool.cdpHost,
-			cdpPort: config.xtool.cdpPort,
-			window: config.xtool.window,
-		},
-		solderMask: {
-			enabled: solderMaskEnabled,
-			skipReason: solderMaskSkipReason,
-			sides: solderMaskSides,
-			sideSkipStatus: sideSkipStatus(
-				boardSides,
-				config.solderMask.excludeSides,
-				"solderMask",
-			),
-			double: config.solderMask.double,
-			distance: config.solderMask.distance,
-			xtool: config.solderMask.xtool,
-		},
-		stencil: {
-			enabled: stencilEnabled,
-			skipReason: stencilSkipReason,
-			sides: stencilSides,
-			sideSkipStatus: sideSkipStatus(
-				boardSides,
-				config.stencil.excludeSides,
-				"stencil",
-			),
-			xtool: config.stencil.xtool,
-		},
-	};
+  return {
+    enabled: solderMaskEnabled || stencilEnabled,
+    outputPath: config.paths.xtool,
+    lifecycle: {
+      appPath: config.xtool.appPath,
+      cdpHost: config.xtool.cdpHost,
+      cdpPort: config.xtool.cdpPort,
+      window: config.xtool.window,
+    },
+    solderMask: {
+      enabled: solderMaskEnabled,
+      skipReason: solderMaskSkipReason,
+      sides: solderMaskSides,
+      sideSkipStatus: sideSkipStatus(
+        boardSides,
+        config.solderMask.excludeSides,
+        "solderMask",
+      ),
+      double: config.solderMask.double,
+      distance: config.solderMask.distance,
+      xtool: config.solderMask.xtool,
+    },
+    stencil: {
+      enabled: stencilEnabled,
+      skipReason: stencilSkipReason,
+      sides: stencilSides,
+      sideSkipStatus: sideSkipStatus(
+        boardSides,
+        config.stencil.excludeSides,
+        "stencil",
+      ),
+      xtool: config.stencil.xtool,
+    },
+  };
 };
 
 export const buildEdgeCutGerberOptions = (
-	config: ResolvedConfig,
+  config: ResolvedConfig,
 ): EdgeCutGerberOptions => ({
-	enabled:
-		config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
-	platingOffsets: config.electroplating.additionalDistance,
-	cornerRadius: config.electroplating.cornerRadius,
-	alignmentDistance: config.alignmentDrills.distance,
-	gerbersDir: config.paths.gerbers,
+  enabled:
+    config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
+  platingOffsets: config.electroplating.additionalDistance,
+  cornerRadius: config.electroplating.cornerRadius,
+  alignmentDistance: config.alignmentDrills.distance,
+  gerbersDir: config.paths.gerbers,
 });
 
 export const buildMakeracamStepOptions = (
-	config: ResolvedConfig,
-	step: MakeracamStep,
+  config: ResolvedConfig,
+  step: MakeracamStep,
 ): MakeracamStepOptions => ({
-	enabled:
-		step === "plated"
-			? config.makeracam.platedHoles.generate
-			: config.makeracam.finalCut.generate,
-	step,
-	appPath: config.makeracam.appPath,
-	existingProcess: config.makeracam.existingProcess,
-	cutDepthMm: config.makeracam.cutDepthMm,
-	tabsPerContour: config.makeracam.tabsPerContour,
-	drillsDir: config.paths.drills,
-	gcodeDir: config.paths.gcode,
-	cncDir: config.paths.cnc,
-	gerbersDir: config.paths.gerbers,
-	windowBounds: {
-		x: 0,
-		y: 33,
-		w: config.makeracam.window.width,
-		h: config.makeracam.window.height,
-	},
+  enabled:
+    step === "plated"
+      ? config.makeracam.platedHoles.generate
+      : config.makeracam.finalCut.generate,
+  step,
+  appPath: config.makeracam.appPath,
+  existingProcess: config.makeracam.existingProcess,
+  cutDepthMm: config.makeracam.cutDepthMm,
+  tabsPerContour: config.makeracam.tabsPerContour,
+  drillsDir: config.paths.drills,
+  gcodeDir: config.paths.gcode,
+  cncDir: config.paths.cnc,
+  gerbersDir: config.paths.gerbers,
+  windowBounds: {
+    x: 0,
+    y: 33,
+    w: config.makeracam.window.width,
+    h: config.makeracam.window.height,
+  },
 });

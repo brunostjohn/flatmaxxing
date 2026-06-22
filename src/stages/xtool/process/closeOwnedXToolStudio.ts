@@ -5,25 +5,25 @@ import type { XToolStudioProcess } from "./types";
 import { waitForProcessIdsToExit } from "./waitForProcessIdsToExit";
 
 export const closeOwnedXToolStudio = Effect.fn(
-	"flatmaxx.xtool.process.closeOwned",
+  "flatmaxx.xtool.process.closeOwned",
 )(function* (process: XToolStudioProcess) {
-	const runningProcessIds = yield* getRunningProcessIds(process.processIds);
+  const runningProcessIds = yield* getRunningProcessIds(process.processIds);
 
-	if (runningProcessIds.length === 0) {
-		return;
-	}
+  if (runningProcessIds.length === 0) {
+    return;
+  }
 
-	yield* killProcessIds(runningProcessIds, "SIGTERM");
+  yield* killProcessIds(runningProcessIds, "SIGTERM");
 
-	const termWaitResult = yield* waitForProcessIdsToExit(
-		process.processIds,
-	).pipe(Effect.exit);
+  const termWaitResult = yield* waitForProcessIdsToExit(
+    process.processIds,
+  ).pipe(Effect.exit);
 
-	if (termWaitResult._tag === "Success") {
-		return;
-	}
+  if (termWaitResult._tag === "Success") {
+    return;
+  }
 
-	const afterTermProcessIds = yield* getRunningProcessIds(process.processIds);
-	yield* killProcessIds(afterTermProcessIds, "SIGKILL");
-	yield* waitForProcessIdsToExit(process.processIds);
+  const afterTermProcessIds = yield* getRunningProcessIds(process.processIds);
+  yield* killProcessIds(afterTermProcessIds, "SIGKILL");
+  yield* waitForProcessIdsToExit(process.processIds);
 });

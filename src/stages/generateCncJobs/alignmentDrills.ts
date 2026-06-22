@@ -1,15 +1,15 @@
 import { renderExcellon } from "@/stages/categorizeDrills/renderExcellon";
 
 export interface BoardBounds {
-	readonly xmin: number;
-	readonly ymin: number;
-	readonly xmax: number;
-	readonly ymax: number;
+  readonly xmin: number;
+  readonly ymin: number;
+  readonly xmax: number;
+  readonly ymax: number;
 }
 
 export interface DrillPoint {
-	readonly x: number;
-	readonly y: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 /**
@@ -20,18 +20,18 @@ export interface DrillPoint {
  * what keeps the flipped board registered on the dowel pins.
  */
 export const alignmentDrillPoints = (
-	bounds: BoardBounds,
-	distance: { readonly x: number; readonly y: number },
+  bounds: BoardBounds,
+  distance: { readonly x: number; readonly y: number },
 ): readonly DrillPoint[] => {
-	const { xmin, ymin, xmax, ymax } = bounds;
-	const dx = distance.x;
-	const dy = distance.y;
-	return [
-		{ x: xmin - dx, y: ymin - dy },
-		{ x: xmax + dx, y: ymin - dy },
-		{ x: xmin - dx, y: ymax + dy },
-		{ x: xmax + dx, y: ymax + dy },
-	];
+  const { xmin, ymin, xmax, ymax } = bounds;
+  const dx = distance.x;
+  const dy = distance.y;
+  return [
+    { x: xmin - dx, y: ymin - dy },
+    { x: xmax + dx, y: ymin - dy },
+    { x: xmin - dx, y: ymax + dy },
+    { x: xmax + dx, y: ymax + dy },
+  ];
 };
 
 /**
@@ -41,16 +41,16 @@ export const alignmentDrillPoints = (
  * copper gerbers. Delegates to the shared {@link renderExcellon} writer.
  */
 export const renderAlignmentExcellon = (
-	points: readonly DrillPoint[],
-	diameter: number,
+  points: readonly DrillPoint[],
+  diameter: number,
 ): string =>
-	renderExcellon(
-		points.map((p) => ({
-			kind: "circle",
-			plating: "unknown",
-			diameter,
-			x: p.x,
-			y: p.y,
-			tool: 1,
-		})),
-	);
+  renderExcellon(
+    points.map((p) => ({
+      kind: "circle",
+      plating: "unknown",
+      diameter,
+      x: p.x,
+      y: p.y,
+      tool: 1,
+    })),
+  );

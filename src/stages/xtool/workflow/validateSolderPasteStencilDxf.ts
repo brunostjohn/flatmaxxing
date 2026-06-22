@@ -6,61 +6,61 @@ import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
 import type { SolderPasteStencilSide, XToolTasks } from "./types";
 
 export const validateSolderPasteStencilDxf = Effect.fn(
-	"flatmaxx.xtool.validateSolderPasteStencilDxf",
+  "flatmaxx.xtool.validateSolderPasteStencilDxf",
 )(function* (
-	projectPath: string,
-	pcbName: string,
-	side: SolderPasteStencilSide,
-	tasks: XToolTasks,
+  projectPath: string,
+  pcbName: string,
+  side: SolderPasteStencilSide,
+  tasks: XToolTasks,
 ) {
-	const fs = yield* FileSystem.FileSystem;
-	const config = solderPasteStencilSideConfig[side];
-	const paths = config.taskPaths.importDxf;
-	const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
+  const fs = yield* FileSystem.FileSystem;
+  const config = solderPasteStencilSideConfig[side];
+  const paths = config.taskPaths.importDxf;
+  const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
 
-	yield* tasks.patchTask(paths.root, {
-		state: "loading",
-		status: `Checking ${config.fileSuffix} DXF before opening xTool...`,
-	});
+  yield* tasks.patchTask(paths.root, {
+    state: "loading",
+    status: `Checking ${config.fileSuffix} DXF before opening xTool...`,
+  });
 
-	const hasGeometry = yield* tasks.runTask({
-		path: paths.validateDxf,
-		effect: Effect.gen(function* () {
-			const dxfFile = yield* fs.readFileString(dxfPath);
-			const parser = new DxfParser();
-			const dxf = parser.parseSync(dxfFile);
+  const hasGeometry = yield* tasks.runTask({
+    path: paths.validateDxf,
+    effect: Effect.gen(function* () {
+      const dxfFile = yield* fs.readFileString(dxfPath);
+      const parser = new DxfParser();
+      const dxf = parser.parseSync(dxfFile);
 
-			if (!dxf) {
-				return yield* Effect.fail(new Error("Failed to parse DXF file."));
-			}
+      if (!dxf) {
+        return yield* Effect.fail(new Error("Failed to parse DXF file."));
+      }
 
-			// Runs the geometry check in a Bun worker (off the main thread).
-			return yield* dxfHasPlottableGeometry(dxf);
-		}),
-		loading: { status: `Validating ${dxfPath} has plottable geometry...` },
-		success: { label: `${config.fileSuffix} DXF checked.` },
-		error: { label: `Failed to validate ${config.fileSuffix} DXF.` },
-	});
+      // Runs the geometry check in a Bun worker (off the main thread).
+      return yield* dxfHasPlottableGeometry(dxf);
+    }),
+    loading: { status: `Validating ${dxfPath} has plottable geometry...` },
+    success: { label: `${config.fileSuffix} DXF checked.` },
+    error: { label: `Failed to validate ${config.fileSuffix} DXF.` },
+  });
 
-	if (!hasGeometry) {
-		yield* tasks.patchTask(paths.validateDxf, {
-			state: "success",
-			label: `${config.fileSuffix} DXF has no plottable objects; skipping.`,
-			status: "",
-		});
-		yield* tasks.patchTask(paths.root, {
-			state: "success",
-			label: `${config.label} paste DXF is empty; skipping stencil import.`,
-			status: dxfPath,
-		});
-		return false;
-	}
+  if (!hasGeometry) {
+    yield* tasks.patchTask(paths.validateDxf, {
+      state: "success",
+      label: `${config.fileSuffix} DXF has no plottable objects; skipping.`,
+      status: "",
+    });
+    yield* tasks.patchTask(paths.root, {
+      state: "success",
+      label: `${config.label} paste DXF is empty; skipping stencil import.`,
+      status: dxfPath,
+    });
+    return false;
+  }
 
-	yield* tasks.patchTask(paths.validateDxf, {
-		state: "success",
-		label: `${config.fileSuffix} DXF has plottable objects.`,
-		status: "",
-	});
+  yield* tasks.patchTask(paths.validateDxf, {
+    state: "success",
+    label: `${config.fileSuffix} DXF has plottable objects.`,
+    status: "",
+  });
 
-	return true;
+  return true;
 });

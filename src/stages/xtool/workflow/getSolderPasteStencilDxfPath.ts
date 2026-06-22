@@ -3,16 +3,16 @@ import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
 import type { SolderPasteStencilSide } from "./types";
 
 export function getSolderPasteStencilDxfPath(
-	projectPath: string,
-	pcbName: string,
-	side: SolderPasteStencilSide,
+  projectPath: string,
+  pcbName: string,
+  side: SolderPasteStencilSide,
 ) {
-	const config = solderPasteStencilSideConfig[side];
+  const config = solderPasteStencilSideConfig[side];
 
-	return resolve(
-		projectPath,
-		"..",
-		"dxf",
-		`${pcbName}-${config.fileSuffix}.dxf`,
-	);
+  return resolve(
+    projectPath,
+    "..",
+    "dxf",
+    `${pcbName}-${config.fileSuffix}.dxf`,
+  );
 }

@@ -10,43 +10,43 @@ import { pointOnEllipse } from "./pointOnEllipse";
 import type { Box } from "./types";
 
 export function addEllipse(box: Box, ellipse: IEllipseEntity) {
-	if (
-		!ellipse.center ||
-		!ellipse.majorAxisEndPoint ||
-		!Number.isFinite(ellipse.axisRatio)
-	) {
-		return;
-	}
+  if (
+    !ellipse.center ||
+    !ellipse.majorAxisEndPoint ||
+    !Number.isFinite(ellipse.axisRatio)
+  ) {
+    return;
+  }
 
-	const major = ellipse.majorAxisEndPoint;
-	const minor = {
-		x: -major.y * ellipse.axisRatio,
-		y: major.x * ellipse.axisRatio,
-	};
+  const major = ellipse.majorAxisEndPoint;
+  const minor = {
+    x: -major.y * ellipse.axisRatio,
+    y: major.x * ellipse.axisRatio,
+  };
 
-	if (
-		!Number.isFinite(ellipse.startAngle) ||
-		!Number.isFinite(ellipse.endAngle)
-	) {
-		addFullEllipse(box, ellipse.center, major, minor);
-		return;
-	}
+  if (
+    !Number.isFinite(ellipse.startAngle) ||
+    !Number.isFinite(ellipse.endAngle)
+  ) {
+    addFullEllipse(box, ellipse.center, major, minor);
+    return;
+  }
 
-	const startAngle = normalizeAngle(ellipse.startAngle);
-	const endAngle = normalizeAngle(ellipse.endAngle);
-	const sweep = counterClockwiseSweep(ellipse.startAngle, ellipse.endAngle);
+  const startAngle = normalizeAngle(ellipse.startAngle);
+  const endAngle = normalizeAngle(ellipse.endAngle);
+  const sweep = counterClockwiseSweep(ellipse.startAngle, ellipse.endAngle);
 
-	if (sweep >= TAU - GEOMETRY_EPSILON) {
-		addFullEllipse(box, ellipse.center, major, minor);
-		return;
-	}
+  if (sweep >= TAU - GEOMETRY_EPSILON) {
+    addFullEllipse(box, ellipse.center, major, minor);
+    return;
+  }
 
-	addPoint(box, pointOnEllipse(ellipse.center, major, minor, startAngle));
-	addPoint(box, pointOnEllipse(ellipse.center, major, minor, endAngle));
+  addPoint(box, pointOnEllipse(ellipse.center, major, minor, startAngle));
+  addPoint(box, pointOnEllipse(ellipse.center, major, minor, endAngle));
 
-	for (const angle of ellipseCardinalAngles(major, minor)) {
-		if (isAngleOnCounterClockwiseArc(angle, startAngle, sweep)) {
-			addPoint(box, pointOnEllipse(ellipse.center, major, minor, angle));
-		}
-	}
+  for (const angle of ellipseCardinalAngles(major, minor)) {
+    if (isAngleOnCounterClockwiseArc(angle, startAngle, sweep)) {
+      addPoint(box, pointOnEllipse(ellipse.center, major, minor, angle));
+    }
+  }
 }

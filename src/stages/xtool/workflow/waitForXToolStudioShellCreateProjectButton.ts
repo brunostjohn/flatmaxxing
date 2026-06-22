@@ -4,25 +4,25 @@ import { runScriptInXToolStudio } from "../cdp";
 import { isShellCreateProjectButtonReady } from "../scripts";
 
 export const waitForXToolStudioShellCreateProjectButton = Effect.fn(
-	"flatmaxx.xtool.waitForShellCreateProjectButton",
+  "flatmaxx.xtool.waitForShellCreateProjectButton",
 )(function* ({ Runtime }: Pick<Client, "Runtime">) {
-	const waitForCreateProjectButton = Effect.gen(function* () {
-		const isReady = yield* runScriptInXToolStudio(
-			isShellCreateProjectButtonReady,
-			Runtime,
-			true,
-		);
+  const waitForCreateProjectButton = Effect.gen(function* () {
+    const isReady = yield* runScriptInXToolStudio(
+      isShellCreateProjectButtonReady,
+      Runtime,
+      true,
+    );
 
-		if (!isReady) {
-			return yield* Effect.fail(
-				new Error("xTool Studio shell plus button is not ready"),
-			);
-		}
-	});
+    if (!isReady) {
+      return yield* Effect.fail(
+        new Error("xTool Studio shell plus button is not ready"),
+      );
+    }
+  });
 
-	yield* waitForCreateProjectButton.pipe(
-		Effect.retry(
-			Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(120))),
-		),
-	);
+  yield* waitForCreateProjectButton.pipe(
+    Effect.retry(
+      Schedule.spaced(500).pipe(Schedule.both(Schedule.recurs(120))),
+    ),
+  );
 });
