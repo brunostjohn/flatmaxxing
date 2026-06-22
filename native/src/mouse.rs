@@ -16,10 +16,7 @@ pub fn mouse_pos() -> Result<MousePos, napi::Error> {
 
   let pos = event.location();
 
-  Ok(MousePos {
-    x: pos.x.round() as i32,
-    y: pos.y.round() as i32,
-  })
+  Ok(MousePos { x: pos.x, y: pos.y })
 }
 
 #[napi(js_name = "mouseMove")]

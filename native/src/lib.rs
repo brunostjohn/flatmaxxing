@@ -2,6 +2,7 @@
 
 pub mod accessibility;
 mod accessibility_helpers;
+pub mod composed;
 pub mod mouse;
 mod mouse_helpers;
 pub mod permissions;

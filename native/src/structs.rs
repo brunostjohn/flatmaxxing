@@ -1,7 +1,8 @@
 use napi_derive::napi;
+use serde::{Deserialize, Serialize};
 
 #[napi(object)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AxQuery {
   pub role: Option<String>,
   pub title: Option<String>,
@@ -38,8 +39,8 @@ pub struct AxTrustedOptions {
 #[napi(object)]
 #[derive(Debug, Clone)]
 pub struct MousePos {
-  pub x: i32,
-  pub y: i32,
+  pub x: f64,
+  pub y: f64,
 }
 
 #[napi(object)]
@@ -55,4 +56,13 @@ pub struct Frame {
   pub y: f64,
   pub width: f64,
   pub height: f64,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct WaitOptions {
+  #[napi(js_name = "timeoutMs")]
+  pub timeout_ms: Option<u32>,
+  #[napi(js_name = "everyMs")]
+  pub every_ms: Option<u32>,
 }

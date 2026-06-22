@@ -27,7 +27,7 @@ pub fn event_source() -> Result<CGEventSource, napi::Error> {
 }
 
 fn point(pos: &MousePos) -> CGPoint {
-  CGPoint::new(f64::from(pos.x), f64::from(pos.y))
+  CGPoint::new(pos.x, pos.y)
 }
 
 pub fn mouse_event(

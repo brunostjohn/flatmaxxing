@@ -6,15 +6,26 @@ import {
   axRequestTrusted as axRequestTrustedNative,
   axSetValue as axSetValueNative,
   axTrusted as axTrustedNative,
+  clickElement as clickElementNative,
+  doubleClickElement as doubleClickElementNative,
+  elementExists as elementExistsNative,
+  findElement as findElementNative,
   mouseClick as mouseClickNative,
   mouseDoubleClick as mouseDoubleClickNative,
   mouseMove as mouseMoveNative,
   mousePos as mousePosNative,
   mouseRightClick as mouseRightClickNative,
   mouseScroll as mouseScrollNative,
+  pickElement as pickElementNative,
+  rightClickElement as rightClickElementNative,
   screenCaptureGranted as screenCaptureGrantedNative,
+  scrollToVisible as scrollToVisibleNative,
+  showMenu as showMenuNative,
+  waitForElement as waitForElementNative,
+  waitForGone as waitForGoneNative,
   type AxQuery,
   type MousePos,
+  type WaitOptions,
 } from "@flatmaxxing/accessibility";
 import { Effect } from "effect";
 import { AXError, MouseError } from "./errors";
@@ -43,6 +54,107 @@ export const axFind = Effect.fn("flatmaxx.macos.axFind")(function* (
     Effect.andThen(Effect.fromNullishOr),
   );
 });
+
+export const showMenu = Effect.fn("flatmaxx.macos.axShowMenu")(function* (
+  pid: number,
+  query: AxQuery,
+) {
+  return yield* Effect.try({
+    try: () => showMenuNative(pid, query),
+    catch: (error) =>
+      new AXError({
+        message: "showMenu failed",
+        cause: error,
+      }),
+  });
+});
+
+export const pickElement = Effect.fn("flatmaxx.macos.pickElement")(function* (
+  pid: number,
+  query: AxQuery,
+) {
+  return yield* Effect.try({
+    try: () => pickElementNative(pid, query),
+    catch: (error) =>
+      new AXError({
+        message: "pickElement failed",
+        cause: error,
+      }),
+  });
+});
+
+export const scrollToVisible = Effect.fn("flatmaxx.macos.scrollToVisible")(
+  function* (pid: number, query: AxQuery) {
+    return yield* Effect.try({
+      try: () => scrollToVisibleNative(pid, query),
+      catch: (error) =>
+        new AXError({
+          message: "scrollToVisible failed",
+          cause: error,
+        }),
+    });
+  },
+);
+
+export const findElement = Effect.fn("flatmaxx.macos.findElement")(function* (
+  pid: number,
+  query: AxQuery,
+) {
+  return yield* Effect.try({
+    try: () => findElementNative(pid, query),
+    catch: (error) =>
+      new AXError({
+        message: "findElement failed",
+        cause: error,
+      }),
+  });
+});
+
+export const elementExists = Effect.fn("flatmaxx.macos.elementExists")(
+  function* (pid: number, query: AxQuery) {
+    return yield* Effect.sync(() => elementExistsNative(pid, query));
+  },
+);
+
+export const clickElement = Effect.fn("flatmaxx.macos.clickElement")(function* (
+  pid: number,
+  query: AxQuery,
+) {
+  return yield* Effect.tryPromise({
+    try: () => clickElementNative(pid, query),
+    catch: (error) =>
+      new MouseError({
+        message: "clickElement failed",
+        cause: error,
+      }),
+  });
+});
+
+export const doubleClickElement = Effect.fn(
+  "flatmaxx.macos.doubleClickElement",
+)(function* (pid: number, query: AxQuery) {
+  return yield* Effect.tryPromise({
+    try: () => doubleClickElementNative(pid, query),
+    catch: (error) =>
+      new MouseError({
+        message: "doubleClickElement failed",
+        cause: error,
+      }),
+  });
+});
+
+export const rightClickElement = Effect.fn("flatmaxx.macos.rightClickElement")(
+  function* (pid: number, query: AxQuery) {
+    return yield* Effect.tryPromise({
+      try: () => rightClickElementNative(pid, query),
+      catch: (error) =>
+        new MouseError({
+          message: "rightClickElement failed",
+          cause: error,
+        }),
+    });
+  },
+);
 
 export const axPress = Effect.fn("flatmaxx.macos.axPress")(function* (
   pid: number,
@@ -172,6 +284,34 @@ export const mouseScroll = Effect.fn("flatmaxx.macos.mouseScroll")(function* (
     catch: (error) =>
       new MouseError({
         message: "mouseScroll failed",
+        cause: error,
+      }),
+  });
+});
+
+export const waitForElement = Effect.fn("flatmaxx.macos.waitForElement")(
+  function* (pid: number, query: AxQuery, opts?: WaitOptions) {
+    return yield* Effect.tryPromise({
+      try: () => waitForElementNative(pid, query, opts),
+      catch: (error) =>
+        new AXError({
+          message: "waitForElement failed",
+          cause: error,
+        }),
+    });
+  },
+);
+
+export const waitForGone = Effect.fn("flatmaxx.macos.waitForGone")(function* (
+  pid: number,
+  query: AxQuery,
+  opts?: WaitOptions,
+) {
+  return yield* Effect.tryPromise({
+    try: () => waitForGoneNative(pid, query, opts),
+    catch: (error) =>
+      new AXError({
+        message: "waitForGone failed",
         cause: error,
       }),
   });

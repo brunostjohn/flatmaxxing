@@ -1,15 +1,7 @@
 import { runAppleScript } from "@/utils";
-import type { AxQuery } from "@flatmaxxing/accessibility";
 import { Duration, Effect } from "effect";
 import { ChildProcess } from "effect/unstable/process";
-import { ElementNotFoundError, ScreenshotError } from "./errors";
-import {
-  axFind,
-  axPerformAction,
-  mouseClick,
-  mouseDoubleClick,
-  mouseRightClick,
-} from "./nativeHelper";
+import { ScreenshotError } from "./errors";
 import type { Rect } from "./types";
 
 export {
@@ -17,132 +9,25 @@ export {
   axFind,
   axTrusted,
   mouseClick as clickAt,
+  clickElement,
   mouseDoubleClick as doubleClickAt,
+  doubleClickElement,
+  elementExists,
+  findElement,
   mouseMove,
   mousePos,
   mouseScroll,
   axPerformAction as performAction,
+  pickElement,
   axPress as pressElement,
   mouseRightClick as rightClickAt,
+  rightClickElement,
+  scrollToVisible,
   axSetValue as setElementValue,
+  showMenu,
+  waitForElement,
+  waitForGone,
 } from "./nativeHelper";
-
-export const showMenu = Effect.fn("flatmaxx.macos.showMenu")(function* (
-  pid: number,
-  query: AxQuery,
-) {
-  yield* axPerformAction(pid, query, "AXShowMenu");
-});
-
-export const pickElement = Effect.fn("flatmaxx.macos.pickElement")(function* (
-  pid: number,
-  query: AxQuery,
-) {
-  yield* axPerformAction(pid, query, "AXPick");
-});
-
-export const scrollToVisible = Effect.fn("flatmaxx.macos.scrollToVisible")(
-  function* (pid: number, query: AxQuery) {
-    yield* axPerformAction(pid, query, "AXScrollToVisible");
-  },
-);
-
-const nthIndex = (q: AxQuery): number => (q.nth ?? 1) - 1;
-
-export const findElement = Effect.fn("flatmaxx.macos.findElement")(function* (
-  pid: number,
-  query: AxQuery,
-) {
-  const els = yield* axFind(pid, query);
-
-  const el = els?.[nthIndex(query)];
-  if (el === undefined) {
-    return yield* Effect.fail(
-      new ElementNotFoundError({
-        message: `no element for ${JSON.stringify(query)}`,
-      }),
-    );
-  }
-  return el;
-});
-
-export const elementExists = Effect.fn("flatmaxx.macos.elementExists")(
-  function* (pid: number, query: AxQuery) {
-    const els = yield* axFind(pid, query);
-    if (!els) return false;
-
-    return els.length > nthIndex(query);
-  },
-);
-
-export const waitForElement = Effect.fn("flatmaxx.macos.waitForElement")(
-  function* (
-    pid: number,
-    query: AxQuery,
-    opts?: { readonly timeoutMs?: number; readonly everyMs?: number },
-  ) {
-    const everyMs = opts?.everyMs ?? 200;
-    const timeoutMs = opts?.timeoutMs ?? 10_000;
-    const attempts = Math.max(1, Math.ceil(timeoutMs / everyMs));
-    const idx = nthIndex(query);
-    for (let i = 0; i < attempts; i++) {
-      const els = yield* axFind(pid, query);
-      const el = els?.[idx];
-      if (el !== undefined) return el;
-      yield* Effect.sleep(Duration.millis(everyMs));
-    }
-    return yield* Effect.fail(
-      new ElementNotFoundError({
-        message: `timed out (${timeoutMs}ms) waiting for ${JSON.stringify(query)}`,
-      }),
-    );
-  },
-);
-
-export const waitForGone = Effect.fn("flatmaxx.macos.waitForGone")(function* (
-  pid: number,
-  query: AxQuery,
-  opts?: { readonly timeoutMs?: number; readonly everyMs?: number },
-) {
-  const everyMs = opts?.everyMs ?? 200;
-  const timeoutMs = opts?.timeoutMs ?? 10_000;
-  const attempts = Math.max(1, Math.ceil(timeoutMs / everyMs));
-  for (let i = 0; i < attempts; i++) {
-    const els = yield* axFind(pid, query);
-    if (!els || els.length === 0) return;
-    yield* Effect.sleep(Duration.millis(everyMs));
-  }
-  return yield* Effect.fail(
-    new ElementNotFoundError({
-      message: `timed out (${timeoutMs}ms) waiting for ${JSON.stringify(query)} to disappear`,
-    }),
-  );
-});
-
-export const clickElement = Effect.fn("flatmaxx.macos.clickElement")(function* (
-  pid: number,
-  query: AxQuery,
-) {
-  const el = yield* findElement(pid, query);
-  yield* mouseClick({ x: el.cx, y: el.cy });
-  return el;
-});
-
-export const doubleClickElement = Effect.fn(
-  "flatmaxx.macos.doubleClickElement",
-)(function* (pid: number, query: AxQuery) {
-  const el = yield* findElement(pid, query);
-  yield* mouseDoubleClick({ x: el.cx, y: el.cy });
-  return el;
-});
-
-export const rightClickElement = Effect.fn("flatmaxx.macos.rightClickElement")(
-  function* (pid: number, query: AxQuery) {
-    const el = yield* findElement(pid, query);
-    yield* mouseRightClick({ x: el.cx, y: el.cy });
-    return el;
-  },
-);
 
 const escapeAppleScript = (s: string): string =>
   s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
