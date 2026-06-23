@@ -18,6 +18,8 @@ import {
   defaultDrills,
   defaultElectroplating,
   defaultElectroplatingAdditionalDistance,
+  defaultElectroplatingContainer,
+  defaultElectroplatingRecipe,
   defaultIsolationFeasibility,
   defaultPaths,
   defaultPlace,
@@ -175,6 +177,99 @@ export const AlignmentDrillsSchema = Schema.Struct({
   ),
 });
 
+export const ElectroplatingContainerSchema = Schema.Struct({
+  waterMl: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingContainer.waterMl),
+    ),
+  ),
+  maxBoardWidthMm: Schema.Number.pipe(Schema.optional),
+  maxBoardHeightMm: Schema.Number.pipe(Schema.optional),
+  allowRotation: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingContainer.allowRotation),
+    ),
+  ),
+});
+
+export const ElectroplatingGramsPerLiterSchema = Schema.Struct({
+  gramsPerLiter: Schema.Number,
+});
+
+export const ElectroplatingMillilitersPerLiterSchema = Schema.Struct({
+  millilitersPerLiter: Schema.Number,
+});
+
+export const ElectroplatingHclSchema = Schema.Struct({
+  solutionConcentrationPercent: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultElectroplatingRecipe.hcl.solutionConcentrationPercent,
+      ),
+    ),
+  ),
+  referenceConcentrationPercent: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultElectroplatingRecipe.hcl.referenceConcentrationPercent,
+      ),
+    ),
+  ),
+  referenceMillilitersPerLiter: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultElectroplatingRecipe.hcl.referenceMillilitersPerLiter,
+      ),
+    ),
+  ),
+});
+
+export const ElectroplatingRecipeSchema = Schema.Struct({
+  currentDensityMaPerCm2: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.currentDensityMaPerCm2),
+    ),
+  ),
+  durationMinutes: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.durationMinutes),
+    ),
+  ),
+  stirRpm: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.stirRpm),
+    ),
+  ),
+  targetCopperMicrons: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.targetCopperMicrons),
+    ),
+  ),
+  voltageLimitV: Schema.Number.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.voltageLimitV),
+    ),
+  ),
+  copperSulfatePentahydrate: ElectroplatingGramsPerLiterSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.copperSulfatePentahydrate),
+    ),
+  ),
+  citricAcid: ElectroplatingGramsPerLiterSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.citricAcid),
+    ),
+  ),
+  polysorbate20: ElectroplatingMillilitersPerLiterSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultElectroplatingRecipe.polysorbate20),
+    ),
+  ),
+  hcl: ElectroplatingHclSchema.pipe(
+    Schema.withDecodingDefault(Effect.succeed(defaultElectroplatingRecipe.hcl)),
+  ),
+});
+
 export const ElectroplatingSchema = Schema.Struct({
   generateEdgeCutsWithAlignmentDrills: Schema.Boolean.pipe(
     Schema.withDecodingDefault(
@@ -190,6 +285,12 @@ export const ElectroplatingSchema = Schema.Struct({
     Schema.withDecodingDefault(
       Effect.succeed(defaultElectroplating.cornerRadius),
     ),
+  ),
+  container: ElectroplatingContainerSchema.pipe(
+    Schema.withDecodingDefault(Effect.succeed(defaultElectroplatingContainer)),
+  ),
+  recipe: ElectroplatingRecipeSchema.pipe(
+    Schema.withDecodingDefault(Effect.succeed(defaultElectroplatingRecipe)),
   ),
 });
 
@@ -468,6 +569,62 @@ export const ValidationRangesSchema = Schema.Struct({
   xtoolSpeed: RangeSchema.pipe(
     Schema.withDecodingDefault(
       Effect.succeed(defaultValidationRanges.xtoolSpeed),
+    ),
+  ),
+  electroplatingBoardSizeMm: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingBoardSizeMm),
+    ),
+  ),
+  electroplatingVolumeMl: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingVolumeMl),
+    ),
+  ),
+  electroplatingCurrentDensityMaPerCm2: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultValidationRanges.electroplatingCurrentDensityMaPerCm2,
+      ),
+    ),
+  ),
+  electroplatingDurationMinutes: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingDurationMinutes),
+    ),
+  ),
+  electroplatingStirRpm: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingStirRpm),
+    ),
+  ),
+  electroplatingMicrons: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingMicrons),
+    ),
+  ),
+  electroplatingVoltageV: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingVoltageV),
+    ),
+  ),
+  electroplatingMassGramsPerLiter: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultValidationRanges.electroplatingMassGramsPerLiter),
+    ),
+  ),
+  electroplatingLiquidMillilitersPerLiter: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultValidationRanges.electroplatingLiquidMillilitersPerLiter,
+      ),
+    ),
+  ),
+  electroplatingConcentrationPercent: RangeSchema.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(
+        defaultValidationRanges.electroplatingConcentrationPercent,
+      ),
     ),
   ),
 });

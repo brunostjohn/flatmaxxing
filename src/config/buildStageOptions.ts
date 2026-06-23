@@ -1,4 +1,10 @@
 import { effectiveToolDiameter } from "@/cnc/effectiveToolDiameter";
+import type { ElectroplatingReportOptions } from "@/stages/electroplating/generateElectroplatingReport";
+import type { EdgeCutDxfOptions } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
+import type {
+  MakeracamStep,
+  MakeracamStepOptions,
+} from "@/stages/makeracam/types";
 import type {
   AlignmentDrillCategorizationOptions,
   BoardSelectionOptions,
@@ -10,11 +16,6 @@ import type {
   Side,
   XToolProjectOptions,
 } from "./types";
-import type { EdgeCutDxfOptions } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
-import type {
-  MakeracamStep,
-  MakeracamStepOptions,
-} from "@/stages/makeracam/types";
 
 const allSides = ["front", "back"] as const satisfies readonly Side[];
 
@@ -76,6 +77,16 @@ export const buildBoardSelectionOptions = (config: ResolvedConfig) => ({
 
 export const buildBoardValidationOptions = (config: ResolvedConfig) => ({
   autoFix: config.board.autoFix,
+  platingBath: {
+    maxBoardWidthMm: config.electroplating.container.maxBoardWidthMm,
+    maxBoardHeightMm: config.electroplating.container.maxBoardHeightMm,
+    allowRotation: config.electroplating.container.allowRotation,
+    platingOffsets: config.electroplating.additionalDistance,
+    includeAlignmentDrills:
+      config.electroplating.generateEdgeCutsWithAlignmentDrills &&
+      config.alignmentDrills.generate,
+    alignmentDistance: config.alignmentDrills.distance,
+  },
 });
 
 export const buildKicadOutputOptions = (config: ResolvedConfig) => {
@@ -227,6 +238,21 @@ export const buildEdgeCutDxfOptions = (config: ResolvedConfig) => ({
     config.electroplating.generateEdgeCutsWithAlignmentDrills &&
     config.alignmentDrills.generate,
   alignmentDistance: config.alignmentDrills.distance,
+  gerbersDir: config.paths.gerbers,
+});
+
+export const buildElectroplatingReportOptions = (
+  config: ResolvedConfig,
+): ElectroplatingReportOptions => ({
+  enabled:
+    config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
+  platingOffsets: config.electroplating.additionalDistance,
+  includeAlignmentDrills:
+    config.electroplating.generateEdgeCutsWithAlignmentDrills &&
+    config.alignmentDrills.generate,
+  alignmentDistance: config.alignmentDrills.distance,
+  container: config.electroplating.container,
+  recipe: config.electroplating.recipe,
   gerbersDir: config.paths.gerbers,
 });
 

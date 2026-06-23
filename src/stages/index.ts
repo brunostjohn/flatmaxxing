@@ -1,5 +1,6 @@
 export * from "./categorizeDrills";
 export * from "./createXtoolProjects";
+export * from "./electroplating";
 export * from "./generateCncJobs";
 export * from "./generateEdgeCutDxfs/generateEdgeCutDxfs";
 export * from "./kicad";

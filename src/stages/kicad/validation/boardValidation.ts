@@ -3,6 +3,7 @@ import type {
   BoardValidationContext,
   BoardValidator,
 } from "@/stages/kicad/validation/boardValidationTypes";
+import { ensureElectroplatingBathFit } from "@/stages/kicad/validation/ensureElectroplatingBathFit";
 import { ensureKicadHasAValidOrigin } from "@/stages/kicad/validation/ensureKicadHasAValidOrigin";
 import { ensureManufacturableLayerCount } from "@/stages/kicad/validation/ensureManufacturableLayerCount";
 import { Effect, Fiber } from "effect";
@@ -18,6 +19,7 @@ export {
 const boardValidators = [
   ensureManufacturableLayerCount,
   ensureKicadHasAValidOrigin,
+  ensureElectroplatingBathFit,
 ] satisfies ReadonlyArray<BoardValidator>;
 
 export const validateBoard = Effect.fn("flatmaxx.validateBoard")(function* (

@@ -38,7 +38,12 @@ export const validateKicadBoard = Effect.fn("flatmaxx.validateKicadBoard")(
       ),
     );
 
-    const fixes = yield* validateBoard({ projectFilePath, pcb, source }).pipe(
+    const fixes = yield* validateBoard({
+      projectFilePath,
+      pcb,
+      source,
+      platingBath: options.platingBath,
+    }).pipe(
       Effect.tapError((error) =>
         renderOnce(<Alert variant="error">{error.message}</Alert>),
       ),

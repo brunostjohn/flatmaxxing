@@ -4,6 +4,8 @@ import {
   ConfigFileSchema,
   defaultCncIsolation,
   defaultCncNonCopperClearing,
+  defaultElectroplatingContainer,
+  defaultElectroplatingRecipe,
   defaultValidationRanges,
 } from ".";
 
@@ -19,6 +21,10 @@ test("schema decodes defaults without compatibility casts", () => {
   expect(config.stencil.generate).toBe(true);
   expect(config.drills.generate).toBe(true);
   expect(config.place.generate).toBe(true);
+  expect(config.electroplating.container).toEqual(
+    defaultElectroplatingContainer,
+  );
+  expect(config.electroplating.recipe).toEqual(defaultElectroplatingRecipe);
   expect(config.cnc.isolation).toEqual(defaultCncIsolation);
   expect(config.cnc.nonCopperClearing).toEqual(defaultCncNonCopperClearing);
 });
@@ -37,4 +43,8 @@ test("schema includes validation ranges for every numeric default", () => {
   expect(config.validation.ranges.distanceMm).toEqual({ min: 0, max: 250 });
   expect(config.validation.ranges.xtoolPercent).toEqual({ min: 0, max: 100 });
   expect(config.validation.ranges.xtoolSpeed).toEqual({ min: 1, max: 20000 });
+  expect(config.validation.ranges.electroplatingConcentrationPercent).toEqual({
+    min: 0.001,
+    max: 100,
+  });
 });

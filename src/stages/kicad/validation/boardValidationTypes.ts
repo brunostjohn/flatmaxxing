@@ -1,3 +1,4 @@
+import type { PlatingBathValidationOptions } from "@/config";
 import type { Effect } from "effect";
 import type { KicadPcb } from "kicadts";
 
@@ -9,6 +10,7 @@ export type BoardValidationContext = {
   readonly projectFilePath: string;
   readonly pcb: KicadPcb;
   readonly source: string;
+  readonly platingBath?: PlatingBathValidationOptions | undefined;
 };
 
 export type BoardFix = {

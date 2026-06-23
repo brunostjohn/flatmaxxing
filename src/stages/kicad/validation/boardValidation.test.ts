@@ -112,26 +112,112 @@ test("four layer board stackups fail validation", async () => {
   );
 });
 
-const parseBoardWithContext = (options: { setup?: string } = {}) => {
+test("plating bath validation allows rotation when configured", async () => {
+  const { context } = parseBoardWithContext({
+    width: 20,
+    height: 10,
+    setup: "(setup (aux_axis_origin 0 10) (grid_origin 0 10))",
+    platingBath: {
+      maxBoardWidthMm: 12,
+      maxBoardHeightMm: 22,
+      allowRotation: true,
+      platingOffsets: { left: 0, right: 0, top: 0, bottom: 0 },
+      includeAlignmentDrills: false,
+      alignmentDistance: { x: 6, y: 6 },
+    },
+  });
+
+  const fixes = await validateBoard(context).pipe(Effect.runPromise);
+
+  expect(fixes).toBeNull();
+});
+
+test("plating bath validation suggests offset changes when possible", async () => {
+  const { context } = parseBoardWithContext({
+    width: 50,
+    height: 50,
+    setup: "(setup (aux_axis_origin 0 50) (grid_origin 0 50))",
+    platingBath: {
+      maxBoardWidthMm: 64,
+      maxBoardHeightMm: 58,
+      allowRotation: true,
+      platingOffsets: { left: 16, right: 4, top: 4, bottom: 4 },
+      includeAlignmentDrills: false,
+      alignmentDistance: { x: 6, y: 6 },
+    },
+  });
+  let validationError: unknown;
+
+  try {
+    await validateBoard(context).pipe(Effect.runPromise);
+  } catch (error) {
+    validationError = error;
+  }
+
+  expect(validationError).toBeInstanceOf(Error);
+  expect((validationError as Error).message).toContain("left+right <= 14mm");
+  expect((validationError as Error).message).toContain("left=10");
+});
+
+test("plating bath validation reports impossible base outlines", async () => {
+  const { context } = parseBoardWithContext({
+    width: 100,
+    height: 50,
+    setup: "(setup (aux_axis_origin 0 50) (grid_origin 0 50))",
+    platingBath: {
+      maxBoardWidthMm: 90,
+      maxBoardHeightMm: 40,
+      allowRotation: true,
+      platingOffsets: { left: 0, right: 0, top: 0, bottom: 0 },
+      includeAlignmentDrills: false,
+      alignmentDistance: { x: 6, y: 6 },
+    },
+  });
+  let validationError: unknown;
+
+  try {
+    await validateBoard(context).pipe(Effect.runPromise);
+  } catch (error) {
+    validationError = error;
+  }
+
+  expect(validationError).toBeInstanceOf(Error);
+  expect((validationError as Error).message).toContain(
+    "cannot fit this bath even with zero",
+  );
+});
+
+const parseBoardWithContext = (
+  options: {
+    setup?: string;
+    width?: number;
+    height?: number;
+    platingBath?: BoardValidationContext["platingBath"];
+  } = {},
+) => {
   const source = makeBoardSource(options);
   const pcb = parseKicadPcb(source);
   return {
     pcb,
-    context: makeContext(pcb, source),
+    context: makeContext(pcb, source, options.platingBath),
   };
 };
 
 const makeContext = (
   pcb: KicadPcb,
   source: string,
+  platingBath?: BoardValidationContext["platingBath"],
 ): BoardValidationContext => ({
   projectFilePath: "/tmp/flatmaxx-test.kicad_pcb",
   pcb,
   source,
+  platingBath,
 });
 
 const makeBoardSource = ({
   includeEdgeCuts = true,
+  width = 10,
+  height = 10,
   layers = `
     (0 "F.Cu" signal)
     (31 "B.Cu" signal)
@@ -140,6 +226,8 @@ const makeBoardSource = ({
   setup,
 }: {
   includeEdgeCuts?: boolean;
+  width?: number;
+  height?: number;
   layers?: string;
   setup?: string;
 } = {}) => `
@@ -154,7 +242,7 @@ const makeBoardSource = ({
     includeEdgeCuts
       ? `(gr_rect
     (start 0 0)
-    (end 10 10)
+    (end ${width} ${height})
     (layer "Edge.Cuts")
     (width 0.1)
     (fill none)

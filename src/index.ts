@@ -1,6 +1,7 @@
 import {
   buildAlignmentDrillCategorizationOptions,
   buildEdgeCutDxfOptions,
+  buildElectroplatingReportOptions,
   buildMakeracamStepOptions,
   buildBoardSelectionOptions,
   buildBoardValidationOptions,
@@ -21,6 +22,7 @@ import {
   findPCBProject,
   generateCncJobs,
   generateEdgeCutDxfs,
+  generateElectroplatingReport,
   generateKicadOutputs,
   runFinalCut,
   runPlatedHoles,
@@ -101,6 +103,11 @@ const Flatmaxx = Command.make(
     );
 
     yield* generateEdgeCutDxfs(pcbFile, buildEdgeCutDxfOptions(config));
+
+    yield* generateElectroplatingReport(
+      pcbFile,
+      buildElectroplatingReportOptions(config),
+    );
 
     const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
     yield* createXtoolProjects(

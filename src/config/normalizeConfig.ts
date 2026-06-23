@@ -127,6 +127,108 @@ export const validateResolvedConfig = (config: ResolvedConfig) => {
       errors,
     );
   }
+  assertInRange(
+    config.electroplating.cornerRadius,
+    ranges.distanceMm,
+    "electroplating.cornerRadius",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.container.waterMl,
+    ranges.electroplatingVolumeMl,
+    "electroplating.container.waterMl",
+    errors,
+  );
+  if (config.electroplating.container.maxBoardWidthMm !== undefined) {
+    assertInRange(
+      config.electroplating.container.maxBoardWidthMm,
+      ranges.electroplatingBoardSizeMm,
+      "electroplating.container.maxBoardWidthMm",
+      errors,
+    );
+  }
+  if (config.electroplating.container.maxBoardHeightMm !== undefined) {
+    assertInRange(
+      config.electroplating.container.maxBoardHeightMm,
+      ranges.electroplatingBoardSizeMm,
+      "electroplating.container.maxBoardHeightMm",
+      errors,
+    );
+  }
+  if (
+    (config.electroplating.container.maxBoardWidthMm === undefined) !==
+    (config.electroplating.container.maxBoardHeightMm === undefined)
+  ) {
+    errors.push(
+      "electroplating.container.maxBoardWidthMm and maxBoardHeightMm must be configured together.",
+    );
+  }
+  assertInRange(
+    config.electroplating.recipe.currentDensityMaPerCm2,
+    ranges.electroplatingCurrentDensityMaPerCm2,
+    "electroplating.recipe.currentDensityMaPerCm2",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.durationMinutes,
+    ranges.electroplatingDurationMinutes,
+    "electroplating.recipe.durationMinutes",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.stirRpm,
+    ranges.electroplatingStirRpm,
+    "electroplating.recipe.stirRpm",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.targetCopperMicrons,
+    ranges.electroplatingMicrons,
+    "electroplating.recipe.targetCopperMicrons",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.voltageLimitV,
+    ranges.electroplatingVoltageV,
+    "electroplating.recipe.voltageLimitV",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter,
+    ranges.electroplatingMassGramsPerLiter,
+    "electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.citricAcid.gramsPerLiter,
+    ranges.electroplatingMassGramsPerLiter,
+    "electroplating.recipe.citricAcid.gramsPerLiter",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.polysorbate20.millilitersPerLiter,
+    ranges.electroplatingLiquidMillilitersPerLiter,
+    "electroplating.recipe.polysorbate20.millilitersPerLiter",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.hcl.solutionConcentrationPercent,
+    ranges.electroplatingConcentrationPercent,
+    "electroplating.recipe.hcl.solutionConcentrationPercent",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.hcl.referenceConcentrationPercent,
+    ranges.electroplatingConcentrationPercent,
+    "electroplating.recipe.hcl.referenceConcentrationPercent",
+    errors,
+  );
+  assertInRange(
+    config.electroplating.recipe.hcl.referenceMillilitersPerLiter,
+    ranges.electroplatingLiquidMillilitersPerLiter,
+    "electroplating.recipe.hcl.referenceMillilitersPerLiter",
+    errors,
+  );
 
   assertInRange(
     config.solderMask.distance.x,

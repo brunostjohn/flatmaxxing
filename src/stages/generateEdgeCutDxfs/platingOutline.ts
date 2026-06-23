@@ -1,4 +1,5 @@
 import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
+import { alignmentDrillPoints } from "@/stages/generateCncJobs/alignmentDrills";
 import type { Outline } from "./extractEdgeCutsOutline";
 
 export interface PlatingBounds {
@@ -15,12 +16,45 @@ export interface PlatingOffsets {
   readonly bottom: number;
 }
 
-export const buildPlatingRoundedRect = (
+export interface PlatingLayoutOptions {
+  readonly offsets: PlatingOffsets;
+  readonly includeAlignmentDrills: boolean;
+  readonly alignmentDistance: { readonly x: number; readonly y: number };
+}
+
+export interface PlatingLayout {
+  readonly boardBounds: PlatingBounds;
+  readonly baseBounds: PlatingBounds;
+  readonly bounds: PlatingBounds;
+  readonly alignmentPoints: readonly Coordinate[];
+  readonly widthMm: number;
+  readonly heightMm: number;
+}
+
+export const resolvePlatingAlignmentPoints = (
+  bounds: PlatingBounds,
+  options: Pick<
+    PlatingLayoutOptions,
+    "alignmentDistance" | "includeAlignmentDrills"
+  >,
+) =>
+  options.includeAlignmentDrills
+    ? alignmentDrillPoints(
+        {
+          xmin: bounds.minX,
+          ymin: bounds.minY,
+          xmax: bounds.maxX,
+          ymax: bounds.maxY,
+        },
+        options.alignmentDistance,
+      )
+    : [];
+
+export const expandPlatingBounds = (
   bounds: PlatingBounds,
   alignmentPoints: readonly Coordinate[],
   offsets: PlatingOffsets,
-  cornerRadius: number,
-) => {
+): PlatingBounds => {
   let minX = bounds.minX;
   let minY = bounds.minY;
   let maxX = bounds.maxX;
@@ -33,10 +67,57 @@ export const buildPlatingRoundedRect = (
     maxY = Math.max(maxY, point.y);
   }
 
-  minX -= offsets.left;
-  maxX += offsets.right;
-  minY -= offsets.top;
-  maxY += offsets.bottom;
+  return {
+    minX: minX - offsets.left,
+    minY: minY - offsets.top,
+    maxX: maxX + offsets.right,
+    maxY: maxY + offsets.bottom,
+  };
+};
+
+export const dimensionsOfPlatingBounds = (bounds: PlatingBounds) => ({
+  widthMm: bounds.maxX - bounds.minX,
+  heightMm: bounds.maxY - bounds.minY,
+});
+
+export const resolvePlatingLayout = (
+  bounds: PlatingBounds,
+  options: PlatingLayoutOptions,
+): PlatingLayout => {
+  const alignmentPoints = resolvePlatingAlignmentPoints(bounds, options);
+  const baseBounds = expandPlatingBounds(bounds, alignmentPoints, {
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  });
+  const platingBounds = expandPlatingBounds(
+    bounds,
+    alignmentPoints,
+    options.offsets,
+  );
+  const dimensions = dimensionsOfPlatingBounds(platingBounds);
+
+  return {
+    boardBounds: bounds,
+    baseBounds,
+    bounds: platingBounds,
+    alignmentPoints,
+    ...dimensions,
+  };
+};
+
+export const buildPlatingRoundedRect = (
+  bounds: PlatingBounds,
+  alignmentPoints: readonly Coordinate[],
+  offsets: PlatingOffsets,
+  cornerRadius: number,
+) => {
+  const { minX, minY, maxX, maxY } = expandPlatingBounds(
+    bounds,
+    alignmentPoints,
+    offsets,
+  );
 
   const width = maxX - minX;
   const height = maxY - minY;

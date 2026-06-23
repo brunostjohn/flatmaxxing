@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { edgeCutAlignmentPoints } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
 import {
   buildEdgeCutDxfOptions,
+  buildElectroplatingReportOptions,
   buildKicadOutputOptions,
+  buildBoardValidationOptions,
   buildXToolProjectOptions,
   deepMerge,
   defaultAvailableDrills,
@@ -39,6 +41,12 @@ test("loads defaults when no auto config exists", async () => {
   expect(config.paths.xtool).toBe(join(root, "xtool"));
   expect(config.alignmentDrills.generate).toBe(true);
   expect(config.electroplating.generateEdgeCutsWithAlignmentDrills).toBe(true);
+  expect(config.electroplating.container.waterMl).toBe(300);
+  expect(config.electroplating.container.maxBoardWidthMm).toBeUndefined();
+  expect(config.electroplating.recipe.currentDensityMaPerCm2).toBe(21.5);
+  expect(config.electroplating.recipe.hcl.solutionConcentrationPercent).toBe(
+    7.5,
+  );
   expect(config.drills.generate).toBe(true);
   expect(config.drills.withEdgeCuts).toBe(false);
   expect(config.place.generate).toBe(true);
@@ -167,6 +175,68 @@ png = "~/flatmaxx-config-test-png"
   const config = await loadConfig(root);
 
   expect(config.paths.png).toBe(join(homedir(), "flatmaxx-config-test-png"));
+});
+
+test("electroplating config supports bath limits and HCl concentration overrides", async () => {
+  const root = tempProject();
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[electroplating.container]
+waterMl = 500
+maxBoardWidthMm = 80
+maxBoardHeightMm = 120
+allowRotation = true
+
+[electroplating.recipe.hcl]
+solutionConcentrationPercent = 20
+`,
+  );
+
+  const config = await loadConfig(root);
+  const validation = buildBoardValidationOptions(config);
+  const report = buildElectroplatingReportOptions(config);
+
+  expect(config.electroplating.container.waterMl).toBe(500);
+  expect(config.electroplating.recipe.hcl.solutionConcentrationPercent).toBe(
+    20,
+  );
+  expect(validation.platingBath?.maxBoardWidthMm).toBe(80);
+  expect(validation.platingBath?.maxBoardHeightMm).toBe(120);
+  expect(report.container.waterMl).toBe(500);
+  expect(report.recipe.hcl.solutionConcentrationPercent).toBe(20);
+});
+
+test("electroplating config validates paired bath dimensions and concentration ranges", async () => {
+  const root = tempProject();
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[electroplating.container]
+maxBoardWidthMm = 80
+`,
+  );
+
+  await expect(loadConfig(root)).rejects.toThrow("maxBoardHeightMm");
+
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[validation.ranges.electroplatingConcentrationPercent]
+min = 0.001
+max = 10
+
+[electroplating.recipe.hcl]
+solutionConcentrationPercent = 20
+`,
+  );
+
+  await expect(loadConfig(root)).rejects.toThrow(
+    "electroplating.recipe.hcl.solutionConcentrationPercent",
+  );
 });
 
 test("deep merge keeps nested keys and replaces arrays", () => {

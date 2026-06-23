@@ -1,6 +1,9 @@
 import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
 import { expect, test } from "bun:test";
-import { buildPlatingRoundedRect } from "./platingOutline";
+import {
+  buildPlatingRoundedRect,
+  resolvePlatingLayout,
+} from "./platingOutline";
 
 const noOffsets = { left: 0, right: 0, top: 0, bottom: 0 };
 
@@ -102,4 +105,20 @@ test("the rect is unioned with alignment points outside the board bounds", () =>
   expect(b.minY).toBeLessThanOrEqual(-5);
   expect(b.maxX).toBeGreaterThanOrEqual(15);
   expect(b.maxY).toBeGreaterThanOrEqual(15);
+});
+
+test("resolved plating layout matches the generated rounded rect bounds", () => {
+  const boardBounds = { minX: 0, minY: 0, maxX: 50, maxY: 70 };
+  const offsets = { left: 10, right: 2, top: 3, bottom: 4 };
+  const layout = resolvePlatingLayout(boardBounds, {
+    offsets,
+    includeAlignmentDrills: false,
+    alignmentDistance: { x: 6, y: 6 },
+  });
+  const { start, cmds } = buildPlatingRoundedRect(boardBounds, [], offsets, 2);
+  const b = boundsOf(allPoints(start, cmds));
+
+  expect(layout.widthMm).toBe(62);
+  expect(layout.heightMm).toBe(77);
+  expect(layout.bounds).toEqual(b);
 });

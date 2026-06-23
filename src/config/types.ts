@@ -80,6 +80,8 @@ export type ResolvedConfig = {
       readonly bottom: number;
     };
     readonly cornerRadius: number;
+    readonly container: ElectroplatingContainerOptions;
+    readonly recipe: ElectroplatingRecipeOptions;
   };
   readonly solderMask: {
     readonly generate: boolean;
@@ -124,9 +126,55 @@ export type ResolvedConfig = {
       readonly xtoolPercent: Range;
       readonly xtoolPasses: Range;
       readonly xtoolSpeed: Range;
+      readonly electroplatingBoardSizeMm: Range;
+      readonly electroplatingVolumeMl: Range;
+      readonly electroplatingCurrentDensityMaPerCm2: Range;
+      readonly electroplatingDurationMinutes: Range;
+      readonly electroplatingStirRpm: Range;
+      readonly electroplatingMicrons: Range;
+      readonly electroplatingVoltageV: Range;
+      readonly electroplatingMassGramsPerLiter: Range;
+      readonly electroplatingLiquidMillilitersPerLiter: Range;
+      readonly electroplatingConcentrationPercent: Range;
     };
     readonly isolationFeasibility: IsolationFeasibilityOptions;
     readonly drillFeasibility: DrillFeasibilityOptions;
+  };
+};
+
+export type ElectroplatingOffsets = {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+};
+
+export type ElectroplatingContainerOptions = {
+  readonly waterMl: number;
+  readonly maxBoardWidthMm?: number | undefined;
+  readonly maxBoardHeightMm?: number | undefined;
+  readonly allowRotation: boolean;
+};
+
+export type ElectroplatingRecipeOptions = {
+  readonly currentDensityMaPerCm2: number;
+  readonly durationMinutes: number;
+  readonly stirRpm: number;
+  readonly targetCopperMicrons: number;
+  readonly voltageLimitV: number;
+  readonly copperSulfatePentahydrate: {
+    readonly gramsPerLiter: number;
+  };
+  readonly citricAcid: {
+    readonly gramsPerLiter: number;
+  };
+  readonly polysorbate20: {
+    readonly millilitersPerLiter: number;
+  };
+  readonly hcl: {
+    readonly solutionConcentrationPercent: number;
+    readonly referenceConcentrationPercent: number;
+    readonly referenceMillilitersPerLiter: number;
   };
 };
 
@@ -236,6 +284,16 @@ export type BoardSelectionOptions = {
 
 export type BoardValidationOptions = {
   readonly autoFix: boolean;
+  readonly platingBath?: PlatingBathValidationOptions | undefined;
+};
+
+export type PlatingBathValidationOptions = {
+  readonly maxBoardWidthMm?: number | undefined;
+  readonly maxBoardHeightMm?: number | undefined;
+  readonly allowRotation: boolean;
+  readonly platingOffsets: ElectroplatingOffsets;
+  readonly includeAlignmentDrills: boolean;
+  readonly alignmentDistance: { readonly x: number; readonly y: number };
 };
 
 export type IsolationValidationOptions = {

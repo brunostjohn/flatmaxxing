@@ -2,6 +2,8 @@ import type {
   CncClearanceOptions,
   CncDrillingOptions,
   CncDrillOptions,
+  ElectroplatingContainerOptions,
+  ElectroplatingRecipeOptions,
   CncIsolationOptions,
   CncMillBitOptions,
   CncNonCopperClearingOptions,
@@ -55,6 +57,35 @@ export const defaultElectroplatingAdditionalDistance = {
   bottom: 4,
 };
 
+export const defaultElectroplatingContainer = {
+  waterMl: 300,
+  maxBoardWidthMm: undefined,
+  maxBoardHeightMm: undefined,
+  allowRotation: true,
+} satisfies ElectroplatingContainerOptions;
+
+export const defaultElectroplatingRecipe = {
+  currentDensityMaPerCm2: 21.5,
+  durationMinutes: 40,
+  stirRpm: 400,
+  targetCopperMicrons: 20,
+  voltageLimitV: 5,
+  copperSulfatePentahydrate: {
+    gramsPerLiter: 250,
+  },
+  citricAcid: {
+    gramsPerLiter: 190,
+  },
+  polysorbate20: {
+    millilitersPerLiter: 10,
+  },
+  hcl: {
+    solutionConcentrationPercent: 7.5,
+    referenceConcentrationPercent: 7.5,
+    referenceMillilitersPerLiter: 1,
+  },
+} satisfies ElectroplatingRecipeOptions;
+
 export const defaultXToolWindow = {
   width: 1280,
   height: 720,
@@ -107,6 +138,8 @@ export const defaultElectroplating = {
   generateEdgeCutsWithAlignmentDrills: true,
   additionalDistance: defaultElectroplatingAdditionalDistance,
   cornerRadius: 2,
+  container: defaultElectroplatingContainer,
+  recipe: defaultElectroplatingRecipe,
 };
 
 export const defaultSolderMask = {
@@ -250,6 +283,16 @@ export const defaultValidationRanges = {
   xtoolPercent: { min: 0, max: 100 },
   xtoolPasses: { min: 1, max: 20 },
   xtoolSpeed: { min: 1, max: 20000 },
+  electroplatingBoardSizeMm: { min: 0.001, max: 1000 },
+  electroplatingVolumeMl: { min: 1, max: 10000 },
+  electroplatingCurrentDensityMaPerCm2: { min: 0.001, max: 1000 },
+  electroplatingDurationMinutes: { min: 1, max: 10000 },
+  electroplatingStirRpm: { min: 0, max: 10000 },
+  electroplatingMicrons: { min: 0, max: 1000 },
+  electroplatingVoltageV: { min: 0.001, max: 100 },
+  electroplatingMassGramsPerLiter: { min: 0, max: 5000 },
+  electroplatingLiquidMillilitersPerLiter: { min: 0, max: 1000 },
+  electroplatingConcentrationPercent: { min: 0.001, max: 100 },
 };
 
 // Pre-flight gate: verify the chosen V-bit can isolate every trace (via a KiCad

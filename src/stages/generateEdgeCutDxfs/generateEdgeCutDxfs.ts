@@ -1,7 +1,6 @@
 import { renderDxfOutline } from "@/geometry/dxfWriter";
 import { nextStep, renderWaiting } from "@/inkHelpers";
 import { findEdgeCutsBounds } from "@/stages/kicad/board/kicadBoardBounds";
-import { alignmentDrillPoints } from "@/stages/generateCncJobs/alignmentDrills";
 import { Effect, FileSystem } from "effect";
 import { parseKicadPcb } from "kicadts";
 import { basename, join } from "node:path";
@@ -10,7 +9,11 @@ import {
   kicadToDxfTransform,
   transformOutline,
 } from "./extractEdgeCutsOutline";
-import { buildPlatingRoundedRect, type PlatingOffsets } from "./platingOutline";
+import {
+  buildPlatingRoundedRect,
+  resolvePlatingAlignmentPoints,
+  type PlatingOffsets,
+} from "./platingOutline";
 
 export interface EdgeCutDxfOptions {
   readonly enabled: boolean;
@@ -32,18 +35,7 @@ export const edgeCutAlignmentPoints = (
     EdgeCutDxfOptions,
     "alignmentDistance" | "includeAlignmentDrills"
   >,
-) =>
-  options.includeAlignmentDrills
-    ? alignmentDrillPoints(
-        {
-          xmin: bounds.minX,
-          ymin: bounds.minY,
-          xmax: bounds.maxX,
-          ymax: bounds.maxY,
-        },
-        options.alignmentDistance,
-      )
-    : [];
+) => resolvePlatingAlignmentPoints(bounds, options);
 
 export const generateEdgeCutDxfs = Effect.fn("flatmaxx.generateEdgeCutDxfs")(
   function* (pcbFile: string, options: EdgeCutDxfOptions) {
