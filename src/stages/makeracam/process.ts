@@ -1,4 +1,4 @@
-import { Duration, Effect } from "effect";
+import { Duration, Effect, Schedule } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 export const MAKERACAM_PROCESS = "MakeraCAM";
@@ -44,6 +44,40 @@ export const launchMakeraCam = Effect.fn("flatmaxx.makeracam.launch")(
     );
   },
 );
+
+export type WaitForMakeraCamToExitOptions = {
+  readonly intervalMs?: number | undefined;
+  readonly recurs?: number | undefined;
+};
+
+export const waitForMakeraCamToExitWithProbe = <E, R>(
+  getPids: () => Effect.Effect<readonly number[], E, R>,
+  options: WaitForMakeraCamToExitOptions = {},
+): Effect.Effect<void, E | Error, R> => {
+  const waitForNoProcesses = Effect.gen(function* () {
+    const processIds = yield* getPids();
+
+    if (processIds.length > 0) {
+      return yield* Effect.fail(
+        new Error(`MakeraCAM is still running: ${processIds.join(", ")}`),
+      );
+    }
+  });
+
+  return waitForNoProcesses.pipe(
+    Effect.retry(
+      Schedule.spaced(options.intervalMs ?? 500).pipe(
+        Schedule.both(Schedule.recurs(options.recurs ?? 240)),
+      ),
+    ),
+  );
+};
+
+export const waitForMakeraCamToExit = Effect.fn(
+  "flatmaxx.makeracam.waitForExit",
+)(function* (options: WaitForMakeraCamToExitOptions = {}) {
+  yield* waitForMakeraCamToExitWithProbe(getMakeraCamPids, options);
+});
 
 export const quitMakeraCam = Effect.fn("flatmaxx.makeracam.quit")(function* (
   pid: number,

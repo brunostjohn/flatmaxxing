@@ -1,4 +1,5 @@
 export * from "./actions";
+export * from "./confirmCloseExistingMakeraCam";
 export * from "./lifecycle";
 export * from "./orchestrateMakeracamStep";
 export * from "./process";

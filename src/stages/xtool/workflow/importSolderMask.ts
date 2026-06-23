@@ -2,11 +2,11 @@ import { markTaskBranch } from "@/inkHelpers";
 import { runAppleScript } from "@/utils";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
-import { resolve } from "node:path";
 import { applescriptCopyFileToClipboard } from "../scripts";
 import { xToolTasks } from "../tasks";
 import { getSolderMaskBounds } from "./getSolderMaskBounds";
 import { pasteIntoXToolStudio } from "./pasteIntoXToolStudio";
+import { getSolderMaskPngPath } from "./solderMaskAssetPaths";
 import { solderMaskSideConfig } from "./solderMaskSideConfig";
 import type {
   SolderMaskImportOptions,
@@ -42,12 +42,7 @@ export const importSolderMask = Effect.fn("flatmaxx.xtool.importSolderMask")(
       path: paths.copyPng,
       effect: runAppleScript(
         applescriptCopyFileToClipboard(
-          resolve(
-            projectPath,
-            "..",
-            "png",
-            `${pcbName}-${config.fileSuffix}.png`,
-          ),
+          getSolderMaskPngPath(projectPath, pcbName, side),
         ),
       ),
       loading: { status: `Copying ${config.fileSuffix} PNG to clipboard...` },

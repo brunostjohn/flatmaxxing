@@ -58,7 +58,6 @@ export type ResolvedConfig = {
   readonly dependencies: {
     readonly kicadCli?: string | undefined;
     readonly flatcam?: string | undefined;
-    readonly docker?: string | undefined;
   };
   readonly paths: OutputPaths;
   readonly board: {

@@ -50,7 +50,6 @@ export const DependenciesSchema = Schema.Struct({
   flatcam: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultDependencies.flatcam)),
   ),
-  docker: Schema.String.pipe(Schema.optional),
 });
 
 export const PathsSchema = Schema.Struct({

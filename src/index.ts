@@ -1,149 +1,29 @@
 import {
-  buildAlignmentDrillCategorizationOptions,
-  buildEdgeCutDxfOptions,
-  buildElectroplatingReportOptions,
-  buildMakeracamStepOptions,
-  buildBoardSelectionOptions,
-  buildBoardValidationOptions,
-  buildDrillCategorizationOptions,
-  buildIsolationValidationOptions,
-  buildKicadOutputOptions,
-  buildXToolProjectOptions,
-  loadFlatmaxxConfig,
-} from "@/config";
-import { resetSteps } from "@/inkHelpers";
-import { preflightAccessibility } from "@/macos";
-import {
-  buildCncJobOptions,
-  categorizeAlignmentDrills,
-  categorizeDrills,
-  createXtoolProjects,
-  ensureKicadExists,
-  findPCBProject,
-  generateCncJobs,
-  generateEdgeCutDxfs,
-  generateElectroplatingReport,
-  generateKicadOutputs,
-  runFinalCut,
-  runPlatedHoles,
-  validateIsolation,
-  validateKicadBoard,
-} from "@/stages";
+  makeBuildCommand,
+  makeDoctorCommand,
+  makeValidateCommand,
+  rootBuildCommand,
+} from "@/commands";
+import { MakeraCamProcessControlLive } from "@/stages/makeracam";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Effect, Layer, Option } from "effect";
-import { Argument, Command, Flag } from "effect/unstable/cli";
-import { basename, join } from "node:path";
+import { Effect, Layer } from "effect";
+import { Command } from "effect/unstable/cli";
 
-const Flatmaxx = Command.make(
-  "flatmaxx",
-  {
-    kicadProject: Argument.string("kicad-project").pipe(
-      Argument.withDescription("The path to the KiCAD project directory."),
-      Argument.withDefault(process.cwd()),
-    ),
-    pathTokKicad: Flag.string("path-to-kicad").pipe(
-      Flag.withAlias("-k"),
-      Flag.withDescription("The path to the KiCAD CLI executable."),
-      Flag.optional,
-    ),
-    configPath: Flag.string("config").pipe(
-      Flag.withAlias("-c"),
-      Flag.withDescription("The path to a flatmaxxing TOML config file."),
-      Flag.optional,
-    ),
-  },
-  Effect.fn("flatmaxx.main")(function* ({
-    kicadProject,
-    pathTokKicad,
-    configPath,
-  }) {
-    yield* Effect.sync(resetSteps);
-
-    const config = yield* loadFlatmaxxConfig({
-      projectRoot: kicadProject,
-      configPath: Option.getOrUndefined(configPath),
-      cliOverrides: {
-        kicadCli: Option.getOrUndefined(pathTokKicad),
-      },
-    });
-    const kicadCli =
-      config.dependencies.kicadCli ??
-      "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
-    const flatcam = config.dependencies.flatcam ?? "flatcam";
-
-    yield* ensureKicadExists(kicadCli);
-
-    const pcbFile = yield* findPCBProject(
-      kicadProject,
-      buildBoardSelectionOptions(config),
-    );
-
-    yield* validateKicadBoard(pcbFile, buildBoardValidationOptions(config));
-
-    yield* generateKicadOutputs(
-      kicadCli,
-      kicadProject,
-      pcbFile,
-      buildKicadOutputOptions(config),
-    );
-
-    yield* categorizeDrills(pcbFile, buildDrillCategorizationOptions(config));
-
-    yield* validateIsolation(
-      kicadCli,
-      pcbFile,
-      buildIsolationValidationOptions(config),
-    );
-
-    yield* generateCncJobs(flatcam, pcbFile, buildCncJobOptions(config));
-
-    yield* categorizeAlignmentDrills(
-      pcbFile,
-      buildAlignmentDrillCategorizationOptions(config),
-    );
-
-    yield* generateEdgeCutDxfs(pcbFile, buildEdgeCutDxfOptions(config));
-
-    yield* generateElectroplatingReport(
-      pcbFile,
-      buildElectroplatingReportOptions(config),
-    );
-
-    const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
-    yield* createXtoolProjects(
-      kicadProject,
-      pcbName,
-      buildXToolProjectOptions(config),
-    );
-
-    const makeracamEnabled =
-      config.makeracam.platedHoles.generate ||
-      config.makeracam.finalCut.generate;
-    if (makeracamEnabled) {
-      yield* preflightAccessibility();
-    }
-    const contourMillDiameter = makeracamEnabled
-      ? Math.max(...config.cnc.availableMills.map((mill) => mill.diameter))
-      : 0;
-    yield* runPlatedHoles(
-      pcbName,
-      join(config.paths.gerbers, `${pcbName}-PTH_EdgeCuts.dxf`),
-      contourMillDiameter,
-      buildMakeracamStepOptions(config, "plated"),
-    );
-    yield* runFinalCut(
-      pcbName,
-      join(config.paths.gerbers, `${pcbName}-Final_EdgeCuts.dxf`),
-      contourMillDiameter,
-      buildMakeracamStepOptions(config, "final"),
-    );
-  }),
-).pipe(
+const Flatmaxx = rootBuildCommand.pipe(
+  Command.withSubcommands([
+    makeBuildCommand(rootBuildCommand),
+    makeDoctorCommand(rootBuildCommand),
+    makeValidateCommand(rootBuildCommand),
+  ]),
   Command.withDescription("Creates CNC files from a KiCAD project."),
   Command.withExamples([
     {
       command: "flatmaxx <kicad-project>",
       description: "Creates CNC files from a KiCAD project.",
+    },
+    {
+      command: "flatmaxx build <kicad-project>",
+      description: "Same as the root command; creates CNC files.",
     },
     {
       command: "flatmaxx <kicad-project> -k <path-to-kicad>",
@@ -154,12 +34,28 @@ const Flatmaxx = Command.make(
       command: "flatmaxx <kicad-project> --config flatmaxxing.toml",
       description: "Creates CNC files using an explicit config file.",
     },
+    {
+      command: "flatmaxx doctor <kicad-project>",
+      description:
+        "Checks required software and permissions without generating outputs.",
+    },
+    {
+      command: "flatmaxx validate <kicad-project> --fix",
+      description:
+        "Runs validation checks without launching FlatCAM, xTool Studio, or MakeraCAM.",
+    },
   ]),
 );
 
-Flatmaxx.pipe(
-  Command.run({ version: "1.0.0" }),
-  Effect.provide(Layer.mergeAll(BunServices.layer)),
-  Effect.scoped,
-  BunRuntime.runMain({ disableErrorReporting: false }),
+const AppLayer = Layer.mergeAll(
+  BunServices.layer,
+  MakeraCamProcessControlLive.pipe(Layer.provide(BunServices.layer)),
 );
+
+const Main = Flatmaxx.pipe(
+  Command.run({ version: "1.0.0" }),
+  Effect.provide(AppLayer),
+  Effect.scoped,
+);
+
+BunRuntime.runMain(Main, { disableErrorReporting: false });

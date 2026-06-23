@@ -1,8 +1,7 @@
-import { dxfHasPlottableGeometry } from "@/compute";
-import DxfParser from "dxf-parser";
-import { Effect, FileSystem } from "effect";
+import { dxfFileHasPlottableGeometry } from "./dxfValidation";
 import { getSolderPasteStencilDxfPath } from "./getSolderPasteStencilDxfPath";
 import { solderPasteStencilSideConfig } from "./solderPasteStencilSideConfig";
+import { Effect } from "effect";
 import type { SolderPasteStencilSide, XToolTasks } from "./types";
 
 export const validateSolderPasteStencilDxf = Effect.fn(
@@ -13,7 +12,6 @@ export const validateSolderPasteStencilDxf = Effect.fn(
   side: SolderPasteStencilSide,
   tasks: XToolTasks,
 ) {
-  const fs = yield* FileSystem.FileSystem;
   const config = solderPasteStencilSideConfig[side];
   const paths = config.taskPaths.importDxf;
   const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
@@ -25,18 +23,8 @@ export const validateSolderPasteStencilDxf = Effect.fn(
 
   const hasGeometry = yield* tasks.runTask({
     path: paths.validateDxf,
-    effect: Effect.gen(function* () {
-      const dxfFile = yield* fs.readFileString(dxfPath);
-      const parser = new DxfParser();
-      const dxf = parser.parseSync(dxfFile);
-
-      if (!dxf) {
-        return yield* Effect.fail(new Error("Failed to parse DXF file."));
-      }
-
-      // Runs the geometry check in a Bun worker (off the main thread).
-      return yield* dxfHasPlottableGeometry(dxf);
-    }),
+    // Runs the geometry check in a Bun worker (off the main thread).
+    effect: dxfFileHasPlottableGeometry(dxfPath),
     loading: { status: `Validating ${dxfPath} has plottable geometry...` },
     success: { label: `${config.fileSuffix} DXF checked.` },
     error: { label: `Failed to validate ${config.fileSuffix} DXF.` },

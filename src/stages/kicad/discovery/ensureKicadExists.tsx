@@ -18,6 +18,10 @@ export const ensureKicadExists = Effect.fn("flatmaxx.ensureKicadExists")(
       yield* renderOnce(
         <Alert variant="error">The file "{pathToKicad}" does not exist.</Alert>,
       );
+
+      return yield* Effect.fail(
+        new Error(`The file "${pathToKicad}" does not exist.`),
+      );
     }
 
     yield* success();

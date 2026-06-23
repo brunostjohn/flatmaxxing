@@ -1,7 +1,7 @@
 import { dxfBounds } from "@/compute";
-import DxfParser from "dxf-parser";
 import { Effect, FileSystem } from "effect";
-import { resolve } from "node:path";
+import { parseDxfString } from "./dxfValidation";
+import { getSolderMaskDxfPath } from "./solderMaskAssetPaths";
 import { solderMaskSideConfig } from "./solderMaskSideConfig";
 import type { SolderMaskSide, XToolTasks } from "./types";
 
@@ -16,12 +16,7 @@ export const getSolderMaskBounds = Effect.fn(
   const fs = yield* FileSystem.FileSystem;
   const config = solderMaskSideConfig[side];
   const paths = config.taskPaths;
-  const dxfPath = resolve(
-    projectPath,
-    "..",
-    "dxf",
-    `${pcbName}-${config.fileSuffix}.dxf`,
-  );
+  const dxfPath = getSolderMaskDxfPath(projectPath, pcbName, side);
 
   const dxfFile = yield* tasks.runTask({
     path: paths.readDxf,
@@ -32,14 +27,7 @@ export const getSolderMaskBounds = Effect.fn(
 
   const dxf = yield* tasks.runTask({
     path: paths.parseDxf,
-    effect: Effect.gen(function* () {
-      const parser = new DxfParser();
-      const parsed = parser.parseSync(dxfFile);
-      if (!parsed) {
-        return yield* Effect.fail(new Error("Failed to parse DXF file."));
-      }
-      return parsed;
-    }),
+    effect: parseDxfString(dxfFile),
     loading: { status: `Parsing ${config.fileSuffix} DXF entities...` },
     success: { label: `${config.fileSuffix} DXF parsed.` },
     error: { status: `Failed to parse ${config.fileSuffix} DXF file.` },

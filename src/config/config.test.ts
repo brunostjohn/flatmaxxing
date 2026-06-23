@@ -85,6 +85,20 @@ availbleDrills = []
   await expect(loadConfig(root)).rejects.toThrow("availbleDrills");
 });
 
+test("strict decoding rejects removed dependencies.docker", async () => {
+  const root = tempProject();
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[dependencies]
+docker = "docker"
+`,
+  );
+
+  await expect(loadConfig(root)).rejects.toThrow("docker");
+});
+
 test("extends are loaded in order and arrays replace", async () => {
   const root = tempProject();
   writeConfig(

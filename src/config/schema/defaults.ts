@@ -20,7 +20,6 @@ export const defaultFlatcam = "flatcam";
 export const defaultDependencies = {
   kicadCli: defaultKicadCli,
   flatcam: defaultFlatcam,
-  docker: undefined,
 };
 
 export const defaultPaths = {

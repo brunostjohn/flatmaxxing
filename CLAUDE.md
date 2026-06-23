@@ -4,6 +4,8 @@ globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
 alwaysApply: false
 ---
 
+- Use ../effect-smol as the Effect v4 CLI reference; do not use Context7 for Effect v4.
+
 Default to using Bun instead of Node.js.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`
