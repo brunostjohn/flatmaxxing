@@ -23,6 +23,7 @@ export type FlatmaxxCliInput = ProjectCliInput & SharedCliInput;
 
 export type FlatmaxxProjectContext = {
   readonly config: ResolvedConfig;
+  readonly projectDir: string;
   readonly kicadCli: string;
   readonly pcbFile: string;
   readonly pcbName: string;
@@ -78,13 +79,14 @@ export const prepareProjectContext = Effect.fn(
   }
 
   const pcbFile = yield* findPCBProject(
-    input.kicadProject,
+    config.projectDir,
     buildBoardSelectionOptions(config),
   );
   const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
 
   return {
     config,
+    projectDir: config.projectDir,
     kicadCli,
     pcbFile,
     pcbName,

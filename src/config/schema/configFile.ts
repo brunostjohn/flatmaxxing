@@ -20,6 +20,9 @@ export const ConfigFileSchema = Schema.Struct({
   extends: Schema.Array(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.extends)),
   ),
+  projectDir: Schema.String.pipe(
+    Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.projectDir)),
+  ),
   dependencies: DependenciesSchema.pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.dependencies)),
   ),

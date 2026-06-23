@@ -1,6 +1,7 @@
 import {
   makeBuildCommand,
   makeDoctorCommand,
+  makeInitCommand,
   makeValidateCommand,
   rootBuildCommand,
 } from "@/commands";
@@ -13,6 +14,7 @@ const Flatmaxx = rootBuildCommand.pipe(
   Command.withSubcommands([
     makeBuildCommand(rootBuildCommand),
     makeDoctorCommand(rootBuildCommand),
+    makeInitCommand(),
     makeValidateCommand(rootBuildCommand),
   ]),
   Command.withDescription("Creates CNC files from a KiCAD project."),
@@ -24,6 +26,10 @@ const Flatmaxx = rootBuildCommand.pipe(
     {
       command: "flatmaxx build <kicad-project>",
       description: "Same as the root command; creates CNC files.",
+    },
+    {
+      command: "flatmaxx init",
+      description: "Creates a flatmaxxing.toml config for the current project.",
     },
     {
       command: "flatmaxx <kicad-project> -k <path-to-kicad>",

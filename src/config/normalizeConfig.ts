@@ -313,29 +313,31 @@ export const validateResolvedConfig = (config: ResolvedConfig) => {
   }
 };
 
-export const normalizeConfig = (config: ConfigFile, projectRoot: string) => {
-  const resolvedProjectRoot = resolveFrom(process.cwd(), projectRoot);
+export const normalizeConfig = (config: ConfigFile, configRoot: string) => {
+  const resolvedConfigRoot = resolveFrom(process.cwd(), configRoot);
+  const resolvedProjectDir = resolveFrom(resolvedConfigRoot, config.projectDir);
   const resolved: ResolvedConfig = {
+    projectDir: resolvedProjectDir,
     dependencies: config.dependencies,
     paths: {
       additionalProjects: resolveFrom(
-        resolvedProjectRoot,
+        resolvedProjectDir,
         config.paths.additionalProjects,
       ),
-      gcode: resolveFrom(resolvedProjectRoot, config.paths.gcode),
-      svg: resolveFrom(resolvedProjectRoot, config.paths.svg),
-      dxf: resolveFrom(resolvedProjectRoot, config.paths.dxf),
-      png: resolveFrom(resolvedProjectRoot, config.paths.png),
-      gerbers: resolveFrom(resolvedProjectRoot, config.paths.gerbers),
-      drills: resolveFrom(resolvedProjectRoot, config.paths.drills),
-      xtool: resolveFrom(resolvedProjectRoot, config.paths.xtool),
-      place: resolveFrom(resolvedProjectRoot, config.paths.place),
-      cnc: resolveFrom(resolvedProjectRoot, config.paths.cnc),
+      gcode: resolveFrom(resolvedProjectDir, config.paths.gcode),
+      svg: resolveFrom(resolvedProjectDir, config.paths.svg),
+      dxf: resolveFrom(resolvedProjectDir, config.paths.dxf),
+      png: resolveFrom(resolvedProjectDir, config.paths.png),
+      gerbers: resolveFrom(resolvedProjectDir, config.paths.gerbers),
+      drills: resolveFrom(resolvedProjectDir, config.paths.drills),
+      xtool: resolveFrom(resolvedProjectDir, config.paths.xtool),
+      place: resolveFrom(resolvedProjectDir, config.paths.place),
+      cnc: resolveFrom(resolvedProjectDir, config.paths.cnc),
     },
     board: {
       ...config.board,
       file: config.board.file
-        ? resolveFrom(resolvedProjectRoot, config.board.file)
+        ? resolveFrom(resolvedProjectDir, config.board.file)
         : undefined,
     },
     alignmentDrills: config.alignmentDrills,

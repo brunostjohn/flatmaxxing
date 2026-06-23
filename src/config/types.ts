@@ -55,6 +55,7 @@ export type StencilXToolOptions = {
 };
 
 export type ResolvedConfig = {
+  readonly projectDir: string;
   readonly dependencies: {
     readonly kicadCli?: string | undefined;
     readonly flatcam?: string | undefined;

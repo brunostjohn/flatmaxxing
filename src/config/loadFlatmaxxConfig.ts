@@ -1,7 +1,7 @@
 import { ConfigFileSchema, type ConfigFile } from "@/config/schema";
 import { Effect, Schema } from "effect";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { parse } from "toml";
 import { deepMerge, isRecord } from "./deepMerge";
 import { normalizeConfig } from "./normalizeConfig";
@@ -113,6 +113,9 @@ export const loadFlatmaxxConfig = Effect.fn("flatmaxx.config.load")(function* ({
     ? resolveFrom(resolvedProjectRoot, configPath)
     : autoConfigPath;
   const shouldLoad = configPath !== undefined || existsSync(autoConfigPath);
+  const configRoot = shouldLoad
+    ? dirname(requestedConfigPath)
+    : resolvedProjectRoot;
 
   const raw = shouldLoad
     ? yield* loadConfigFile(requestedConfigPath)
@@ -129,5 +132,5 @@ export const loadFlatmaxxConfig = Effect.fn("flatmaxx.config.load")(function* ({
           },
         };
 
-  return normalizeConfig(withOverrides, resolvedProjectRoot);
+  return normalizeConfig(withOverrides, configRoot);
 });

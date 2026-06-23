@@ -44,11 +44,8 @@ export const runValidateWorkflow = Effect.fn("flatmaxx.validate")(function* (
   yield* Effect.sync(resetSteps);
 
   const config = yield* loadConfigFromCli(input);
-  const { kicadCli, pcbFile, pcbName } = yield* prepareProjectContext(
-    input,
-    config,
-    { checkKicad: true },
-  );
+  const { kicadCli, pcbFile, pcbName, projectDir } =
+    yield* prepareProjectContext(input, config, { checkKicad: true });
 
   yield* validateKicadBoard(pcbFile, {
     ...buildBoardValidationOptions(config),
@@ -57,7 +54,7 @@ export const runValidateWorkflow = Effect.fn("flatmaxx.validate")(function* (
 
   yield* generateKicadOutputs(
     kicadCli,
-    input.kicadProject,
+    projectDir,
     pcbFile,
     buildKicadOutputOptions(config),
   );
@@ -71,7 +68,7 @@ export const runValidateWorkflow = Effect.fn("flatmaxx.validate")(function* (
   );
 
   yield* validateXToolAssets(
-    input.kicadProject,
+    projectDir,
     pcbName,
     buildXToolProjectOptions(config),
   );

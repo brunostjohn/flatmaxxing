@@ -37,6 +37,7 @@ test("loads defaults when no auto config exists", async () => {
   expect(config.dependencies.kicadCli).toBe(
     "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
   );
+  expect(config.projectDir).toBe(root);
   expect(config.paths.gerbers).toBe(join(root, "gerbers"));
   expect(config.paths.xtool).toBe(join(root, "xtool"));
   expect(config.alignmentDrills.generate).toBe(true);
@@ -69,6 +70,60 @@ test("loads defaults when no auto config exists", async () => {
   expect(xtool.enabled).toBe(true);
   expect(xtool.solderMask.enabled).toBe(true);
   expect(xtool.stencil.enabled).toBe(true);
+});
+
+test("projectDir rebases relative paths and configured board file", async () => {
+  const root = tempProject();
+  const configDir = join(root, "config");
+  const projectDir = join(root, "kicad");
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(join(projectDir, "board.kicad_pcb"), "");
+
+  writeConfig(
+    configDir,
+    "base.toml",
+    `
+[paths]
+svg = "./from-base"
+`,
+  );
+  writeConfig(
+    configDir,
+    "flatmaxxing.toml",
+    `
+extends = ["base.toml"]
+projectDir = "../kicad"
+
+[paths]
+png = "./renders"
+
+[board]
+file = "board.kicad_pcb"
+`,
+  );
+
+  const config = await loadFlatmaxxConfig({
+    projectRoot: root,
+    configPath: "config/flatmaxxing.toml",
+  }).pipe(Effect.runPromise);
+
+  expect(config.projectDir).toBe(projectDir);
+  expect(config.paths.svg).toBe(join(projectDir, "from-base"));
+  expect(config.paths.png).toBe(join(projectDir, "renders"));
+  expect(config.board.file).toBe(join(projectDir, "board.kicad_pcb"));
+
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+extends = ["config/base.toml"]
+projectDir = "kicad"
+`,
+  );
+
+  const rootConfig = await loadConfig(root);
+  expect(rootConfig.projectDir).toBe(projectDir);
+  expect(rootConfig.paths.svg).toBe(join(projectDir, "from-base"));
 });
 
 test("strict decoding rejects typoed config keys", async () => {

@@ -47,17 +47,15 @@ export const runBuildWorkflow = Effect.fn("flatmaxx.build")(function* (
 
   const config = yield* loadConfigFromCli(input);
   yield* runPreflight(config);
-  const { kicadCli, pcbFile, pcbName } = yield* prepareProjectContext(
-    input,
-    config,
-  );
+  const { kicadCli, pcbFile, pcbName, projectDir } =
+    yield* prepareProjectContext(input, config);
   const flatcam = resolveFlatcam(config);
 
   yield* validateKicadBoard(pcbFile, buildBoardValidationOptions(config));
 
   yield* generateKicadOutputs(
     kicadCli,
-    input.kicadProject,
+    projectDir,
     pcbFile,
     buildKicadOutputOptions(config),
   );
@@ -85,7 +83,7 @@ export const runBuildWorkflow = Effect.fn("flatmaxx.build")(function* (
   );
 
   yield* createXtoolProjects(
-    input.kicadProject,
+    projectDir,
     pcbName,
     buildXToolProjectOptions(config),
   );

@@ -22,6 +22,8 @@ export const defaultDependencies = {
   flatcam: defaultFlatcam,
 };
 
+export const defaultProjectDir = ".";
+
 export const defaultPaths = {
   additionalProjects: "./manufacture",
   gcode: "./gcodes",
@@ -323,6 +325,7 @@ export const defaultValidation = {
 
 export const defaultConfigFile = {
   extends: [] as string[],
+  projectDir: defaultProjectDir,
   dependencies: defaultDependencies,
   paths: defaultPaths,
   board: defaultBoard,
