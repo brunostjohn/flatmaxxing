@@ -1,7 +1,7 @@
 import {
   findEdgeCutsBounds,
   getBottomLeftBoardOrigin,
-} from "@/stages/boardValidation/kicadBoardBounds";
+} from "@/stages/kicad/board/kicadBoardBounds";
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

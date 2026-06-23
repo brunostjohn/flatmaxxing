@@ -3,12 +3,12 @@ import {
   angleOf,
   circleFromThreePoints,
   isAngleBetweenClockwise,
-} from "@/stages/boardValidation/kicadBoardBounds";
+} from "@/stages/kicad/board/kicadBoardBounds";
 import {
   collectEdgeCutPrimitives,
   type EdgeCutArc,
   type EdgeCutPrimitive,
-} from "@/stages/boardValidation/edgeCutsTraversal";
+} from "@/stages/kicad/board/edgeCutsTraversal";
 import type { KicadPcb } from "kicadts";
 
 export class MissingAuxAxisOriginError extends Error {

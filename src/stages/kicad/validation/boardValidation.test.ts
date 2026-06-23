@@ -4,7 +4,7 @@ import {
   validateBoardWithValidators,
   type BoardValidationContext,
   type BoardValidator,
-} from "@/stages/boardValidation/boardValidation";
+} from "@/stages/kicad/validation/boardValidation";
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { parseKicadPcb, type KicadPcb } from "kicadts";

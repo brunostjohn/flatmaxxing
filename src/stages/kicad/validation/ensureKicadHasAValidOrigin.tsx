@@ -1,9 +1,9 @@
 import type {
   BoardFix,
   BoardValidationContext,
-} from "@/stages/boardValidation/boardValidationTypes";
-import { BoardValidationError } from "@/stages/boardValidation/boardValidationTypes";
-import { getBottomLeftBoardOrigin } from "@/stages/boardValidation/kicadBoardBounds";
+} from "@/stages/kicad/validation/boardValidationTypes";
+import { BoardValidationError } from "@/stages/kicad/validation/boardValidationTypes";
+import { getBottomLeftBoardOrigin } from "@/stages/kicad/board/kicadBoardBounds";
 import { Effect } from "effect";
 import { Setup, type KicadPcb } from "kicadts";
 

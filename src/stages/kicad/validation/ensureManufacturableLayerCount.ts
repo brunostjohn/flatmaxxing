@@ -1,5 +1,5 @@
-import type { BoardValidator } from "@/stages/boardValidation/boardValidationTypes";
-import { BoardValidationError } from "@/stages/boardValidation/boardValidationTypes";
+import type { BoardValidator } from "@/stages/kicad/validation/boardValidationTypes";
+import { BoardValidationError } from "@/stages/kicad/validation/boardValidationTypes";
 import { Effect } from "effect";
 
 export const ensureManufacturableLayerCount: BoardValidator = (context) =>

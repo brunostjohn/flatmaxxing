@@ -2,9 +2,9 @@ import type {
   BoardFix,
   BoardValidationContext,
   BoardValidator,
-} from "@/stages/boardValidation/boardValidationTypes";
-import { ensureKicadHasAValidOrigin } from "@/stages/boardValidation/ensureKicadHasAValidOrigin";
-import { ensureManufacturableLayerCount } from "@/stages/boardValidation/ensureManufacturableLayerCount";
+} from "@/stages/kicad/validation/boardValidationTypes";
+import { ensureKicadHasAValidOrigin } from "@/stages/kicad/validation/ensureKicadHasAValidOrigin";
+import { ensureManufacturableLayerCount } from "@/stages/kicad/validation/ensureManufacturableLayerCount";
 import { Effect, Fiber } from "effect";
 import type { KicadPcb } from "kicadts";
 
@@ -13,7 +13,7 @@ export {
   type BoardFix,
   type BoardValidationContext,
   type BoardValidator,
-} from "@/stages/boardValidation/boardValidationTypes";
+} from "@/stages/kicad/validation/boardValidationTypes";
 
 const boardValidators = [
   ensureManufacturableLayerCount,

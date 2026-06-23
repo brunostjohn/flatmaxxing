@@ -1,13 +1,13 @@
 import { cubicBezierBoundsPoints } from "@/geometry/cubicBezierBounds";
-import { BoardValidationError } from "@/stages/boardValidation/boardValidationTypes";
+import { BoardValidationError } from "@/stages/kicad/validation/boardValidationTypes";
 import {
   collectEdgeCutPrimitives,
   type Coordinate,
   type EdgeCutPrimitive,
-} from "@/stages/boardValidation/edgeCutsTraversal";
+} from "@/stages/kicad/board/edgeCutsTraversal";
 import type { KicadPcb } from "kicadts";
 
-export type { Coordinate } from "@/stages/boardValidation/edgeCutsTraversal";
+export type { Coordinate } from "@/stages/kicad/board/edgeCutsTraversal";
 
 export type BoardBounds = {
   readonly minX: number;

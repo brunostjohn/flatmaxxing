@@ -1,6 +1,6 @@
 import { renderDxfOutline } from "@/geometry/dxfWriter";
 import { nextStep, renderWaiting } from "@/inkHelpers";
-import { findEdgeCutsBounds } from "@/stages/boardValidation/kicadBoardBounds";
+import { findEdgeCutsBounds } from "@/stages/kicad/board/kicadBoardBounds";
 import { alignmentDrillPoints } from "@/stages/generateCncJobs/alignmentDrills";
 import { Effect, FileSystem } from "effect";
 import { parseKicadPcb } from "kicadts";

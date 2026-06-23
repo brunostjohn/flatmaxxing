@@ -4,7 +4,7 @@ import {
   applyBoardFixes,
   BoardValidationError,
   validateBoard,
-} from "@/stages/boardValidation/boardValidation";
+} from "@/stages/kicad/validation/boardValidation";
 import { Alert, ConfirmInput, StatusMessage } from "@inkjs/ui";
 import { Effect } from "effect";
 import { FileSystem } from "effect/FileSystem";
