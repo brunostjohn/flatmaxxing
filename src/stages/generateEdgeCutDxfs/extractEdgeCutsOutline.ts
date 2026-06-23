@@ -1,4 +1,4 @@
-import type { Coordinate, PathCmd } from "@/geometry/gerberWriter";
+import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
 import {
   angleOf,
   circleFromThreePoints,
@@ -28,45 +28,44 @@ const JOIN_TOLERANCE_MM = 1e-3;
 
 const BEZIER_TOLERANCE_MM = 0.01;
 
-export const kicadToGerberTransform = (
-  pcb: KicadPcb,
-): ((point: Coordinate) => Coordinate) => {
+export const kicadToDxfTransform = (pcb: KicadPcb) => {
   const origin = pcb.setup?.auxAxisOrigin;
   if (!origin) {
     throw new MissingAuxAxisOriginError(
-      "The board has no setup.aux_axis_origin; cannot place the edge-cut Gerber. " +
+      "The board has no setup.aux_axis_origin; cannot place the edge-cut DXF. " +
         "Set the drill/place origin in KiCad (Place > Drill/Place File Origin) before exporting.",
     );
   }
 
   const auxX = origin.x;
   const auxY = origin.y;
-  return (point) => ({ x: point.x - auxX, y: auxY - point.y });
+  return (point: Coordinate) => ({ x: point.x - auxX, y: auxY - point.y });
 };
 
 export const transformOutline = (
   outline: Outline,
   transform: (point: Coordinate) => Coordinate,
-): Outline => {
+) => {
   const flipWinding = isOrientationReversing(transform);
+  const cmds: PathCmd[] = outline.cmds.map((cmd) =>
+    cmd.kind === "line"
+      ? { kind: "line", to: transform(cmd.to) }
+      : {
+          kind: "arc",
+          to: transform(cmd.to),
+          center: transform(cmd.center),
+          cw: flipWinding ? !cmd.cw : cmd.cw,
+        },
+  );
   return {
     start: transform(outline.start),
-    cmds: outline.cmds.map((cmd) =>
-      cmd.kind === "line"
-        ? { kind: "line", to: transform(cmd.to) }
-        : {
-            kind: "arc",
-            to: transform(cmd.to),
-            center: transform(cmd.center),
-            cw: flipWinding ? !cmd.cw : cmd.cw,
-          },
-    ),
+    cmds,
   };
 };
 
 const isOrientationReversing = (
   transform: (point: Coordinate) => Coordinate,
-): boolean => {
+) => {
   const o = transform({ x: 0, y: 0 });
   const ux = transform({ x: 1, y: 0 });
   const uy = transform({ x: 0, y: 1 });
@@ -78,11 +77,16 @@ const isOrientationReversing = (
   return determinant < 0;
 };
 
-export const collectEdgeCutsPrimitives = (pcb: KicadPcb): Outline => {
+export const collectEdgeCutsPrimitives = (pcb: KicadPcb) => {
   const primitives = collectEdgeCutPrimitives(pcb);
   const edges = primitives.flatMap(toEdges);
 
   if (edges.length === 0) {
+    if (primitives.some((primitive) => primitive.kind === "circle")) {
+      throw new EdgeCutsOutlineError(
+        "Edge.Cuts circles are not supported for edge-cut DXF generation; redraw the outline as arcs or segments.",
+      );
+    }
     throw new EdgeCutsOutlineError(
       "No connectable Edge.Cuts geometry was found to build a board outline.",
     );
@@ -105,18 +109,22 @@ type Edge =
       readonly cw: boolean;
     };
 
-const samePoint = (a: Coordinate, b: Coordinate): boolean =>
+const samePoint = (a: Coordinate, b: Coordinate) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= JOIN_TOLERANCE_MM;
 
-const isZeroLength = (a: Coordinate, b: Coordinate): boolean =>
-  Math.hypot(a.x - b.x, a.y - b.y) <= JOIN_TOLERANCE_MM;
-
-const toEdges = (primitive: EdgeCutPrimitive): Edge[] => {
+const toEdges = (primitive: EdgeCutPrimitive) => {
   switch (primitive.kind) {
-    case "segment":
-      return isZeroLength(primitive.start, primitive.end)
-        ? []
-        : [{ kind: "line", start: primitive.start, end: primitive.end }];
+    case "segment": {
+      const edges: Edge[] = [];
+      if (!samePoint(primitive.start, primitive.end)) {
+        edges.push({
+          kind: "line",
+          start: primitive.start,
+          end: primitive.end,
+        });
+      }
+      return edges;
+    }
     case "arc":
       return arcToEdge(primitive);
     case "curve":
@@ -130,12 +138,14 @@ const toEdges = (primitive: EdgeCutPrimitive): Edge[] => {
   }
 };
 
-const arcToEdge = (arc: EdgeCutArc): Edge[] => {
-  if (isZeroLength(arc.start, arc.end)) return [];
+const arcToEdge = (arc: EdgeCutArc) => {
+  const edges: Edge[] = [];
+  if (samePoint(arc.start, arc.end)) return edges;
 
   const circle = circleFromThreePoints(arc.start, arc.mid, arc.end);
   if (!circle) {
-    return [{ kind: "line", start: arc.start, end: arc.end }];
+    edges.push({ kind: "line", start: arc.start, end: arc.end });
+    return edges;
   }
 
   const startAngle = angleOf(circle.center, arc.start);
@@ -143,27 +153,26 @@ const arcToEdge = (arc: EdgeCutArc): Edge[] => {
   const endAngle = angleOf(circle.center, arc.end);
   const cw = isAngleBetweenClockwise(midAngle, startAngle, endAngle);
 
-  return [
-    {
-      kind: "arc",
-      start: arc.start,
-      end: arc.end,
-      center: circle.center,
-      cw,
-    },
-  ];
+  edges.push({
+    kind: "arc",
+    start: arc.start,
+    end: arc.end,
+    center: circle.center,
+    cw,
+  });
+  return edges;
 };
 
-const polyToEdges = (points: readonly Coordinate[]): Edge[] => {
+const polyToEdges = (points: readonly Coordinate[]) => {
   const edges: Edge[] = [];
   for (let i = 0; i + 1 < points.length; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
-    if (!isZeroLength(a, b)) edges.push({ kind: "line", start: a, end: b });
+    if (!samePoint(a, b)) edges.push({ kind: "line", start: a, end: b });
   }
   const first = points[0];
   const last = points[points.length - 1];
-  if (first && last && !isZeroLength(first, last)) {
+  if (first && last && !samePoint(first, last)) {
     edges.push({ kind: "line", start: last, end: first });
   }
   return edges;
@@ -173,7 +182,7 @@ const rectToEdges = (
   start: Coordinate,
   end: Coordinate,
   transform: (point: Coordinate) => Coordinate,
-): Edge[] => {
+) => {
   const corners = [
     transform(start),
     transform({ x: end.x, y: start.y }),
@@ -184,12 +193,12 @@ const rectToEdges = (
   for (let i = 0; i < corners.length; i++) {
     const a = corners[i]!;
     const b = corners[(i + 1) % corners.length]!;
-    if (!isZeroLength(a, b)) edges.push({ kind: "line", start: a, end: b });
+    if (!samePoint(a, b)) edges.push({ kind: "line", start: a, end: b });
   }
   return edges;
 };
 
-const flattenCurve = (controlPoints: readonly Coordinate[]): Edge[] => {
+const flattenCurve = (controlPoints: readonly Coordinate[]) => {
   if (controlPoints.length !== 4) {
     return polyToEdges(controlPoints);
   }
@@ -205,7 +214,7 @@ const flattenCurve = (controlPoints: readonly Coordinate[]): Edge[] => {
   for (let i = 0; i + 1 < flat.length; i++) {
     const a = flat[i]!;
     const b = flat[i + 1]!;
-    if (!isZeroLength(a, b)) edges.push({ kind: "line", start: a, end: b });
+    if (!samePoint(a, b)) edges.push({ kind: "line", start: a, end: b });
   }
   return edges;
 };
@@ -216,7 +225,7 @@ const cubicAt = (
   p2: Coordinate,
   p3: Coordinate,
   t: number,
-): Coordinate => {
+) => {
   const u = 1 - t;
   const w0 = u * u * u;
   const w1 = 3 * u * u * t;
@@ -234,7 +243,7 @@ const flattenCubicAdaptive = (
   p2: Coordinate,
   p3: Coordinate,
   tolerance: number,
-): Coordinate[] => {
+) => {
   const ax = p0.x - 2 * p1.x + p2.x;
   const ay = p0.y - 2 * p1.y + p2.y;
   const bx = p1.x - 2 * p2.x + p3.x;
@@ -254,7 +263,7 @@ const flattenCubicAdaptive = (
   return points;
 };
 
-const chainIntoLoop = (edges: readonly Edge[]): Outline => {
+const chainIntoLoop = (edges: readonly Edge[]) => {
   const remaining = [...edges];
   const ordered: Edge[] = [];
 
@@ -306,13 +315,16 @@ const chainIntoLoop = (edges: readonly Edge[]): Outline => {
   return { start: loopStart, cmds };
 };
 
-const reverseEdge = (edge: Edge): Edge =>
-  edge.kind === "line"
-    ? { kind: "line", start: edge.end, end: edge.start }
-    : {
-        kind: "arc",
-        start: edge.end,
-        end: edge.start,
-        center: edge.center,
-        cw: !edge.cw,
-      };
+const reverseEdge = (edge: Edge) => {
+  const reversed: Edge =
+    edge.kind === "line"
+      ? { kind: "line", start: edge.end, end: edge.start }
+      : {
+          kind: "arc",
+          start: edge.end,
+          end: edge.start,
+          center: edge.center,
+          cw: !edge.cw,
+        };
+  return reversed;
+};

@@ -10,7 +10,7 @@ import type {
   Side,
   XToolProjectOptions,
 } from "./types";
-import type { EdgeCutGerberOptions } from "@/stages/generateEdgeCutGerbers/generateEdgeCutGerbers";
+import type { EdgeCutDxfOptions } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
 import type {
   MakeracamStep,
   MakeracamStepOptions,
@@ -23,9 +23,7 @@ const sideToCopperLayer: Record<Side, string> = {
   back: "B.Cu",
 };
 
-export const enabledSidesFromConfig = (
-  config: ResolvedConfig,
-): readonly Side[] =>
+export const enabledSidesFromConfig = (config: ResolvedConfig) =>
   config.board.ignoreSide === null
     ? allSides
     : allSides.filter((side) => side !== config.board.ignoreSide);
@@ -33,7 +31,7 @@ export const enabledSidesFromConfig = (
 const withoutExcludedSides = (
   sides: readonly Side[],
   excludeSides: readonly Side[],
-): readonly Side[] => sides.filter((side) => !excludeSides.includes(side));
+) => sides.filter((side) => !excludeSides.includes(side));
 
 const workflowSkipReason = (
   generate: boolean,
@@ -55,7 +53,7 @@ const sideSkipStatus = (
   boardSides: readonly Side[],
   excludeSides: readonly Side[],
   workflowName: "solderMask" | "stencil",
-): Partial<Record<Side, string>> => {
+) => {
   const statuses: Partial<Record<Side, string>> = {};
 
   for (const side of allSides) {
@@ -72,21 +70,15 @@ const sideSkipStatus = (
   return statuses;
 };
 
-export const buildBoardSelectionOptions = (
-  config: ResolvedConfig,
-): BoardSelectionOptions => ({
+export const buildBoardSelectionOptions = (config: ResolvedConfig) => ({
   boardFile: config.board.file,
 });
 
-export const buildBoardValidationOptions = (
-  config: ResolvedConfig,
-): BoardValidationOptions => ({
+export const buildBoardValidationOptions = (config: ResolvedConfig) => ({
   autoFix: config.board.autoFix,
 });
 
-export const buildKicadOutputOptions = (
-  config: ResolvedConfig,
-): KicadOutputOptions => {
+export const buildKicadOutputOptions = (config: ResolvedConfig) => {
   const boardSides = enabledSidesFromConfig(config);
   const solderMaskSides = withoutExcludedSides(
     boardSides,
@@ -129,15 +121,12 @@ export const buildKicadOutputOptions = (
   };
 };
 
-export const buildIsolationValidationOptions = (
-  config: ResolvedConfig,
-): IsolationValidationOptions => {
+export const buildIsolationValidationOptions = (config: ResolvedConfig) => {
   const sides = enabledSidesFromConfig(config);
   const tool = config.cnc.isolation.tool;
   const cutDepth = config.cnc.isolation.zCutDepth;
 
   return {
-    // Can only validate when an isolation tool is configured.
     enabled:
       config.validation.isolationFeasibility.enabled && tool !== undefined,
     onFailure: config.validation.isolationFeasibility.onFailure,
@@ -149,9 +138,7 @@ export const buildIsolationValidationOptions = (
   };
 };
 
-export const buildDrillCategorizationOptions = (
-  config: ResolvedConfig,
-): DrillCategorizationOptions => ({
+export const buildDrillCategorizationOptions = (config: ResolvedConfig) => ({
   enabled: config.validation.drillFeasibility.enabled,
   onFailure: config.validation.drillFeasibility.onFailure,
   drillsDir: config.paths.drills,
@@ -163,7 +150,7 @@ export const buildDrillCategorizationOptions = (
 
 export const buildAlignmentDrillCategorizationOptions = (
   config: ResolvedConfig,
-): AlignmentDrillCategorizationOptions => ({
+) => ({
   enabled: config.alignmentDrills.generate,
   drillsDir: config.paths.drills,
   gerbersDir: config.paths.gerbers,
@@ -172,9 +159,7 @@ export const buildAlignmentDrillCategorizationOptions = (
   matchToleranceMm: config.cnc.drilling.matchToleranceMm,
 });
 
-export const buildXToolProjectOptions = (
-  config: ResolvedConfig,
-): XToolProjectOptions => {
+export const buildXToolProjectOptions = (config: ResolvedConfig) => {
   const boardSides = enabledSidesFromConfig(config);
   const solderMaskSides = withoutExcludedSides(
     boardSides,
@@ -233,13 +218,14 @@ export const buildXToolProjectOptions = (
   };
 };
 
-export const buildEdgeCutGerberOptions = (
-  config: ResolvedConfig,
-): EdgeCutGerberOptions => ({
+export const buildEdgeCutDxfOptions = (config: ResolvedConfig) => ({
   enabled:
     config.makeracam.platedHoles.generate || config.makeracam.finalCut.generate,
   platingOffsets: config.electroplating.additionalDistance,
   cornerRadius: config.electroplating.cornerRadius,
+  includeAlignmentDrills:
+    config.electroplating.generateEdgeCutsWithAlignmentDrills &&
+    config.alignmentDrills.generate,
   alignmentDistance: config.alignmentDrills.distance,
   gerbersDir: config.paths.gerbers,
 });
@@ -247,20 +233,18 @@ export const buildEdgeCutGerberOptions = (
 export const buildMakeracamStepOptions = (
   config: ResolvedConfig,
   step: MakeracamStep,
-): MakeracamStepOptions => ({
+) => ({
   enabled:
     step === "plated"
       ? config.makeracam.platedHoles.generate
       : config.makeracam.finalCut.generate,
   step,
   appPath: config.makeracam.appPath,
-  existingProcess: config.makeracam.existingProcess,
   cutDepthMm: config.makeracam.cutDepthMm,
   tabsPerContour: config.makeracam.tabsPerContour,
   drillsDir: config.paths.drills,
   gcodeDir: config.paths.gcode,
   cncDir: config.paths.cnc,
-  gerbersDir: config.paths.gerbers,
   windowBounds: {
     x: 0,
     y: 33,

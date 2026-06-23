@@ -16,11 +16,7 @@ class ConfigValidationError extends Error {
   }
 }
 
-const assertRangeShape = (
-  range: Range,
-  path: string,
-  errors: string[],
-): void => {
+const assertRangeShape = (range: Range, path: string, errors: string[]) => {
   if (!Number.isFinite(range.min)) {
     errors.push(`${path}.min must be finite.`);
   }
@@ -37,7 +33,7 @@ const assertInRange = (
   range: Range,
   path: string,
   errors: string[],
-): void => {
+) => {
   if (!Number.isFinite(value)) {
     errors.push(`${path} must be finite.`);
     return;
@@ -53,7 +49,7 @@ const validateTool = (
   ranges: ResolvedConfig["validation"]["ranges"],
   path: string,
   errors: string[],
-): void => {
+) => {
   if (!tool) {
     return;
   }
@@ -75,7 +71,7 @@ const validateCncSetting = (
   ranges: ResolvedConfig["validation"]["ranges"],
   path: string,
   errors: string[],
-): void => {
+) => {
   if (!setting) {
     return;
   }
@@ -102,7 +98,7 @@ const validateCncSetting = (
   validateTool(setting.tool, ranges, `${path}.tool`, errors);
 };
 
-export const validateResolvedConfig = (config: ResolvedConfig): void => {
+export const validateResolvedConfig = (config: ResolvedConfig) => {
   const errors: string[] = [];
   const { ranges } = config.validation;
 
@@ -200,15 +196,22 @@ export const validateResolvedConfig = (config: ResolvedConfig): void => {
     ),
   );
 
+  if (
+    (config.makeracam.platedHoles.generate ||
+      config.makeracam.finalCut.generate) &&
+    config.cnc.availableMills.length === 0
+  ) {
+    errors.push(
+      "cnc.availableMills must include at least one mill when MakerCAM platedHoles or finalCut generation is enabled.",
+    );
+  }
+
   if (errors.length > 0) {
     throw new ConfigValidationError(errors);
   }
 };
 
-export const normalizeConfig = (
-  config: ConfigFile,
-  projectRoot: string,
-): ResolvedConfig => {
+export const normalizeConfig = (config: ConfigFile, projectRoot: string) => {
   const resolvedProjectRoot = resolveFrom(process.cwd(), projectRoot);
   const resolved: ResolvedConfig = {
     dependencies: config.dependencies,

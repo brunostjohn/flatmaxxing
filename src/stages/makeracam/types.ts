@@ -8,13 +8,11 @@ export interface MakeracamStepOptions {
   readonly enabled: boolean;
   readonly step: MakeracamStep;
   readonly appPath: string;
-  readonly existingProcess: "prompt";
   readonly cutDepthMm: number;
   readonly tabsPerContour: number;
   readonly drillsDir: string;
   readonly gcodeDir: string;
   readonly cncDir: string;
-  readonly gerbersDir: string;
   readonly windowBounds: Rect;
 }
 
@@ -25,7 +23,6 @@ export interface PlannedToolpath {
   readonly category: string;
   readonly method: string;
   readonly diameterMm: number;
-  readonly layerTitle: string;
 }
 
 export interface ParsedDrillFilename {

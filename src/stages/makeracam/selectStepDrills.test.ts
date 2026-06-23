@@ -10,7 +10,7 @@ import {
 const BOARD = "new-and-improved-zefir-btn";
 const DRILLS_DIR = join(import.meta.dir, "..", "..", "..", "testdir", "drills");
 
-const realListing = (): string[] =>
+const realListing = () =>
   readdirSync(DRILLS_DIR).filter((f) => f.toLowerCase().endsWith(".drl"));
 
 test("parseDrillFilename splits on the LAST underscore (board has hyphens)", () => {
@@ -73,4 +73,38 @@ test("magazineCategoryFor maps method to the magazine category", () => {
   expect(magazineCategoryFor("drills")).toBe("Drill");
   expect(magazineCategoryFor("pockets")).toBe("Corn Bits");
   expect(magazineCategoryFor("contour")).toBe("Corn Bits");
+});
+
+test("parseDrillFilename keeps underscores inside the board name", () => {
+  expect(parseDrillFilename("my_cool_board_PTH-drills-0.4mm.drl")).toEqual({
+    board: "my_cool_board",
+    category: "PTH",
+    method: "drills",
+    diameterMm: 0.4,
+  });
+});
+
+test("parseDrillFilename accepts integer and leading-dot diameters", () => {
+  expect(parseDrillFilename(`${BOARD}_PTH-drills-1mm.drl`)?.diameterMm).toBe(1);
+  expect(parseDrillFilename(`${BOARD}_PTH-drills-.5mm.drl`)?.diameterMm).toBe(
+    0.5,
+  );
+  expect(parseDrillFilename(`${BOARD}_PTH-drills-0.mm.drl`)).toBeUndefined();
+});
+
+test("selectStepDrills orders PTH drills by ascending diameter", () => {
+  const diameters = selectStepDrills(realListing(), BOARD, "plated")
+    .filter((s) => s.category === "PTH" && s.method === "drills")
+    .map((s) => s.diameterMm);
+  expect(diameters).toEqual([0.4, 0.5, 0.8]);
+});
+
+test("selectStepDrills excludes drills from other boards", () => {
+  const files = [
+    `${BOARD}_PTH-drills-0.4mm.drl`,
+    "other-board_PTH-drills-0.4mm.drl",
+  ];
+  expect(selectStepDrills(files, BOARD, "plated").map((s) => s.board)).toEqual([
+    BOARD,
+  ]);
 });

@@ -21,6 +21,12 @@ import {
 import type { AxElementInfo as AxElement } from "@flatmaxxing/accessibility";
 import { Duration, Effect } from "effect";
 import { basename } from "node:path";
+import {
+  layerSelectorFor,
+  layerTitleKey,
+  layerTitleMatchesStem,
+  tabControlVisibility,
+} from "./actionHelpers";
 import { MAKERACAM_PROCESS } from "./process";
 import { magazineCategoryFor } from "./selectStepDrills";
 import type { ToolpathKind } from "./types";
@@ -130,12 +136,10 @@ export const setStockMaterialPCB = Effect.fn(
   yield* Effect.sleep(SETTLE);
 });
 
-const layerGroupTitles = Effect.fn("flatmaxx.makeracam.layerGroupTitles")(
-  function* (pid: number) {
-    const groups = yield* axFind(pid, { role: "AXGroup" });
-    return groups.flatMap((g) => g.titles);
-  },
-);
+const layerGroupTitles = Effect.fnUntraced(function* (pid: number) {
+  const groups = yield* axFind(pid, { role: "AXGroup" });
+  return groups.flatMap((g) => g.titles);
+});
 
 export const importPcbFile = Effect.fn("flatmaxx.makeracam.importPcbFile")(
   function* (pid: number, absPath: string) {
@@ -146,7 +150,7 @@ export const importPcbFile = Effect.fn("flatmaxx.makeracam.importPcbFile")(
 
     const MAX_TRIES = 3;
     for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
-      const before = new Set(yield* layerGroupTitles(pid));
+      const before = new Set((yield* layerGroupTitles(pid)).map(layerTitleKey));
       yield* clickElement(pid, { role: "AXButton", title: importButton });
 
       yield* waitForElement(
@@ -163,17 +167,17 @@ export const importPcbFile = Effect.fn("flatmaxx.makeracam.importPcbFile")(
 
       for (let i = 0; i < 50; i++) {
         const added = (yield* layerGroupTitles(pid)).filter(
-          (t) => !before.has(t),
+          (titles) => !before.has(layerTitleKey(titles)),
         );
         if (added.length > 0) {
-          return (
-            added.find((t) => Object.values(t).some((v) => v.includes(stem))) ??
-            added[0]!
+          const matching = added.find((titles) =>
+            layerTitleMatchesStem(titles, stem),
           );
+          return layerSelectorFor(matching ?? added[0]!, stem);
         }
         yield* Effect.sleep(Duration.millis(300));
       }
-      yield* pressKeyCode(53).pipe(Effect.ignore);
+      yield* pressKeyCode(KEY_ESCAPE).pipe(Effect.ignore);
       yield* Effect.sleep(SETTLE);
     }
     return yield* Effect.fail(
@@ -188,23 +192,68 @@ const KEY_UP = 126;
 const KEY_DOWN = 125;
 const KEY_RETURN = 36;
 const KEY_ESCAPE = 53;
+const KEY_A = 0;
+const KEY_TAB = 48;
 
-const contextMenuOpen = Effect.fn("flatmaxx.makeracam.contextMenuOpen")(
-  function* (pid: number) {
-    const menus = yield* axFind(pid, { role: "AXMenu" });
-    return menus.some((m) => m.w > 0 && m.h > 0);
+const PANEL_X = 1480;
+const PANEL_BAND_TOP = 360;
+const SCROLL_STEP = 8;
+
+const scrollIntoBand = Effect.fnUntraced(function* (
+  locate: () => Effect.Effect<AxElement | undefined>,
+  opts: {
+    readonly bandTop: number;
+    readonly bandBottom: number;
+    readonly anchor: { readonly x: number; readonly y: number };
+    readonly maxTries: number;
+    readonly settle: Duration.Duration;
+    readonly notFound: string;
+    readonly outOfReach: string;
   },
-);
-
-const dismissContextMenus = Effect.fn("flatmaxx.makeracam.dismissContextMenus")(
-  function* (pid: number) {
-    for (let i = 0; i < 6; i++) {
-      if (!(yield* contextMenuOpen(pid))) return;
-      yield* pressKeyCode(KEY_ESCAPE);
-      yield* Effect.sleep(Duration.millis(150));
+) {
+  for (let i = 0; i < opts.maxTries; i++) {
+    const el = yield* locate();
+    if (el === undefined) {
+      return yield* Effect.fail(new Error(opts.notFound));
     }
-  },
-);
+    if (tabControlVisibility(el, opts.bandTop, opts.bandBottom) === "visible") {
+      return el;
+    }
+    yield* mouseScroll(
+      opts.anchor,
+      el.cy > opts.bandBottom ? -SCROLL_STEP : SCROLL_STEP,
+    );
+    yield* Effect.sleep(opts.settle);
+  }
+  return yield* Effect.fail(new Error(opts.outOfReach));
+});
+
+const replaceFieldValue = Effect.fnUntraced(function* (
+  x: number,
+  y: number,
+  value: string,
+  afterFocus: Duration.Duration,
+) {
+  yield* doubleClickAt({ x, y });
+  yield* Effect.sleep(afterFocus);
+  yield* pressKeyCode(KEY_A, ["command"]);
+  yield* typeText(value);
+  yield* pressKeyCode(KEY_TAB);
+  yield* Effect.sleep(SETTLE);
+});
+
+const contextMenuOpen = Effect.fnUntraced(function* (pid: number) {
+  const menus = yield* axFind(pid, { role: "AXMenu" });
+  return menus.some((m) => m.w > 0 && m.h > 0);
+});
+
+const dismissContextMenus = Effect.fnUntraced(function* (pid: number) {
+  for (let i = 0; i < 6; i++) {
+    if (!(yield* contextMenuOpen(pid))) return;
+    yield* pressKeyCode(KEY_ESCAPE);
+    yield* Effect.sleep(Duration.millis(150));
+  }
+});
 
 const invokeRowMenuFromBottom = Effect.fn(
   "flatmaxx.makeracam.invokeRowMenuFromBottom",
@@ -213,7 +262,7 @@ const invokeRowMenuFromBottom = Effect.fn(
   yield* dismissContextMenus(pid);
 
   const { cx: x, cy: y } = row;
-  const tryOpen = Effect.fn("tryOpen")(function* () {
+  const tryOpen = Effect.fnUntraced(function* () {
     yield* mouseMove({ x: x - 40, y });
     yield* Effect.sleep(Duration.millis(50));
     yield* mouseMove({ x, y });
@@ -248,23 +297,16 @@ const invokeRowMenuFromBottom = Effect.fn(
 
 export const selectLayerGraphics = Effect.fn(
   "flatmaxx.makeracam.selectLayerGraphics",
-)(function* (pid: number, layerTitle: string) {
+)(function* (pid: number, layerSelector: string) {
   const row = yield* waitForElement(
     pid,
-    { role: "AXGroup", title: layerTitle },
+    { role: "AXGroup", titleContains: layerSelector },
     { timeoutMs: 10_000 },
   );
   yield* invokeRowMenuFromBottom(pid, row, 1);
 });
 
-const dialogTitleFor = (kind: ToolpathKind): string =>
-  kind === "drill"
-    ? "2D Drilling"
-    : kind === "pocket"
-      ? "2D Pocket"
-      : "2D Contour";
-
-const menuItemFor = (kind: ToolpathKind): string =>
+const toolpathLabel = (kind: ToolpathKind) =>
   kind === "drill"
     ? "2D Drilling"
     : kind === "pocket"
@@ -277,11 +319,11 @@ export const openToolpath = Effect.fn("flatmaxx.makeracam.openToolpath")(
     yield* Effect.sleep(SETTLE);
     yield* pressElement(pid, {
       role: "AXMenuItem",
-      title: menuItemFor(kind),
+      title: toolpathLabel(kind),
     });
     yield* waitForElement(
       pid,
-      { role: "AXStaticText", title: dialogTitleFor(kind) },
+      { role: "AXStaticText", title: toolpathLabel(kind) },
       { timeoutMs: 15_000 },
     );
   },
@@ -305,12 +347,7 @@ export const setValueByLabel = Effect.fn("flatmaxx.makeracam.setValueByLabel")(
         new Error(`no text field on the row of "${labelTitle}"`),
       );
     }
-    yield* doubleClickAt({ x: field.cx, y: field.cy });
-    yield* Effect.sleep(Duration.millis(200));
-    yield* pressKeyCode(0, ["command"]);
-    yield* typeText(value);
-    yield* pressKeyCode(48);
-    yield* Effect.sleep(SETTLE);
+    yield* replaceFieldValue(field.cx, field.cy, value, Duration.millis(200));
   },
 );
 
@@ -323,22 +360,20 @@ export const setEndDepth = Effect.fn("flatmaxx.makeracam.setEndDepth")(
   },
 );
 
-const diaPrefix = (label: string): number => {
-  const beforeStar = label.split("*")[0] ?? label;
+const diaPrefix = (label: string) => {
+  const beforeStar = label.split("*")[0] ?? "";
   const m = beforeStar.match(/([0-9]*\.?[0-9]+)/);
   return m?.[1] !== undefined ? Number.parseFloat(m[1]) : Number.NaN;
 };
 
-const toolListTable = Effect.fn("flatmaxx.makeracam.toolListTable")(function* (
-  pid: number,
-) {
+const toolListTable = Effect.fnUntraced(function* (pid: number) {
   const tables = (yield* axFind(pid, { role: "AXTable" }))
     .filter((t) => t.x < 900)
     .sort((a, b) => a.y - b.y);
   return tables[0];
 });
 
-const selectToolRow = Effect.fn("flatmaxx.makeracam.selectToolRow")(function* (
+const selectToolRow = Effect.fnUntraced(function* (
   pid: number,
   diaMm: number,
   category: string,
@@ -347,35 +382,32 @@ const selectToolRow = Effect.fn("flatmaxx.makeracam.selectToolRow")(function* (
   if (table === undefined) {
     return yield* Effect.fail(new Error("Tool Magazine: no tool-list table"));
   }
-  const bandTop = table.y + 8;
-  const bandBottom = table.y + table.h - 18;
-  const cx = table.x + Math.round(table.w / 2);
-  const cy = table.y + Math.round(table.h / 2);
   const EPS = 1e-6;
-
-  for (let i = 0; i < 12; i++) {
-    const cells = yield* axFind(pid, {
-      role: "AXStaticText",
-      underTitle: "Tool Magazine",
-    });
-    const target = cells.find((c) =>
-      Object.values(c.titles).some((t) => Math.abs(diaPrefix(t) - diaMm) < EPS),
-    );
-    if (target === undefined) {
-      return yield* Effect.fail(
-        new Error(`Tool Magazine: no ${category} row with diameter ${diaMm}`),
-      );
-    }
-    if (target.cy >= bandTop && target.cy <= bandBottom) {
-      yield* clickAt({ x: target.cx, y: target.cy });
-      return;
-    }
-    yield* mouseScroll({ x: cx, y: cy }, target.cy > bandBottom ? -8 : 8);
-    yield* Effect.sleep(SETTLE);
-  }
-  return yield* Effect.fail(
-    new Error(`Tool Magazine: could not scroll the ${diaMm}mm row into view`),
+  const target = yield* scrollIntoBand(
+    () =>
+      axFind(pid, { role: "AXStaticText", underTitle: "Tool Magazine" }).pipe(
+        Effect.map((cells) =>
+          cells.find((c) =>
+            Object.values(c.titles).some(
+              (t) => Math.abs(diaPrefix(t) - diaMm) < EPS,
+            ),
+          ),
+        ),
+      ),
+    {
+      bandTop: table.y + 8,
+      bandBottom: table.y + table.h - 18,
+      anchor: {
+        x: table.x + Math.round(table.w / 2),
+        y: table.y + Math.round(table.h / 2),
+      },
+      maxTries: 12,
+      settle: SETTLE,
+      notFound: `Tool Magazine: no ${category} row with diameter ${diaMm}`,
+      outOfReach: `Tool Magazine: could not scroll the ${diaMm}mm row into view`,
+    },
   );
+  yield* clickAt({ x: target.cx, y: target.cy });
 });
 
 export const chooseToolByDiameter = Effect.fn(
@@ -417,44 +449,42 @@ export const deleteDefaultPocketTool = Effect.fn(
 const TAB_WIDTH_MM = 4;
 const TAB_TOP_CUT_MM = 0.5;
 
-const setTabLayoutNumber = Effect.fn("flatmaxx.makeracam.setTabLayoutNumber")(
-  function* (pid: number) {
-    yield* ensureFrontmost(MAKERACAM_APP);
-    const attempt = Effect.fn("attempt")(function* () {
-      const label = (yield* axFind(pid, {
-        role: "AXStaticText",
-        title: "Tab Layout",
-      }))[0];
-      if (label === undefined) return false;
-      const popups = yield* axFind(pid, { role: "AXPopUpButton" });
-      const idx = popups.findIndex(
-        (p) => Math.abs(p.y - label.y) <= 14 && p.x > label.x,
-      );
-      if (idx < 0) return false;
-      yield* performAction(
-        pid,
-        { role: "AXPopUpButton", nth: idx + 1 },
-        "AXShowMenu",
-      );
-      yield* Effect.sleep(Duration.millis(450));
-      yield* pressKeyCode(KEY_DOWN);
-      yield* Effect.sleep(Duration.millis(200));
-      yield* pressKeyCode(KEY_RETURN);
-      yield* Effect.sleep(SETTLE);
-      return yield* elementExists(pid, {
-        role: "AXStaticText",
-        title: "Tabs per Contour",
-      });
+const setTabLayoutNumber = Effect.fnUntraced(function* (pid: number) {
+  yield* ensureFrontmost(MAKERACAM_APP);
+  const attempt = Effect.fnUntraced(function* () {
+    const label = (yield* axFind(pid, {
+      role: "AXStaticText",
+      title: "Tab Layout",
+    }))[0];
+    if (label === undefined) return false;
+    const popups = yield* axFind(pid, { role: "AXPopUpButton" });
+    const idx = popups.findIndex(
+      (p) => Math.abs(p.y - label.y) <= 14 && p.x > label.x,
+    );
+    if (idx < 0) return false;
+    yield* performAction(
+      pid,
+      { role: "AXPopUpButton", nth: idx + 1 },
+      "AXShowMenu",
+    );
+    yield* Effect.sleep(Duration.millis(450));
+    yield* pressKeyCode(KEY_DOWN);
+    yield* Effect.sleep(Duration.millis(200));
+    yield* pressKeyCode(KEY_RETURN);
+    yield* Effect.sleep(SETTLE);
+    return yield* elementExists(pid, {
+      role: "AXStaticText",
+      title: "Tabs per Contour",
     });
-    let ok = yield* attempt();
-    if (!ok) ok = yield* attempt();
-    if (!ok) {
-      return yield* Effect.fail(
-        new Error("Contour: could not switch Tab Layout to 'Number'"),
-      );
-    }
-  },
-);
+  });
+  let ok = yield* attempt();
+  if (!ok) ok = yield* attempt();
+  if (!ok) {
+    return yield* Effect.fail(
+      new Error("Contour: could not switch Tab Layout to 'Number'"),
+    );
+  }
+});
 
 export const setContourOutsideTabs = Effect.fn(
   "flatmaxx.makeracam.setContourOutsideTabs",
@@ -473,33 +503,33 @@ export const setContourOutsideTabs = Effect.fn(
   yield* Effect.sleep(SETTLE);
 });
 
-const clickTabsGenerate = Effect.fn("flatmaxx.makeracam.clickTabsGenerate")(
-  function* (pid: number) {
-    const calc = (yield* axFind(pid, {
-      role: "AXButton",
-      title: "Calculate",
-    }))[0];
-    const bandTop = 360;
-    const bandBottom = (calc?.y ?? 990) - 2;
-    for (let i = 0; i < 25; i++) {
-      const gen = (yield* axFind(pid, {
-        role: "AXButton",
-        title: "Generate",
-      }))[0];
-      if (gen === undefined) return;
-      if (gen.cy >= bandTop && gen.cy <= bandBottom) {
-        yield* Effect.sleep(Duration.millis(250));
-        yield* clickAt({ x: gen.cx, y: gen.cy });
-        yield* Effect.sleep(Duration.millis(400));
-        return;
-      }
-      yield* mouseScroll({ x: 1480, y: 600 }, gen.cy > bandBottom ? -8 : 8);
-      yield* Effect.sleep(Duration.millis(120));
-    }
-  },
-);
+const clickTabsGenerate = Effect.fnUntraced(function* (pid: number) {
+  const calc = (yield* axFind(pid, {
+    role: "AXButton",
+    title: "Calculate",
+  }))[0];
+  const gen = yield* scrollIntoBand(
+    () =>
+      axFind(pid, { role: "AXButton", title: "Generate" }).pipe(
+        Effect.map((a) => a[0]),
+      ),
+    {
+      bandTop: PANEL_BAND_TOP,
+      bandBottom: (calc?.y ?? 990) - 2,
+      anchor: { x: PANEL_X, y: 600 },
+      maxTries: 25,
+      settle: Duration.millis(120),
+      notFound: "Contour: Tabs Generate button not found",
+      outOfReach:
+        "Contour: could not scroll the Tabs Generate button into view",
+    },
+  );
+  yield* Effect.sleep(Duration.millis(250));
+  yield* clickAt({ x: gen.cx, y: gen.cy });
+  yield* Effect.sleep(Duration.millis(400));
+});
 
-const setTabParam = Effect.fn("flatmaxx.makeracam.setTabParam")(function* (
+const setTabParam = Effect.fnUntraced(function* (
   pid: number,
   label: string,
   value: string,
@@ -508,68 +538,61 @@ const setTabParam = Effect.fn("flatmaxx.makeracam.setTabParam")(function* (
     role: "AXButton",
     title: "Calculate",
   }))[0];
-  const bandTop = 360;
   const bandBottom = (calc?.y ?? 980) - 24;
-  const panelMidY = Math.round((bandTop + bandBottom) / 2);
-  for (let i = 0; i < 30; i++) {
-    const lbl = (yield* axFind(pid, { role: "AXStaticText", title: label }))[0];
-    if (lbl === undefined) return;
-    if (lbl.cy >= bandTop && lbl.cy <= bandBottom) break;
-    yield* mouseScroll({ x: 1480, y: panelMidY }, lbl.cy > bandBottom ? -8 : 8);
-    yield* Effect.sleep(Duration.millis(120));
-  }
-  yield* setValueByLabel(pid, label, value).pipe(Effect.ignore);
+  yield* scrollIntoBand(
+    () =>
+      axFind(pid, { role: "AXStaticText", title: label }).pipe(
+        Effect.map((a) => a[0]),
+      ),
+    {
+      bandTop: PANEL_BAND_TOP,
+      bandBottom,
+      anchor: { x: PANEL_X, y: Math.round((PANEL_BAND_TOP + bandBottom) / 2) },
+      maxTries: 30,
+      settle: Duration.millis(120),
+      notFound: `Contour: "${label}" field not found`,
+      outOfReach: `Contour: could not scroll "${label}" into the visible band`,
+    },
+  );
+  yield* setValueByLabel(pid, label, value);
 });
 
-const selectTabsRadio = Effect.fn("flatmaxx.makeracam.selectTabsRadio")(
-  function* (pid: number, title: string) {
-    const calc = (yield* axFind(pid, {
-      role: "AXButton",
-      title: "Calculate",
-    }))[0];
-    const bandTop = 360;
-    const bandBottom = (calc?.y ?? 980) - 24;
-    const panelX = 1480;
-    const panelMidY = Math.round((bandTop + bandBottom) / 2);
+const selectTabsRadio = Effect.fnUntraced(function* (
+  pid: number,
+  title: string,
+) {
+  const calc = (yield* axFind(pid, {
+    role: "AXButton",
+    title: "Calculate",
+  }))[0];
+  const bandBottom = (calc?.y ?? 980) - 24;
+  const radio = yield* scrollIntoBand(
+    () =>
+      axFind(pid, { role: "AXRadioButton", title }).pipe(
+        Effect.map((a) => a[0]),
+      ),
+    {
+      bandTop: PANEL_BAND_TOP,
+      bandBottom,
+      anchor: { x: PANEL_X, y: Math.round((PANEL_BAND_TOP + bandBottom) / 2) },
+      maxTries: 30,
+      settle: Duration.millis(120),
+      notFound: `Contour: Tabs '${title}' radio not found`,
+      outOfReach: `Contour: could not scroll Tabs '${title}' into the band`,
+    },
+  );
+  yield* clickAt({ x: radio.cx, y: radio.cy });
+});
 
-    for (let i = 0; i < 30; i++) {
-      const radio = (yield* axFind(pid, { role: "AXRadioButton", title }))[0];
-      if (radio === undefined) {
-        return yield* Effect.fail(
-          new Error(`Contour: Tabs '${title}' radio not found`),
-        );
-      }
-      if (radio.cy >= bandTop && radio.cy <= bandBottom) {
-        yield* clickAt({ x: radio.cx, y: radio.cy });
-        return;
-      }
-      yield* mouseScroll(
-        { x: panelX, y: panelMidY },
-        radio.cy > bandBottom ? -8 : 8,
-      );
-      yield* Effect.sleep(Duration.millis(120));
-    }
-    return yield* Effect.fail(
-      new Error(`Contour: could not scroll Tabs '${title}' into the band`),
-    );
-  },
-);
-
-const countPathNodes = Effect.fn("flatmaxx.makeracam.countPathNodes")(
-  function* (pid: number) {
-    const groups = yield* axFind(pid, { role: "AXGroup" });
-    return groups.filter((g) =>
-      Object.values(g.titles).some((t) => /^\[T\d/.test(t)),
-    ).length;
-  },
-);
+const isToolpathNode = (g: AxElement) =>
+  Object.values(g.titles).some((t) => /^\[T\d/.test(t));
 
 export const calculatePath = Effect.fn("flatmaxx.makeracam.calculatePath")(
   function* (pid: number) {
-    const before = yield* countPathNodes(pid);
+    const before = (yield* toolpathNodes(pid)).length;
     yield* clickElement(pid, { role: "AXButton", title: "Calculate" });
     for (let i = 0; i < 120; i++) {
-      if ((yield* countPathNodes(pid)) > before) break;
+      if ((yield* toolpathNodes(pid)).length > before) break;
       yield* Effect.sleep(Duration.millis(300));
     }
     yield* Effect.sleep(SETTLE);
@@ -597,11 +620,9 @@ export const closeToolpathDialog = Effect.fn(
   yield* Effect.sleep(SETTLE);
 });
 
-const toolpathNodes = Effect.fn("flatmaxx.makeracam.toolpathNodes")(function* (
-  pid: number,
-) {
+const toolpathNodes = Effect.fnUntraced(function* (pid: number) {
   return (yield* axFind(pid, { role: "AXGroup" }))
-    .filter((g) => Object.values(g.titles).some((t) => /^\[T\d/.test(t)))
+    .filter(isToolpathNode)
     .sort((a, b) => a.y - b.y);
 });
 
@@ -617,6 +638,11 @@ export const reorderContourLast = Effect.fn(
     if (contour === undefined || idx >= nodes.length - 1) return;
     yield* invokeRowMenuFromBottom(pid, contour, 5);
   }
+  return yield* Effect.fail(
+    new Error(
+      "Contour: could not move the edge-cut path to last after 24 attempts",
+    ),
+  );
 });
 
 export const saveAllPaths = Effect.fn("flatmaxx.makeracam.saveAllPaths")(
@@ -641,9 +667,7 @@ interface ExportRow {
   readonly value: string;
 }
 
-const readToolNumberColumn = Effect.fn(
-  "flatmaxx.makeracam.readToolNumberColumn",
-)(function* (pid: number) {
+const readToolNumberColumn = Effect.fnUntraced(function* (pid: number) {
   const cells = yield* axFind(pid, {
     role: "AXStaticText",
     underTitle: "Export ToolPaths",
@@ -659,21 +683,19 @@ const readToolNumberColumn = Effect.fn(
   return colCells
     .slice()
     .sort((a, b) => a.y - b.y)
-    .map(
-      (c): ExportRow => ({
-        toolNumberCell: c,
-        value: (
-          Object.values(c.titles).find((t) => /^\d+$/.test(t.trim())) ?? ""
-        ).trim(),
-      }),
-    );
+    .map((c) => ({
+      toolNumberCell: c,
+      value: (
+        Object.values(c.titles).find((t) => /^\d+$/.test(t.trim())) ?? ""
+      ).trim(),
+    }));
 });
 
 export const setSequentialToolNumbers = Effect.fn(
   "flatmaxx.makeracam.setSequentialToolNumbers",
 )(function* (pid: number, desired: readonly number[]) {
   const MAX_PASSES = 5;
-  const want = (i: number): string => String(desired[i] ?? -1);
+  const want = (i: number) => String(desired[i] ?? -1);
 
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const rows = yield* readToolNumberColumn(pid);
@@ -682,12 +704,7 @@ export const setSequentialToolNumbers = Effect.fn(
       const row = rows[i];
       if (row === undefined || row.value === want(i)) continue;
       const { cx: x, cy: y } = row.toolNumberCell;
-      yield* doubleClickAt({ x, y });
-      yield* Effect.sleep(SETTLE);
-      yield* pressKeyCode(0, ["command"]);
-      yield* typeText(want(i));
-      yield* pressKeyCode(48);
-      yield* Effect.sleep(SETTLE);
+      yield* replaceFieldValue(x, y, want(i), SETTLE);
     }
 
     const after = yield* readToolNumberColumn(pid);

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { parseKicadPcb } from "kicadts";
 import {
   collectEdgeCutsPrimitives,
-  kicadToGerberTransform,
+  kicadToDxfTransform,
   MissingAuxAxisOriginError,
   transformOutline,
 } from "./extractEdgeCutsOutline";
@@ -18,11 +18,11 @@ const makeBoard = (body: string) => `
 )
 `;
 
-test("kicadToGerberTransform maps a point via gx=x-auxX, gy=auxY-y", () => {
+test("kicadToDxfTransform maps a point via dx=x-auxX, dy=auxY-y", () => {
   const pcb = parseKicadPcb(
     makeBoard(`(setup (aux_axis_origin 104.065444 82.878393))`),
   );
-  const t = kicadToGerberTransform(pcb);
+  const t = kicadToDxfTransform(pcb);
 
   const origin = t({ x: 104.065444, y: 82.878393 });
   expect(origin.x).toBeCloseTo(0, 6);
@@ -33,9 +33,9 @@ test("kicadToGerberTransform maps a point via gx=x-auxX, gy=auxY-y", () => {
   expect(p.y).toBeCloseTo(5, 6);
 });
 
-test("kicadToGerberTransform THROWS when aux_axis_origin is absent", () => {
+test("kicadToDxfTransform throws when aux_axis_origin is absent", () => {
   const pcb = parseKicadPcb(makeBoard(`(setup)`));
-  expect(() => kicadToGerberTransform(pcb)).toThrow(MissingAuxAxisOriginError);
+  expect(() => kicadToDxfTransform(pcb)).toThrow(MissingAuxAxisOriginError);
 });
 
 test("the Y-flip transform inverts arc winding", () => {
@@ -51,11 +51,8 @@ test("the Y-flip transform inverts arc winding", () => {
   const rawArcs = outline.cmds.filter((c) => c.kind === "arc");
   expect(rawArcs).toHaveLength(2);
 
-  const flipped = transformOutline(outline, kicadToGerberTransform(pcb));
-  const flippedArcs = flipped.cmds.filter(
-    (c): c is Extract<(typeof flipped.cmds)[number], { kind: "arc" }> =>
-      c.kind === "arc",
-  );
+  const flipped = transformOutline(outline, kicadToDxfTransform(pcb));
+  const flippedArcs = flipped.cmds.filter((c) => c.kind === "arc");
 
   for (let i = 0; i < rawArcs.length; i++) {
     const raw = rawArcs[i]!;
@@ -87,6 +84,19 @@ test("a footprint-level edge cut chains into the outline with its transform", ()
   expect(Math.max(...ys)).toBeCloseTo(13);
 });
 
+test("a circle-only Edge.Cuts outline fails with a specific outline error", () => {
+  const pcb = parseKicadPcb(
+    makeBoard(`
+      (setup (aux_axis_origin 0 0))
+      (gr_circle (center 0 0) (end 5 0) (stroke (width 0.2) (type default)) (fill none) (layer "Edge.Cuts"))
+    `),
+  );
+
+  expect(() => collectEdgeCutsPrimitives(pcb)).toThrow(
+    /circles are not supported/,
+  );
+});
+
 test("the real zefir Edge.Cuts closes into a single loop matching the golden start", () => {
   const src = readFileSync(
     resolve(process.cwd(), "testdir/new-and-improved-zefir-btn.kicad_pcb"),
@@ -104,7 +114,7 @@ test("the real zefir Edge.Cuts closes into a single loop matching the golden sta
   expect(last.to.x).toBeCloseTo(outline.start.x, 6);
   expect(last.to.y).toBeCloseTo(outline.start.y, 6);
 
-  const transformed = transformOutline(outline, kicadToGerberTransform(pcb));
+  const transformed = transformOutline(outline, kicadToDxfTransform(pcb));
   expect(transformed.start.x).toBeCloseTo(1.184556, 4);
   expect(transformed.start.y).toBeCloseTo(14.878393, 4);
   const firstArc = transformed.cmds.find((c) => c.kind === "arc")!;

@@ -53,27 +53,47 @@ pub fn frame(element: &AXUIElement) -> Result<Option<Frame>, AXError> {
 }
 
 pub fn matches_query(element: &AXUIElement, query: &AxQuery) -> bool {
-  if matches!(query.role.as_ref(), maybe_role if maybe_role == role(element).as_ref()) {
-    return false;
+  query_matches_values(
+    query,
+    role(element).as_deref(),
+    identifier(element).as_deref(),
+    &titles(element),
+  )
+}
+
+pub fn query_matches_values(
+  query: &AxQuery,
+  actual_role: Option<&str>,
+  actual_id: Option<&str>,
+  actual_titles: &Titles,
+) -> bool {
+  if let Some(expected_role) = query.role.as_deref() {
+    if actual_role != Some(expected_role) {
+      return false;
+    }
   }
 
-  if matches!(query.id.as_ref(), maybe_id if maybe_id == identifier(element).as_ref()) {
-    return false;
-  }
-  if matches!(query.title.as_ref(), maybe_title if maybe_title == titles(element).title.as_ref()) {
-    return false;
+  if let Some(expected_id) = query.id.as_deref() {
+    if actual_id != Some(expected_id) {
+      return false;
+    }
   }
 
-  let Titles {
-    title,
-    description,
-    value,
-  } = titles(element);
+  if let Some(expected_title) = query.title.as_deref() {
+    if actual_titles.title.as_deref() != Some(expected_title) {
+      return false;
+    }
+  }
 
-  if let Some(title_contains) = query.title_contains.clone() {
-    return !(matches!(title, Some(title) if title.contains(&title_contains))
-      || matches!(description, Some(description) if description.contains(&title_contains))
-      || matches!(value, Some(value) if value.contains(&title_contains)));
+  if let Some(title_contains) = query.title_contains.as_deref() {
+    return [
+      actual_titles.title.as_deref(),
+      actual_titles.description.as_deref(),
+      actual_titles.value.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|title| title.contains(title_contains));
   }
 
   true
@@ -85,7 +105,9 @@ fn descendants(root: AXUIElement) -> impl Iterator<Item = AXUIElement> {
   std::iter::from_fn(move || {
     let element = stack.pop()?;
 
-    stack.extend(element.children().ok()?);
+    if let Ok(children) = element.children() {
+      stack.extend(children);
+    }
 
     Some(element)
   })
@@ -121,13 +143,20 @@ pub fn resolve_matches(
   )
 }
 
-pub fn nth_match(pid: i32, query: &AxQuery) -> Option<AXUIElement> {
-  let nth = query.nth?;
-  if nth == 0 {
-    return None;
-  }
+pub fn nth_index(query: &AxQuery) -> Option<usize> {
+  query
+    .nth
+    .unwrap_or(1)
+    .checked_sub(1)
+    .map(|nth| nth as usize)
+}
 
-  resolve_matches(pid, query)?.nth((nth - 1) as usize)
+pub fn nth_match(pid: i32, query: &AxQuery) -> Option<AXUIElement> {
+  resolve_matches(pid, query)?.nth(nth_index(query)?)
+}
+
+pub fn successful_values<T, E>(items: impl IntoIterator<Item = Result<T, E>>) -> Vec<T> {
+  items.into_iter().filter_map(Result::ok).collect()
 }
 
 pub fn element_info(element: &AXUIElement) -> Result<AxElementInfo, AXError> {
@@ -142,7 +171,7 @@ pub fn element_info(element: &AXUIElement) -> Result<AxElementInfo, AXError> {
     role: role(element),
     titles: titles(element),
     id: identifier(element),
-    acts: actions(element)?,
+    acts: actions(element).unwrap_or_default(),
     x,
     y,
     w: width,
@@ -150,4 +179,105 @@ pub fn element_info(element: &AXUIElement) -> Result<AxElementInfo, AXError> {
     cx: x + width / 2.0,
     cy: y + height / 2.0,
   })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{nth_index, query_matches_values, successful_values};
+  use crate::structs::{AxQuery, Titles};
+
+  fn query() -> AxQuery {
+    AxQuery {
+      role: None,
+      title: None,
+      id: None,
+      under_title: None,
+      title_contains: None,
+      nth: None,
+    }
+  }
+
+  fn titles(title: Option<&str>, description: Option<&str>, value: Option<&str>) -> Titles {
+    Titles {
+      title: title.map(String::from),
+      description: description.map(String::from),
+      value: value.map(String::from),
+    }
+  }
+
+  #[test]
+  fn query_fields_are_positive_constraints() {
+    let mut q = query();
+    q.role = Some("AXButton".to_string());
+    q.id = Some("OKButton".to_string());
+    q.title = Some("Save".to_string());
+
+    assert!(query_matches_values(
+      &q,
+      Some("AXButton"),
+      Some("OKButton"),
+      &titles(Some("Save"), None, None)
+    ));
+    assert!(!query_matches_values(
+      &q,
+      Some("AXStaticText"),
+      Some("OKButton"),
+      &titles(Some("Save"), None, None)
+    ));
+    assert!(!query_matches_values(
+      &q,
+      Some("AXButton"),
+      Some("CancelButton"),
+      &titles(Some("Save"), None, None)
+    ));
+    assert!(!query_matches_values(
+      &q,
+      Some("AXButton"),
+      Some("OKButton"),
+      &titles(Some("Cancel"), None, None)
+    ));
+  }
+
+  #[test]
+  fn title_contains_checks_all_title_slots() {
+    let mut q = query();
+    q.title_contains = Some("Tool".to_string());
+
+    assert!(query_matches_values(
+      &q,
+      None,
+      None,
+      &titles(None, Some("Tool Magazine"), None)
+    ));
+    assert!(query_matches_values(
+      &q,
+      None,
+      None,
+      &titles(None, None, Some("Choose Tool"))
+    ));
+    assert!(!query_matches_values(
+      &q,
+      None,
+      None,
+      &titles(Some("Project"), Some("Dialog"), None)
+    ));
+  }
+
+  #[test]
+  fn nth_defaults_to_first_match_and_rejects_zero() {
+    let mut q = query();
+    assert_eq!(nth_index(&q), Some(0));
+
+    q.nth = Some(3);
+    assert_eq!(nth_index(&q), Some(2));
+
+    q.nth = Some(0);
+    assert_eq!(nth_index(&q), None);
+  }
+
+  #[test]
+  fn successful_values_drops_only_failed_entries() {
+    let values = successful_values([Ok(1), Err("bad frame"), Ok(3)]);
+    assert_eq!(values, vec![1, 3]);
+  }
 }

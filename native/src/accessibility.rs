@@ -2,14 +2,16 @@ use axuielement::ax_action::AX_PRESS_ACTION;
 use axuielement::ax_attribute::AX_VALUE_ATTRIBUTE;
 use napi_derive::napi;
 
-use crate::accessibility_helpers::{actions, element_info, nth_match, resolve_matches};
+use crate::accessibility_helpers::{
+  actions, element_info, nth_match, resolve_matches, successful_values,
+};
 use crate::structs::{AxElementInfo, AxQuery};
 
 #[napi(js_name = "axFind")]
 pub fn ax_find(pid: i32, query: AxQuery) -> Option<Vec<AxElementInfo>> {
-  resolve_matches(pid, &query)?
-    .map(|element| element_info(&element).ok())
-    .collect()
+  Some(successful_values(
+    resolve_matches(pid, &query)?.map(|element| element_info(&element)),
+  ))
 }
 
 #[napi(js_name = "axPress")]

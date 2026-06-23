@@ -1,13 +1,13 @@
-import type { Coordinate, PathCmd } from "@/geometry/gerberWriter";
+import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
 import { expect, test } from "bun:test";
 import { buildPlatingRoundedRect } from "./platingOutline";
 
 const noOffsets = { left: 0, right: 0, top: 0, bottom: 0 };
 
-const allPoints = (
-  start: Coordinate,
-  cmds: readonly PathCmd[],
-): Coordinate[] => [start, ...cmds.map((c) => c.to)];
+const allPoints = (start: Coordinate, cmds: readonly PathCmd[]) => [
+  start,
+  ...cmds.map((c) => c.to),
+];
 
 const boundsOf = (points: readonly Coordinate[]) => ({
   minX: Math.min(...points.map((p) => p.x)),
@@ -46,9 +46,7 @@ test("a rounded rect emits 4 lines + 4 arcs with correct corner coordinates", ()
 
   expect(start).toEqual({ x: radius, y: 0 });
 
-  const arcCenters = cmds
-    .filter((c): c is Extract<PathCmd, { kind: "arc" }> => c.kind === "arc")
-    .map((c) => c.center);
+  const arcCenters = cmds.filter((c) => c.kind === "arc").map((c) => c.center);
   expect(arcCenters).toEqual([
     { x: 10 - radius, y: radius },
     { x: 10 - radius, y: 8 - radius },
@@ -67,9 +65,7 @@ test("the corner radius is clamped to half the shorter side", () => {
     noOffsets,
     100,
   );
-  const arc = cmds.find(
-    (c): c is Extract<PathCmd, { kind: "arc" }> => c.kind === "arc",
-  )!;
+  const arc = cmds.find((c) => c.kind === "arc")!;
   expect(arc.center.y).toBeCloseTo(3);
   expect(start.x).toBeCloseTo(3);
 });

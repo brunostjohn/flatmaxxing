@@ -3,7 +3,9 @@ import { Effect } from "effect";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { edgeCutAlignmentPoints } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
 import {
+  buildEdgeCutDxfOptions,
   buildKicadOutputOptions,
   buildXToolProjectOptions,
   deepMerge,
@@ -246,4 +248,72 @@ excludeSides = ["back"]
   expect(xtool.solderMask.enabled).toBe(false);
   expect(xtool.stencil.enabled).toBe(true);
   expect(xtool.stencil.sides).toEqual(["front"]);
+});
+
+test("edge-cut DXF options honor electroplating alignment drill toggle", async () => {
+  const root = tempProject();
+  const bounds = { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+
+  let config = await loadConfig(root);
+  let options = buildEdgeCutDxfOptions(config);
+  expect(options.includeAlignmentDrills).toBe(true);
+  expect(edgeCutAlignmentPoints(bounds, options)).toHaveLength(4);
+
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[electroplating]
+generateEdgeCutsWithAlignmentDrills = false
+`,
+  );
+  config = await loadConfig(root);
+  options = buildEdgeCutDxfOptions(config);
+  expect(options.includeAlignmentDrills).toBe(false);
+  expect(edgeCutAlignmentPoints(bounds, options)).toEqual([]);
+
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[alignmentDrills]
+generate = false
+`,
+  );
+  config = await loadConfig(root);
+  options = buildEdgeCutDxfOptions(config);
+  expect(options.includeAlignmentDrills).toBe(false);
+  expect(edgeCutAlignmentPoints(bounds, options)).toEqual([]);
+});
+
+test("MakerCAM generation requires at least one available mill", async () => {
+  const root = tempProject();
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[cnc]
+availableMills = []
+`,
+  );
+
+  await expect(loadConfig(root)).rejects.toThrow("cnc.availableMills");
+
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+[cnc]
+availableMills = []
+
+[makeracam.platedHoles]
+generate = false
+
+[makeracam.finalCut]
+generate = false
+`,
+  );
+
+  const config = await loadConfig(root);
+  expect(config.cnc.availableMills).toEqual([]);
 });

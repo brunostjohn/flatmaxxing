@@ -27,16 +27,15 @@ import type {
   ToolpathKind,
 } from "./types";
 
-export const stepFilename = (
-  board: string,
-  step: "plated" | "final",
-): string =>
+export const stepFilename = (board: string, step: "plated" | "final") =>
   step === "plated"
     ? `${board}_align-PTH_Holes-PTH_EdgeCuts`
     : `${board}_NPTH_Holes-Final_EdgeCuts`;
 
-const kindForMethod = (method: string): ToolpathKind =>
-  method === "drills" ? "drill" : "pocket";
+const kindForMethod = (method: string) => {
+  const kind: ToolpathKind = method === "drills" ? "drill" : "pocket";
+  return kind;
+};
 
 export const planToolpaths = (
   files: readonly string[],
@@ -44,16 +43,15 @@ export const planToolpaths = (
   step: "plated" | "final",
   drillsDir: string,
   edgeCutGerberPath: string,
-): readonly PlannedToolpath[] => {
-  const drills = selectStepDrills(files, board, step).map(
-    (d): PlannedToolpath => ({
+) => {
+  const drills: PlannedToolpath[] = selectStepDrills(files, board, step).map(
+    (d) => ({
       file: d.file,
       absPath: join(drillsDir, d.file),
       kind: kindForMethod(d.method),
       category: d.category,
       method: d.method,
       diameterMm: d.diameterMm,
-      layerTitle: d.file,
     }),
   );
 
@@ -64,10 +62,33 @@ export const planToolpaths = (
     category: "edge",
     method: "contour",
     diameterMm: 0,
-    layerTitle: basename(edgeCutGerberPath),
   };
 
   return [contour, ...drills];
+};
+
+export const assignToolNumbers = (
+  planned: readonly PlannedToolpath[],
+  contourMillDiameterMm: number,
+) => {
+  const toolKey = (tp: PlannedToolpath) =>
+    tp.kind === "drill"
+      ? `drill:${tp.diameterMm}`
+      : `mill:${tp.kind === "contour" ? contourMillDiameterMm : tp.diameterMm}`;
+  const finalOrder = [
+    ...planned.filter((tp) => tp.kind !== "contour"),
+    ...planned.filter((tp) => tp.kind === "contour"),
+  ];
+  const seenTools = new Map<string, number>();
+  return finalOrder.map((tp) => {
+    const k = toolKey(tp);
+    let n = seenTools.get(k);
+    if (n === undefined) {
+      n = seenTools.size + 1;
+      seenTools.set(k, n);
+    }
+    return n;
+  });
 };
 
 export const orchestrateMakeracamStep = Effect.fn(
@@ -103,8 +124,6 @@ export const orchestrateMakeracamStep = Effect.fn(
   const base = stepFilename(pcbName, options.step);
   const gcodeFinal = join(options.gcodeDir, `${base}.gcode`);
   const mkcFinal = join(options.cncDir, `${base}.mkc`);
-  const gcodeTarget = gcodeFinal;
-  const mkcTarget = mkcFinal;
 
   yield* fs.makeDirectory(options.gcodeDir, { recursive: true });
   yield* fs.makeDirectory(options.cncDir, { recursive: true });
@@ -128,8 +147,8 @@ export const orchestrateMakeracamStep = Effect.fn(
             `Building toolpath ${i + 1}/${planned.length}: ${tp.file}...`,
           );
 
-          const layerTitle = yield* importPcbFile(pid, tp.absPath);
-          yield* selectLayerGraphics(pid, layerTitle.title ?? "");
+          const layerSelector = yield* importPcbFile(pid, tp.absPath);
+          yield* selectLayerGraphics(pid, layerSelector);
 
           yield* openToolpath(pid, tp.kind);
           yield* setEndDepth(pid, tp.kind, options.cutDepthMm);
@@ -176,39 +195,24 @@ export const orchestrateMakeracamStep = Effect.fn(
         yield* assertExportRowCount(pid, planned.length);
 
         yield* report("Assigning tool numbers (reusing repeated tools)...");
-        const toolKey = (tp: PlannedToolpath): string =>
-          tp.kind === "drill"
-            ? `drill:${tp.diameterMm}`
-            : `mill:${tp.kind === "contour" ? contourMillDiameterMm : tp.diameterMm}`;
-        const seenTools = new Map<string, number>();
-        const finalOrder = [
-          ...planned.filter((tp) => tp.kind !== "contour"),
-          ...planned.filter((tp) => tp.kind === "contour"),
-        ];
-        const desiredNumbers = finalOrder.map((tp) => {
-          const k = toolKey(tp);
-          let n = seenTools.get(k);
-          if (n === undefined) {
-            n = seenTools.size + 1;
-            seenTools.set(k, n);
-          }
-          return n;
-        });
-        yield* setSequentialToolNumbers(pid, desiredNumbers);
+        yield* setSequentialToolNumbers(
+          pid,
+          assignToolNumbers(planned, contourMillDiameterMm),
+        );
 
         yield* report("Exporting G-code...");
-        const ncVariant = `${gcodeTarget}.nc`;
+        const ncVariant = `${gcodeFinal}.nc`;
         yield* fs.remove(ncVariant, { force: true }).pipe(Effect.ignore);
-        yield* fs.remove(gcodeTarget, { force: true }).pipe(Effect.ignore);
-        yield* exportGcode(pid, gcodeTarget);
+        yield* fs.remove(gcodeFinal, { force: true }).pipe(Effect.ignore);
+        yield* exportGcode(pid, gcodeFinal);
         if (yield* fs.exists(ncVariant)) {
-          yield* fs.remove(gcodeTarget).pipe(Effect.ignore);
-          yield* fs.rename(ncVariant, gcodeTarget);
+          yield* fs.remove(gcodeFinal).pipe(Effect.ignore);
+          yield* fs.rename(ncVariant, gcodeFinal);
         }
 
         yield* report("Saving the MakeraCAM project (.mkc)...");
-        yield* fs.remove(mkcTarget, { force: true }).pipe(Effect.ignore);
-        yield* saveProjectMkc(pid, mkcTarget);
+        yield* fs.remove(mkcFinal, { force: true }).pipe(Effect.ignore);
+        yield* saveProjectMkc(pid, mkcFinal);
 
         return {
           gcodePath: gcodeFinal,

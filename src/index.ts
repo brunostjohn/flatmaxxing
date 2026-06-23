@@ -1,6 +1,6 @@
 import {
   buildAlignmentDrillCategorizationOptions,
-  buildEdgeCutGerberOptions,
+  buildEdgeCutDxfOptions,
   buildMakeracamStepOptions,
   buildBoardSelectionOptions,
   buildBoardValidationOptions,
@@ -20,7 +20,7 @@ import {
   ensureKicadExists,
   findPCBProject,
   generateCncJobs,
-  generateEdgeCutGerbers,
+  generateEdgeCutDxfs,
   generateKicadOutputs,
   runFinalCut,
   runPlatedHoles,
@@ -55,8 +55,6 @@ const Flatmaxx = Command.make(
     pathTokKicad,
     configPath,
   }) {
-    // yield* Effect.sync(() => askForAccessibilityAccess());
-
     yield* Effect.sync(resetSteps);
 
     const config = yield* loadFlatmaxxConfig({
@@ -87,10 +85,8 @@ const Flatmaxx = Command.make(
       buildKicadOutputOptions(config),
     );
 
-    // Gate the run: every component hole must be makeable with the tools on hand.
     yield* categorizeDrills(pcbFile, buildDrillCategorizationOptions(config));
 
-    // Gate CNC generation: the chosen V-bit must be able to isolate every trace.
     yield* validateIsolation(
       kicadCli,
       pcbFile,
@@ -99,13 +95,12 @@ const Flatmaxx = Command.make(
 
     yield* generateCncJobs(flatcam, pcbFile, buildCncJobOptions(config));
 
-    // Copy the CNC-generated alignment drill into ./drills, categorized by tool.
     yield* categorizeAlignmentDrills(
       pcbFile,
       buildAlignmentDrillCategorizationOptions(config),
     );
 
-    yield* generateEdgeCutGerbers(pcbFile, buildEdgeCutGerberOptions(config));
+    yield* generateEdgeCutDxfs(pcbFile, buildEdgeCutDxfOptions(config));
 
     const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
     yield* createXtoolProjects(
@@ -120,9 +115,9 @@ const Flatmaxx = Command.make(
     if (makeracamEnabled) {
       yield* preflightAccessibility();
     }
-    const contourMillDiameter = Math.max(
-      ...config.cnc.availableMills.map((mill) => mill.diameter),
-    );
+    const contourMillDiameter = makeracamEnabled
+      ? Math.max(...config.cnc.availableMills.map((mill) => mill.diameter))
+      : 0;
     yield* runPlatedHoles(
       pcbName,
       join(config.paths.gerbers, `${pcbName}-PTH_EdgeCuts.dxf`),

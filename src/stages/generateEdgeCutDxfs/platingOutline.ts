@@ -1,4 +1,4 @@
-import type { Coordinate, PathCmd } from "@/geometry/gerberWriter";
+import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
 import type { Outline } from "./extractEdgeCutsOutline";
 
 export interface PlatingBounds {
@@ -20,7 +20,7 @@ export const buildPlatingRoundedRect = (
   alignmentPoints: readonly Coordinate[],
   offsets: PlatingOffsets,
   cornerRadius: number,
-): Outline => {
+) => {
   let minX = bounds.minX;
   let minY = bounds.minY;
   let maxX = bounds.maxX;
