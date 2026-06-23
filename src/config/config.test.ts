@@ -38,6 +38,7 @@ test("loads defaults when no auto config exists", async () => {
     "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
   );
   expect(config.projectDir).toBe(root);
+  expect(config.skipRenderBoard).toBe(false);
   expect(config.paths.gerbers).toBe(join(root, "gerbers"));
   expect(config.paths.xtool).toBe(join(root, "xtool"));
   expect(config.alignmentDrills.generate).toBe(true);
@@ -67,6 +68,8 @@ test("loads defaults when no auto config exists", async () => {
   expect(config.cnc.availableMills).toEqual(defaultAvailableMills);
 
   const xtool = buildXToolProjectOptions(config);
+  const kicad = buildKicadOutputOptions(config);
+  expect(kicad.boardImage.generate).toBe(true);
   expect(xtool.enabled).toBe(true);
   expect(xtool.solderMask.enabled).toBe(true);
   expect(xtool.stencil.enabled).toBe(true);
@@ -387,6 +390,24 @@ excludeSides = ["back"]
   expect(xtool.solderMask.enabled).toBe(false);
   expect(xtool.stencil.enabled).toBe(true);
   expect(xtool.stencil.sides).toEqual(["front"]);
+});
+
+test("skipRenderBoard disables board image generation", async () => {
+  const root = tempProject();
+  writeConfig(
+    root,
+    "flatmaxxing.toml",
+    `
+skipRenderBoard = true
+`,
+  );
+
+  const config = await loadConfig(root);
+  const kicad = buildKicadOutputOptions(config);
+
+  expect(config.skipRenderBoard).toBe(true);
+  expect(kicad.boardImage.generate).toBe(false);
+  expect(kicad.boardImage.skipReason).toBe("skipRenderBoard=true");
 });
 
 test("edge-cut DXF options honor electroplating alignment drill toggle", async () => {

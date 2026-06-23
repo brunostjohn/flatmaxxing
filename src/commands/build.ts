@@ -20,12 +20,14 @@ import {
   generateEdgeCutDxfs,
   generateElectroplatingReport,
   generateKicadOutputs,
+  getBoardImagePngPath,
+  renderBoardImagePreview,
   runFinalCut,
   runPlatedHoles,
   validateIsolation,
   validateKicadBoard,
 } from "@/stages";
-import { Effect } from "effect";
+import { Effect, FileSystem } from "effect";
 import { Command } from "effect/unstable/cli";
 import { join } from "node:path";
 import {
@@ -40,25 +42,69 @@ import {
   sharedFlags,
 } from "./helpers";
 
+export type BoardImagePreviewRenderer = (
+  pngPath: string,
+) => Effect.Effect<void>;
+
+export type MaybeRenderBoardImagePreviewOptions = {
+  readonly enabled: boolean;
+  readonly pngPath?: string | undefined;
+  readonly alreadyShown?: boolean | undefined;
+  readonly isInteractive?: boolean | undefined;
+  readonly renderPreview?: BoardImagePreviewRenderer | undefined;
+};
+
+export const maybeRenderBoardImagePreview = Effect.fn(
+  "flatmaxx.build.maybeRenderBoardImagePreview",
+)(function* ({
+  enabled,
+  pngPath,
+  alreadyShown = false,
+  isInteractive = process.stdout.isTTY === true,
+  renderPreview = renderBoardImagePreview,
+}: MaybeRenderBoardImagePreviewOptions) {
+  if (!enabled || alreadyShown || !pngPath || !isInteractive) {
+    return false;
+  }
+
+  const fs = yield* FileSystem.FileSystem;
+  if (!(yield* fs.exists(pngPath))) {
+    return false;
+  }
+
+  yield* renderPreview(pngPath);
+  return true;
+});
+
 export const runBuildWorkflow = Effect.fn("flatmaxx.build")(function* (
   input: FlatmaxxCliInput,
 ) {
   yield* Effect.sync(resetSteps);
 
   const config = yield* loadConfigFromCli(input);
-  yield* runPreflight(config);
   const { kicadCli, pcbFile, pcbName, projectDir } =
     yield* prepareProjectContext(input, config);
   const flatcam = resolveFlatcam(config);
+  const showedBoardImagePreview = yield* maybeRenderBoardImagePreview({
+    enabled: !config.skipRenderBoard,
+    pngPath: getBoardImagePngPath(config.paths.png, pcbName),
+  });
+
+  yield* runPreflight(config);
 
   yield* validateKicadBoard(pcbFile, buildBoardValidationOptions(config));
 
-  yield* generateKicadOutputs(
+  const kicadOutputs = yield* generateKicadOutputs(
     kicadCli,
     projectDir,
     pcbFile,
     buildKicadOutputOptions(config),
   );
+  yield* maybeRenderBoardImagePreview({
+    enabled: !config.skipRenderBoard,
+    alreadyShown: showedBoardImagePreview,
+    pngPath: kicadOutputs.boardImagePngPath,
+  });
 
   yield* categorizeDrills(pcbFile, buildDrillCategorizationOptions(config));
 

@@ -1,12 +1,7 @@
 import { expect, test } from "bun:test";
 import { loadFlatmaxxConfig } from "@/config";
 import { Effect } from "effect";
-import {
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runConfigWorkflow } from "./configEditor";
@@ -17,7 +12,8 @@ import {
   prepareConfigEditorTarget,
 } from "./configEditorModel";
 
-const tempProject = () => mkdtempSync(join(tmpdir(), "flatmaxx-config-editor-"));
+const tempProject = () =>
+  mkdtempSync(join(tmpdir(), "flatmaxx-config-editor-"));
 
 const runHelp = async (...args: string[]) => {
   const proc = Bun.spawn(["bun", "src/index.ts", ...args], {
@@ -135,7 +131,10 @@ test("project config preserves explicit config path", async () => {
   }).pipe(Effect.runPromise);
 
   expect(result.type).toBe("saved");
-  const configText = readFileSync(join(projectRoot, "config/custom.toml"), "utf8");
+  const configText = readFileSync(
+    join(projectRoot, "config/custom.toml"),
+    "utf8",
+  );
   expect(configText).toContain('projectDir = ".."');
   expect(configText).toContain("[place]");
   expect(configText).toContain("generate = false");

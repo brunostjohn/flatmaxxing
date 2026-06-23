@@ -17,7 +17,10 @@ const writeBoard = (directory: string, filename = "board.kicad_pcb") => {
   writeFileSync(join(directory, filename), "");
 };
 
-const promptWith = (answer: string): InitPrompt => () => Effect.succeed(answer);
+const promptWith =
+  (answer: string): InitPrompt =>
+  () =>
+    Effect.succeed(answer);
 
 const runHelp = async (...args: string[]) => {
   const proc = Bun.spawn(["bun", "src/index.ts", ...args], {
@@ -119,7 +122,7 @@ test("init detects user config and refuses to overwrite project config", async (
   const root = tempProject();
   const userConfig = join(root, "flatmaxxing.user.toml");
   writeBoard(root);
-  writeFileSync(userConfig, "[dependencies]\nflatcam = \"flatcam\"\n");
+  writeFileSync(userConfig, '[dependencies]\nflatcam = "flatcam"\n');
 
   const result = await runInitWorkflow({
     cwd: root,

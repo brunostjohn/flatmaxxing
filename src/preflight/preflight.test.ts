@@ -1,11 +1,6 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
-import {
-  chmodSync,
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadFlatmaxxConfig, type ResolvedConfig } from "@/config";
@@ -151,8 +146,9 @@ test("preflight aggregation fails only for required failures", async () => {
     ],
   } satisfies PreflightReport;
 
-  await expect(Effect.runPromise(failIfPreflightFailed(warningOnly))).resolves
-    .toBe(warningOnly);
+  await expect(
+    Effect.runPromise(failIfPreflightFailed(warningOnly)),
+  ).resolves.toBe(warningOnly);
 
   const requiredFailure = {
     title: "test",

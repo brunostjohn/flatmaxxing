@@ -55,7 +55,9 @@ export type RunConfigWorkflowResult =
   | { readonly type: "cancelled"; readonly targetPath: string };
 
 const userFlag = Flag.boolean("user").pipe(
-  Flag.withDescription("Edit ~/flatmaxxing.user.toml instead of the project config."),
+  Flag.withDescription(
+    "Edit ~/flatmaxxing.user.toml instead of the project config.",
+  ),
 );
 
 const fieldName = (field: Pick<ConfigEditorField, "path">): string =>
@@ -149,7 +151,9 @@ const QuickSearchInputCompat = ({
   }, [items, query]);
   const visibleItems = matchingItems.slice(0, limit);
   const selectedItem =
-    matchingItems[Math.min(selectedIndex, Math.max(matchingItems.length - 1, 0))];
+    matchingItems[
+      Math.min(selectedIndex, Math.max(matchingItems.length - 1, 0))
+    ];
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -257,7 +261,9 @@ const ConfigEditorApp = ({ target, onFinish }: ConfigEditorAppProps) => {
   const spotlightField =
     spotlightPath === undefined
       ? undefined
-      : activeSection.fields.find((field) => fieldName(field) === spotlightPath);
+      : activeSection.fields.find(
+          (field) => fieldName(field) === spotlightPath,
+        );
   const visibleFields =
     spotlightField === undefined
       ? activeSection.fields
@@ -332,7 +338,9 @@ const ConfigEditorApp = ({ target, onFinish }: ConfigEditorAppProps) => {
           {target.mode === "user" ? "User config" : "Project config"}:{" "}
           <Text color="cyan">{target.targetPath}</Text>
         </Text>
-        <Text dimColor>Ctrl+F find settings, PageUp/PageDown scroll, q cancel</Text>
+        <Text dimColor>
+          Ctrl+F find settings, PageUp/PageDown scroll, q cancel
+        </Text>
       </Box>
 
       {isSearching ? (
@@ -421,7 +429,9 @@ export const saveConfigEditorValues = Effect.fn("flatmaxx.config.save")(
 export const runConfigWorkflow = Effect.fn("flatmaxx.config.command.run")(
   function* (options: RunConfigWorkflowOptions = {}) {
     const target = prepareConfigEditorTarget(options);
-    const result = yield* (options.renderer ?? defaultConfigEditorRenderer)(target);
+    const result = yield* (options.renderer ?? defaultConfigEditorRenderer)(
+      target,
+    );
 
     if (result.type === "cancel") {
       return {

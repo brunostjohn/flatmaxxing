@@ -11,9 +11,7 @@ import type { ResolvedConfig } from "./types";
 export type LoadFlatmaxxConfigOptions = {
   readonly projectRoot: string;
   readonly configPath?: string | undefined;
-  readonly cliOverrides?: {
-    readonly kicadCli?: string | undefined;
-  };
+  readonly cliOverrides?: Record<string, unknown> | undefined;
 };
 
 const parseOptions = {
@@ -120,17 +118,9 @@ export const loadFlatmaxxConfig = Effect.fn("flatmaxx.config.load")(function* ({
   const raw = shouldLoad
     ? yield* loadConfigFile(requestedConfigPath)
     : ({} as Record<string, unknown>);
-  const decoded = yield* decodeConfig(raw);
   const withOverrides =
-    cliOverrides?.kicadCli === undefined
-      ? decoded
-      : {
-          ...decoded,
-          dependencies: {
-            ...decoded.dependencies,
-            kicadCli: cliOverrides.kicadCli,
-          },
-        };
+    cliOverrides === undefined ? raw : deepMerge(raw, cliOverrides);
+  const decoded = yield* decodeConfig(withOverrides);
 
-  return normalizeConfig(withOverrides, configRoot);
+  return normalizeConfig(decoded, configRoot);
 });

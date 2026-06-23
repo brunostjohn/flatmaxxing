@@ -17,6 +17,7 @@ const decodeConfigFile = Schema.decodeUnknownSync(ConfigFileSchema, {
 test("schema decodes defaults without compatibility casts", () => {
   const config = decodeConfigFile({});
 
+  expect(config.skipRenderBoard).toBe(false);
   expect(config.solderMask.generate).toBe(true);
   expect(config.stencil.generate).toBe(true);
   expect(config.drills.generate).toBe(true);

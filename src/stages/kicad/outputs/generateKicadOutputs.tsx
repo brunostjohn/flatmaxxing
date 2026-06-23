@@ -5,11 +5,33 @@ import {
   nextStep,
   type TaskDef,
 } from "@/inkHelpers";
+import {
+  getBoardImagePngPath,
+  getBoardImageSvgPath,
+} from "@/stages/kicad/outputs/boardImagePaths";
 import { Resvg } from "@resvg/resvg-js";
 import { Effect, Fiber, FileSystem, Latch, Ref, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { basename, resolve } from "node:path";
-import sharp from "sharp";
+import sharp, { type OutputInfo } from "sharp";
+
+export const solderMaskPngZoom = 25;
+export const boardImagePngZoom = 2;
+export const boardImageLayers = "B.Cu,B.Mask,F.Cu,F.Mask,Edge.Cuts";
+
+export const buildBoardImageSvgExportArgs = (svgPath: string) => [
+  "pcb",
+  "export",
+  "svg",
+  "--layers",
+  boardImageLayers,
+  "--mode-single",
+  "--page-size-mode",
+  "2",
+  "--exclude-drawing-sheet",
+  "--output",
+  svgPath,
+];
 
 const defaultKicadOutputOptions: KicadOutputOptions = {
   paths: {
@@ -25,6 +47,9 @@ const defaultKicadOutputOptions: KicadOutputOptions = {
     withEdgeCuts: false,
   },
   place: {
+    generate: true,
+  },
+  boardImage: {
     generate: true,
   },
   solderMask: {
@@ -95,6 +120,23 @@ const kicadOutputTasks: TaskDef[] = [
       {
         id: "back",
         label: "Generating back PNG file...",
+        state: "pending",
+      },
+    ],
+  },
+  {
+    id: "board-image",
+    label: "Generating board image...",
+    state: "pending",
+    children: [
+      {
+        id: "svg",
+        label: "Generating board image SVG...",
+        state: "pending",
+      },
+      {
+        id: "png",
+        label: "Generating board image PNG...",
         state: "pending",
       },
     ],
@@ -204,18 +246,28 @@ const runWithKicadAndTask = Effect.fn(
   }
 }, Effect.scoped);
 
-const generatePngFromSvg = Effect.fn(
+export type SvgToPngResult = {
+  readonly pngFile: string;
+  readonly info: OutputInfo;
+};
+
+export const generatePngFromSvg = Effect.fn(
   "flatmaxx.generateKicadOutputs.generatePngFromSvg",
-)(function* (svgFile: string, pngFile: string) {
+)(function* (
+  svgFile: string,
+  pngFile: string,
+  options: { readonly zoom?: number | undefined } = {},
+) {
   const fs = yield* FileSystem.FileSystem;
 
   const svg = yield* fs.readFileString(svgFile);
+  const zoom = options.zoom ?? solderMaskPngZoom;
 
   const resvg = new Resvg(svg, {
     background: "rgba(255, 255, 255, 0)",
     fitTo: {
       mode: "zoom",
-      value: 25,
+      value: zoom,
     },
     font: {
       loadSystemFonts: true,
@@ -225,11 +277,26 @@ const generatePngFromSvg = Effect.fn(
   const pngData = yield* Effect.sync(() => resvg.render());
   const pngBuffer = yield* Effect.sync(() => pngData.asPng());
   const trimmed = yield* Effect.promise(() =>
-    sharp(pngBuffer).trim().toBuffer(),
+    sharp(pngBuffer).trim().toBuffer({ resolveWithObject: true }),
   );
 
-  yield* fs.writeFile(pngFile, trimmed);
+  yield* fs.writeFile(pngFile, trimmed.data);
+
+  return {
+    pngFile,
+    info: trimmed.info,
+  } satisfies SvgToPngResult;
 });
+
+const formatPngTrimStatus = (info: OutputInfo) => {
+  const left = info.trimOffsetLeft ?? 0;
+  const top = info.trimOffsetTop ?? 0;
+  return `${info.width}x${info.height}px, trim x=${left} y=${top}`;
+};
+
+export type GenerateKicadOutputsResult = {
+  readonly boardImagePngPath?: string | undefined;
+};
 
 export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
   function* (
@@ -286,6 +353,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
       .join(",");
 
     yield* fs.makeDirectory(outputPaths.gerbers, { recursive: true });
+    yield* fs.makeDirectory(outputPaths.svg, { recursive: true });
 
     const gerbers = yield* runWithKicadAndTask({
       kicadCli,
@@ -430,6 +498,7 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
                     outputPaths.png,
                     `${boardFilename}-${config.maskFileSuffix}.png`,
                   ),
+                  { zoom: solderMaskPngZoom },
                 );
 
                 yield* patchTask(["png", side], {
@@ -461,6 +530,82 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
                   "No enabled solder mask sides.")
               : "solderMask.generate=false",
           )
+    ).pipe(Effect.forkChild);
+
+    const boardImage = yield* (
+      options.boardImage.generate
+        ? Effect.gen(function* () {
+            const svgPath = getBoardImageSvgPath(
+              outputPaths.svg,
+              boardFilename,
+            );
+            const pngPath = getBoardImagePngPath(
+              outputPaths.png,
+              boardFilename,
+            );
+
+            yield* fs.makeDirectory(outputPaths.png, { recursive: true });
+            yield* patchTask("board-image", {
+              state: "loading",
+              label: "Generating board image...",
+            });
+
+            yield* patchTask(["board-image", "svg"], {
+              state: "loading",
+            });
+
+            yield* runWithKicadAndTask({
+              kicadCli,
+              project,
+              pcbFile,
+              args: buildBoardImageSvgExportArgs(svgPath),
+              setTaskOutput: (output) =>
+                setTaskOutput(["board-image", "svg"], output),
+              setError: (error) =>
+                patchTask(["board-image", "svg"], {
+                  state: "error",
+                  output: error,
+                }),
+              setSuccess: () =>
+                patchTask(["board-image", "svg"], {
+                  state: "success",
+                  label: "Successfully generated board image SVG.",
+                }),
+            });
+
+            yield* patchTask(["board-image", "png"], {
+              state: "loading",
+            });
+
+            const png = yield* generatePngFromSvg(svgPath, pngPath, {
+              zoom: boardImagePngZoom,
+            });
+
+            yield* patchTask(["board-image", "png"], {
+              state: "success",
+              label: "Successfully generated board image PNG.",
+              status: formatPngTrimStatus(png.info),
+            });
+            yield* patchTask("board-image", {
+              state: "success",
+              label: "Successfully generated board image.",
+              status: pngPath,
+            });
+
+            return pngPath;
+          }).pipe(
+            Effect.tapError((error) =>
+              patchTask("board-image", {
+                state: "error",
+                output: error instanceof Error ? error.message : String(error),
+              }),
+            ),
+          )
+        : skipBranch(
+            "board-image",
+            "Board image generation skipped.",
+            options.boardImage.skipReason ?? "board image disabled.",
+          ).pipe(Effect.as(undefined))
     ).pipe(Effect.forkChild);
 
     yield* fs.makeDirectory(outputPaths.dxf, { recursive: true });
@@ -622,19 +767,24 @@ export const generateKicadOutputs = Effect.fn("flatmaxx.generateKicadOutputs")(
           "place.generate=false",
         );
 
-    yield* Effect.all(
+    const results = yield* Effect.all(
       [
         Fiber.join(gerbers),
         Fiber.join(drill),
         Fiber.join(svg),
         Fiber.join(pngGeneration),
         Fiber.join(dxf),
+        Fiber.join(boardImage),
         place,
       ],
       {
         concurrency: "unbounded",
       },
     );
+
+    return {
+      boardImagePngPath: results[5],
+    } satisfies GenerateKicadOutputsResult;
   },
   Effect.scoped,
 );

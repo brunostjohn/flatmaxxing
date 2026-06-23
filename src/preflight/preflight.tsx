@@ -530,7 +530,7 @@ export const renderPreflightReport = (report: PreflightReport) =>
             </Text>{" "}
             {result.label}: {result.message}
           </Text>
-          {result.detail ? <Text color="gray">  {result.detail}</Text> : null}
+          {result.detail ? <Text color="gray"> {result.detail}</Text> : null}
         </Box>
       ))}
     </Box>,

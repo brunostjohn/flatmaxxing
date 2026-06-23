@@ -74,7 +74,9 @@ export const ensureMakeraCamNotAlreadyRunning = Effect.fn(
   const shouldWait = yield* processControl.confirmCloseExisting(existing);
   if (!shouldWait) {
     return yield* Effect.fail(
-      new Error("MakeraCAM was already open and the user declined to continue."),
+      new Error(
+        "MakeraCAM was already open and the user declined to continue.",
+      ),
     );
   }
 

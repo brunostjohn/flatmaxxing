@@ -115,6 +115,7 @@ export const configEditorSections = [
         description: `TOML string array of parent config files.`,
       }),
       field("string", "projectDir", "Project directory"),
+      field("boolean", "skipRenderBoard", "Skip board preview"),
     ],
   },
   {
@@ -183,7 +184,11 @@ export const configEditorSections = [
       field("float", "electroplating.additionalDistance.left", "Left offset"),
       field("float", "electroplating.additionalDistance.right", "Right offset"),
       field("float", "electroplating.additionalDistance.top", "Top offset"),
-      field("float", "electroplating.additionalDistance.bottom", "Bottom offset"),
+      field(
+        "float",
+        "electroplating.additionalDistance.bottom",
+        "Bottom offset",
+      ),
       field("float", "electroplating.cornerRadius", "Corner radius"),
       field("float", "electroplating.container.waterMl", "Bath water ml"),
       field(
@@ -196,13 +201,21 @@ export const configEditorSections = [
         "electroplating.container.maxBoardHeightMm",
         "Max board height mm",
       ),
-      field("boolean", "electroplating.container.allowRotation", "Allow rotation"),
+      field(
+        "boolean",
+        "electroplating.container.allowRotation",
+        "Allow rotation",
+      ),
       field(
         "float",
         "electroplating.recipe.currentDensityMaPerCm2",
         "Current density mA/cm2",
       ),
-      field("float", "electroplating.recipe.durationMinutes", "Duration minutes"),
+      field(
+        "float",
+        "electroplating.recipe.durationMinutes",
+        "Duration minutes",
+      ),
       field("float", "electroplating.recipe.stirRpm", "Stir RPM"),
       field(
         "float",
@@ -215,7 +228,11 @@ export const configEditorSections = [
         "electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter",
         "Copper sulfate g/L",
       ),
-      field("float", "electroplating.recipe.citricAcid.gramsPerLiter", "Citric acid g/L"),
+      field(
+        "float",
+        "electroplating.recipe.citricAcid.gramsPerLiter",
+        "Citric acid g/L",
+      ),
       field(
         "float",
         "electroplating.recipe.polysorbate20.millilitersPerLiter",
@@ -305,14 +322,22 @@ export const configEditorSections = [
         options: [option("vbit"), option("mill"), option("drill")],
       }),
       field("float", "cnc.isolation.tool.diameter", "Isolation tool diameter"),
-      field("optionalFloat", "cnc.isolation.tool.angle", "Isolation V-bit angle"),
+      field(
+        "optionalFloat",
+        "cnc.isolation.tool.angle",
+        "Isolation V-bit angle",
+      ),
       field("integer", "cnc.isolation.passes", "Isolation passes", {
         min: 1,
         step: 1,
       }),
       field("float", "cnc.isolation.overlap", "Isolation overlap"),
       field("numberSelect", "cnc.isolation.isoType", "Isolation type", {
-        options: [option("0", "Exteriors"), option("1", "Interiors"), option("2", "Full")],
+        options: [
+          option("0", "Exteriors"),
+          option("1", "Interiors"),
+          option("2", "Full"),
+        ],
       }),
       field("float", "cnc.nonCopperClearing.feedRate", "NCC feed rate"),
       field("float", "cnc.nonCopperClearing.spindleSpeed", "NCC spindle speed"),
@@ -321,14 +346,26 @@ export const configEditorSections = [
       field("select", "cnc.nonCopperClearing.tool.type", "NCC tool type", {
         options: [option("vbit"), option("mill"), option("drill")],
       }),
-      field("float", "cnc.nonCopperClearing.tool.diameter", "NCC tool diameter"),
-      field("optionalFloat", "cnc.nonCopperClearing.tool.angle", "NCC V-bit angle"),
+      field(
+        "float",
+        "cnc.nonCopperClearing.tool.diameter",
+        "NCC tool diameter",
+      ),
+      field(
+        "optionalFloat",
+        "cnc.nonCopperClearing.tool.angle",
+        "NCC V-bit angle",
+      ),
       field("float", "cnc.nonCopperClearing.overlap", "NCC overlap"),
       field("float", "cnc.nonCopperClearing.margin", "NCC margin"),
       field("select", "cnc.nonCopperClearing.method", "NCC method", {
         options: [option("standard"), option("seed"), option("lines")],
       }),
-      field("float", "cnc.nonCopperClearing.millZCutDepth", "NCC mill Z cut depth"),
+      field(
+        "float",
+        "cnc.nonCopperClearing.millZCutDepth",
+        "NCC mill Z cut depth",
+      ),
       field("float", "cnc.clearance.travelZ", "Travel Z"),
       field("float", "cnc.clearance.endZ", "End Z"),
       field("float", "cnc.clearance.rapidFeedRate", "Rapid feed rate"),
@@ -336,7 +373,11 @@ export const configEditorSections = [
       field("select", "cnc.backside.mirrorAxis", "Backside mirror axis", {
         options: [option("X"), option("Y")],
       }),
-      field("float", "cnc.drilling.matchToleranceMm", "Drill match tolerance mm"),
+      field(
+        "float",
+        "cnc.drilling.matchToleranceMm",
+        "Drill match tolerance mm",
+      ),
     ],
   },
   {
@@ -346,8 +387,14 @@ export const configEditorSections = [
       field("string", "xtool.appPath", "App path"),
       field("string", "xtool.cdpHost", "CDP host"),
       field("integer", "xtool.cdpPort", "CDP port", { min: 1, step: 1 }),
-      field("integer", "xtool.window.width", "Window width", { min: 1, step: 1 }),
-      field("integer", "xtool.window.height", "Window height", { min: 1, step: 1 }),
+      field("integer", "xtool.window.width", "Window width", {
+        min: 1,
+        step: 1,
+      }),
+      field("integer", "xtool.window.height", "Window height", {
+        min: 1,
+        step: 1,
+      }),
       field("select", "xtool.existingProcess", "Existing process", {
         options: [option("prompt")],
       }),
@@ -374,7 +421,11 @@ export const configEditorSections = [
         min: 1,
         step: 1,
       }),
-      field("boolean", "makeracam.platedHoles.generate", "Generate plated holes"),
+      field(
+        "boolean",
+        "makeracam.platedHoles.generate",
+        "Generate plated holes",
+      ),
       field("boolean", "makeracam.finalCut.generate", "Generate final cut"),
     ],
   },
@@ -384,8 +435,16 @@ export const configEditorSections = [
     fields: [
       field("float", "validation.ranges.distanceMm.min", "Distance min"),
       field("float", "validation.ranges.distanceMm.max", "Distance max"),
-      field("float", "validation.ranges.toolDiameterMm.min", "Tool diameter min"),
-      field("float", "validation.ranges.toolDiameterMm.max", "Tool diameter max"),
+      field(
+        "float",
+        "validation.ranges.toolDiameterMm.min",
+        "Tool diameter min",
+      ),
+      field(
+        "float",
+        "validation.ranges.toolDiameterMm.max",
+        "Tool diameter max",
+      ),
       field("float", "validation.ranges.feedRate.min", "Feed rate min"),
       field("float", "validation.ranges.feedRate.max", "Feed rate max"),
       field("float", "validation.ranges.spindleSpeed.min", "Spindle speed min"),
@@ -511,9 +570,14 @@ export const configEditorSections = [
         "Isolation feasibility failure",
         { options: [option("error"), option("warn")] },
       ),
-      field("toml", "validation.isolationFeasibility.ignore", "Isolation ignore", {
-        description: "TOML array of regex strings.",
-      }),
+      field(
+        "toml",
+        "validation.isolationFeasibility.ignore",
+        "Isolation ignore",
+        {
+          description: "TOML array of regex strings.",
+        },
+      ),
       field(
         "boolean",
         "validation.drillFeasibility.enabled",
@@ -577,7 +641,10 @@ const parseTomlText = (
   return parsed;
 };
 
-const parseTomlLiteral = (value: string, label: string): TomlValue | undefined => {
+const parseTomlLiteral = (
+  value: string,
+  label: string,
+): TomlValue | undefined => {
   const trimmed = value.trim();
 
   if (trimmed === "") {
@@ -610,7 +677,9 @@ const asTomlValue = (value: unknown, label: string): TomlValue => {
     );
   }
 
-  throw new Error(`${label} must be a TOML string, number, boolean, array, or inline table.`);
+  throw new Error(
+    `${label} must be a TOML string, number, boolean, array, or inline table.`,
+  );
 };
 
 const getPath = (value: unknown, path: readonly string[]): unknown => {
@@ -660,7 +729,9 @@ const pruneEmptyRecords = (value: unknown): unknown => {
   return Object.fromEntries(entries);
 };
 
-const withoutExtends = (raw: Record<string, unknown>): Record<string, unknown> => {
+const withoutExtends = (
+  raw: Record<string, unknown>,
+): Record<string, unknown> => {
   const { extends: _extends, ...rest } = raw;
   return rest;
 };
@@ -696,7 +767,11 @@ const deepEqual = (left: unknown, right: unknown): boolean => {
 };
 
 const stringValue = (value: unknown): string =>
-  typeof value === "string" ? value : value === undefined || value === null ? "" : String(value);
+  typeof value === "string"
+    ? value
+    : value === undefined || value === null
+      ? ""
+      : String(value);
 
 export const configToFormValues = (
   config: ConfigFile,
@@ -726,7 +801,9 @@ export const configToFormValues = (
         break;
       case "toml":
         values[key] =
-          value === undefined ? "" : renderTomlInlineValue(asTomlValue(value, key));
+          value === undefined
+            ? ""
+            : renderTomlInlineValue(asTomlValue(value, key));
         break;
     }
   }
@@ -801,7 +878,10 @@ const loadExtendsRaw = (
   let inherited: Record<string, unknown> = {};
 
   for (const entry of extendsEntries) {
-    inherited = deepMerge(inherited, loadConfigFileSync(resolveSibling(filePath, entry)));
+    inherited = deepMerge(
+      inherited,
+      loadConfigFileSync(resolveSibling(filePath, entry)),
+    );
   }
 
   return inherited;
@@ -895,7 +975,10 @@ const parseSubmittedExtends = (
     return undefined;
   }
 
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== "string")
+  ) {
     throw new Error("extends must be a TOML array of strings.");
   }
 
@@ -932,7 +1015,11 @@ export const buildSparseConfigFromFormValues = (
 
   if (target.mode === "project") {
     const userPath = target.userConfigPath ?? defaultUserConfigPath();
-    outputExtends = ensureProjectUserExtends(target.targetPath, outputExtends, userPath);
+    outputExtends = ensureProjectUserExtends(
+      target.targetPath,
+      outputExtends,
+      userPath,
+    );
   }
 
   if (outputExtends.length > 0) {
@@ -946,7 +1033,10 @@ export const renderSparseConfigToml = (
   sparse: Record<string, unknown>,
 ): string => {
   const topLevel: Array<readonly [string, TomlValue | undefined]> = [];
-  const sections = new Map<string, Array<readonly [string, TomlValue | undefined]>>();
+  const sections = new Map<
+    string,
+    Array<readonly [string, TomlValue | undefined]>
+  >();
 
   for (const field of configEditorFields) {
     const value = getPath(sparse, field.path);
@@ -971,7 +1061,9 @@ export const renderSparseConfigToml = (
 
   const renderedParts = [
     renderTomlAssignments(topLevel),
-    ...Array.from(sections, ([name, entries]) => renderTomlSection(name, entries)),
+    ...Array.from(sections, ([name, entries]) =>
+      renderTomlSection(name, entries),
+    ),
   ].filter((part) => part.trim() !== "");
 
   return renderedParts.length === 0 ? "" : `${renderedParts.join("\n\n")}\n`;
@@ -982,7 +1074,10 @@ export const validateRenderedConfigToml = (
   targetPath: string,
 ) => {
   const raw = parseTomlText(toml, targetPath);
-  const inherited = loadExtendsRaw(targetPath, readExtendsFromRaw(targetPath, raw));
+  const inherited = loadExtendsRaw(
+    targetPath,
+    readExtendsFromRaw(targetPath, raw),
+  );
   const decoded = decodeConfigSync(deepMerge(inherited, raw));
   return normalizeConfig(decoded, dirname(targetPath));
 };
@@ -1017,8 +1112,12 @@ export const assertConfigEditorDescriptorCoverage = () => {
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       [
-        missing.length > 0 ? `Missing config editor fields: ${missing.join(", ")}` : "",
-        extra.length > 0 ? `Extra config editor fields: ${extra.join(", ")}` : "",
+        missing.length > 0
+          ? `Missing config editor fields: ${missing.join(", ")}`
+          : "",
+        extra.length > 0
+          ? `Extra config editor fields: ${extra.join(", ")}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n"),

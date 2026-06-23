@@ -12,6 +12,7 @@ import {
   defaultMakeracam,
   defaultPaths,
   defaultPlace,
+  defaultSkipRenderBoard,
   defaultSolderMask,
   defaultStencil,
   resolveFrom,
@@ -99,6 +100,7 @@ export const createProjectConfigToml = ({
   const topLevel = renderTomlAssignments([
     ["extends", extendsUserConfig ? [userConfigExtendsPath] : undefined],
     ["projectDir", projectDir],
+    ["skipRenderBoard", defaultSkipRenderBoard],
   ]);
 
   return `${[
@@ -249,9 +251,8 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
     const cwdBoards = findKicadBoardFiles(cwd);
 
     if (cwdBoards.length > 0) {
-      const selectedBoard = yield* (
-        selectBoard?.(cwd, cwdBoards) ?? chooseBoard(cwd, cwdBoards, prompt)
-      );
+      const selectedBoard = yield* selectBoard?.(cwd, cwdBoards) ??
+        chooseBoard(cwd, cwdBoards, prompt);
 
       return {
         projectDir: ".",
@@ -278,10 +279,8 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
       );
     }
 
-    const selectedBoard = yield* (
-      selectBoard?.(projectDir, projectBoards) ??
-      chooseBoard(projectDir, projectBoards, prompt)
-    );
+    const selectedBoard = yield* selectBoard?.(projectDir, projectBoards) ??
+      chooseBoard(projectDir, projectBoards, prompt);
 
     return {
       projectDir: relativeConfigPath(cwd, projectDir),

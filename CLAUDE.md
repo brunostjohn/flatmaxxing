@@ -5,6 +5,9 @@ alwaysApply: false
 ---
 
 - Use ../effect-smol as the Effect v4 CLI reference; do not use Context7 for Effect v4.
+- Don't EVER add comments.
+- Avoid using ternaries for effects, use `Effect.if`.
+- Don't ever write retries or timeouts or anything covered by the effect standard library. ALWAYS use effect helpers.
 
 Default to using Bun instead of Node.js.
 
