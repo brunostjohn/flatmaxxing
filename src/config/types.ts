@@ -56,6 +56,7 @@ export type StencilXToolOptions = {
 
 export type ResolvedConfig = {
   readonly projectDir: string;
+  readonly skipRenderBoard: boolean;
   readonly dependencies: {
     readonly kicadCli?: string | undefined;
     readonly flatcam?: string | undefined;
@@ -347,6 +348,10 @@ export type KicadOutputOptions = {
   };
   readonly place: {
     readonly generate: boolean;
+  };
+  readonly boardImage: {
+    readonly generate: boolean;
+    readonly skipReason?: string | undefined;
   };
   readonly solderMask: {
     readonly generate: boolean;

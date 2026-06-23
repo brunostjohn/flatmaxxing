@@ -23,6 +23,7 @@ export const defaultDependencies = {
 };
 
 export const defaultProjectDir = ".";
+export const defaultSkipRenderBoard = false;
 
 export const defaultPaths = {
   additionalProjects: "./manufacture",
@@ -326,6 +327,7 @@ export const defaultValidation = {
 export const defaultConfigFile = {
   extends: [] as string[],
   projectDir: defaultProjectDir,
+  skipRenderBoard: defaultSkipRenderBoard,
   dependencies: defaultDependencies,
   paths: defaultPaths,
   board: defaultBoard,

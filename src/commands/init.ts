@@ -15,6 +15,8 @@ import {
   defaultSolderMask,
   defaultStencil,
   resolveFrom,
+  renderTomlAssignments,
+  renderTomlSection,
 } from "@/config";
 import { Effect } from "effect";
 import { Command } from "effect/unstable/cli";
@@ -22,12 +24,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline/promises";
-
-type TomlPrimitive = string | number | boolean;
-type TomlValue =
-  | TomlPrimitive
-  | readonly TomlValue[]
-  | { readonly [key: string]: TomlValue | undefined };
 
 export type InitPrompt = (question: string) => Effect.Effect<string, Error>;
 
@@ -70,57 +66,6 @@ export const findKicadBoardFiles = (directory: string): readonly string[] =>
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
-const escapeTomlString = (value: string): string =>
-  `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-
-const renderInlineObject = (
-  value: { readonly [key: string]: TomlValue | undefined },
-): string =>
-  `{ ${Object.entries(value)
-    .filter(([, entry]) => entry !== undefined)
-    .map(([key, entry]) => `${key} = ${renderTomlValue(entry!)}`)
-    .join(", ")} }`;
-
-const isTomlArray = (value: TomlValue): value is readonly TomlValue[] =>
-  Array.isArray(value);
-
-const renderTomlValue = (value: TomlValue): string => {
-  if (typeof value === "string") {
-    return escapeTomlString(value);
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (isTomlArray(value)) {
-    if (value.length === 0) {
-      return "[]";
-    }
-
-    if (value.every((entry) => typeof entry === "object")) {
-      return `[\n${value.map((entry) => `  ${renderTomlValue(entry)},`).join("\n")}\n]`;
-    }
-
-    return `[${value.map(renderTomlValue).join(", ")}]`;
-  }
-
-  return renderInlineObject(value);
-};
-
-const renderAssignments = (
-  entries: readonly (readonly [string, TomlValue | undefined])[],
-): string =>
-  entries
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key} = ${renderTomlValue(value!)}`)
-    .join("\n");
-
-const section = (
-  name: string,
-  entries: readonly (readonly [string, TomlValue | undefined])[],
-): string => `[${name}]\n${renderAssignments(entries)}`;
-
 const relativeConfigPath = (fromDirectory: string, toPath: string): string => {
   const from = resolve(fromDirectory);
   const to = resolve(from, toPath);
@@ -151,14 +96,14 @@ export const createProjectConfigToml = ({
   readonly projectDir: string;
   readonly boardFile?: string | undefined;
 }) => {
-  const topLevel = renderAssignments([
+  const topLevel = renderTomlAssignments([
     ["extends", extendsUserConfig ? [userConfigExtendsPath] : undefined],
     ["projectDir", projectDir],
   ]);
 
   return `${[
     topLevel,
-    section("paths", [
+    renderTomlSection("paths", [
       ["additionalProjects", defaultPaths.additionalProjects],
       ["gcode", defaultPaths.gcode],
       ["svg", defaultPaths.svg],
@@ -170,16 +115,16 @@ export const createProjectConfigToml = ({
       ["place", defaultPaths.place],
       ["cnc", defaultPaths.cnc],
     ]),
-    section("board", [
+    renderTomlSection("board", [
       ["autoFix", false],
       ["file", boardFile],
     ]),
-    section("alignmentDrills", [
+    renderTomlSection("alignmentDrills", [
       ["generate", defaultAlignmentDrills.generate],
       ["distance", defaultAlignmentDrills.distance],
       ["diameter", defaultAlignmentDrills.diameter],
     ]),
-    section("electroplating", [
+    renderTomlSection("electroplating", [
       [
         "generateEdgeCutsWithAlignmentDrills",
         defaultElectroplating.generateEdgeCutsWithAlignmentDrills,
@@ -187,26 +132,26 @@ export const createProjectConfigToml = ({
       ["additionalDistance", defaultElectroplating.additionalDistance],
       ["cornerRadius", defaultElectroplating.cornerRadius],
     ]),
-    section("solderMask", [
+    renderTomlSection("solderMask", [
       ["generate", defaultSolderMask.generate],
       ["double", defaultSolderMask.double],
       ["excludeSides", defaultSolderMask.excludeSides],
       ["distance", defaultSolderMask.distance],
     ]),
-    section("stencil", [
+    renderTomlSection("stencil", [
       ["generate", defaultStencil.generate],
       ["excludeSides", defaultStencil.excludeSides],
     ]),
-    section("drills", [
+    renderTomlSection("drills", [
       ["generate", defaultDrills.generate],
       ["withEdgeCuts", defaultDrills.withEdgeCuts],
     ]),
-    section("place", [["generate", defaultPlace.generate]]),
-    section("cnc", [
+    renderTomlSection("place", [["generate", defaultPlace.generate]]),
+    renderTomlSection("cnc", [
       ["availableDrills", defaultAvailableDrills],
       ["availableMills", defaultAvailableMills],
     ]),
-    section("cnc.isolation", [
+    renderTomlSection("cnc.isolation", [
       ["feedRate", defaultCncIsolation.feedRate],
       ["spindleSpeed", defaultCncIsolation.spindleSpeed],
       ["zCutDepth", defaultCncIsolation.zCutDepth],
@@ -216,7 +161,7 @@ export const createProjectConfigToml = ({
       ["overlap", defaultCncIsolation.overlap],
       ["isoType", defaultCncIsolation.isoType],
     ]),
-    section("cnc.nonCopperClearing", [
+    renderTomlSection("cnc.nonCopperClearing", [
       ["feedRate", defaultCncNonCopperClearing.feedRate],
       ["spindleSpeed", defaultCncNonCopperClearing.spindleSpeed],
       ["zCutDepth", defaultCncNonCopperClearing.zCutDepth],
@@ -227,20 +172,22 @@ export const createProjectConfigToml = ({
       ["method", defaultCncNonCopperClearing.method],
       ["millZCutDepth", defaultCncNonCopperClearing.millZCutDepth],
     ]),
-    section("cnc.clearance", [
+    renderTomlSection("cnc.clearance", [
       ["travelZ", defaultCncClearance.travelZ],
       ["endZ", defaultCncClearance.endZ],
       ["rapidFeedRate", defaultCncClearance.rapidFeedRate],
       ["seamZ", defaultCncClearance.seamZ],
     ]),
-    section("cnc.backside", [["mirrorAxis", defaultCncBackside.mirrorAxis]]),
-    section("cnc.drilling", [
+    renderTomlSection("cnc.backside", [
+      ["mirrorAxis", defaultCncBackside.mirrorAxis],
+    ]),
+    renderTomlSection("cnc.drilling", [
       ["matchToleranceMm", defaultCncDrilling.matchToleranceMm],
     ]),
-    section("makeracam.platedHoles", [
+    renderTomlSection("makeracam.platedHoles", [
       ["generate", defaultMakeracam.platedHoles.generate],
     ]),
-    section("makeracam.finalCut", [
+    renderTomlSection("makeracam.finalCut", [
       ["generate", defaultMakeracam.finalCut.generate],
     ]),
   ].join("\n\n")}\n`;

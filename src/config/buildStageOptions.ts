@@ -111,6 +111,10 @@ export const buildKicadOutputOptions = (config: ResolvedConfig) => {
     sides: boardSides,
     drills: config.drills,
     place: config.place,
+    boardImage: {
+      generate: !config.skipRenderBoard,
+      skipReason: config.skipRenderBoard ? "skipRenderBoard=true" : undefined,
+    },
     solderMask: {
       generate: config.solderMask.generate,
       sides: solderMaskSides,

@@ -21,7 +21,7 @@ const parseOptions = {
   onExcessProperty: "error",
 } as const;
 
-const readToml = (filePath: string): Record<string, unknown> => {
+export const readToml = (filePath: string): Record<string, unknown> => {
   const text = readFileSync(filePath, "utf8");
   const parsed = parse(text) as unknown;
 
@@ -32,7 +32,7 @@ const readToml = (filePath: string): Record<string, unknown> => {
   return parsed;
 };
 
-const readExtends = (
+export const readExtends = (
   filePath: string,
   raw: Record<string, unknown>,
 ): string[] => {
@@ -54,7 +54,7 @@ const readExtends = (
   return value;
 };
 
-const loadConfigFile = (
+export const loadConfigFile = (
   filePath: string,
   loading: readonly string[] = [],
 ): Effect.Effect<Record<string, unknown>, Error> =>
@@ -93,7 +93,7 @@ const loadConfigFile = (
     }),
   );
 
-const decodeConfig = (
+export const decodeConfig = (
   raw: Record<string, unknown>,
 ): Effect.Effect<ConfigFile, Error> =>
   Effect.try({

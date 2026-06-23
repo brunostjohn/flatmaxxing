@@ -1,5 +1,6 @@
 import {
   makeBuildCommand,
+  makeConfigCommand,
   makeDoctorCommand,
   makeInitCommand,
   makeValidateCommand,
@@ -13,6 +14,7 @@ import { Command } from "effect/unstable/cli";
 const Flatmaxx = rootBuildCommand.pipe(
   Command.withSubcommands([
     makeBuildCommand(rootBuildCommand),
+    makeConfigCommand(rootBuildCommand),
     makeDoctorCommand(rootBuildCommand),
     makeInitCommand(),
     makeValidateCommand(rootBuildCommand),
@@ -30,6 +32,14 @@ const Flatmaxx = rootBuildCommand.pipe(
     {
       command: "flatmaxx init",
       description: "Creates a flatmaxxing.toml config for the current project.",
+    },
+    {
+      command: "flatmaxx config",
+      description: "Opens an interactive editor for project config overrides.",
+    },
+    {
+      command: "flatmaxx config --user",
+      description: "Opens an interactive editor for ~/flatmaxxing.user.toml.",
     },
     {
       command: "flatmaxx <kicad-project> -k <path-to-kicad>",

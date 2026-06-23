@@ -23,6 +23,11 @@ export const ConfigFileSchema = Schema.Struct({
   projectDir: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.projectDir)),
   ),
+  skipRenderBoard: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed(defaultConfigFile.skipRenderBoard),
+    ),
+  ),
   dependencies: DependenciesSchema.pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultConfigFile.dependencies)),
   ),

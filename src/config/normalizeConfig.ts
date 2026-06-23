@@ -318,6 +318,7 @@ export const normalizeConfig = (config: ConfigFile, configRoot: string) => {
   const resolvedProjectDir = resolveFrom(resolvedConfigRoot, config.projectDir);
   const resolved: ResolvedConfig = {
     projectDir: resolvedProjectDir,
+    skipRenderBoard: config.skipRenderBoard,
     dependencies: config.dependencies,
     paths: {
       additionalProjects: resolveFrom(
