@@ -1,31 +1,29 @@
-import { resolve } from "node:path";
+import { Effect, Path } from "effect";
 import { solderMaskSideConfig } from "./solderMaskSideConfig";
 import type { SolderMaskSide } from "./types";
 
-export function getSolderMaskDxfPath(
-  projectPath: string,
-  pcbName: string,
-  side: SolderMaskSide,
-) {
+export const getSolderMaskDxfPath = Effect.fn(
+  "flatmaxx.xtool.getSolderMaskDxfPath",
+)(function* (projectPath: string, pcbName: string, side: SolderMaskSide) {
+  const path = yield* Path.Path;
   const config = solderMaskSideConfig[side];
-  return resolve(
+  return path.resolve(
     projectPath,
     "..",
     "dxf",
     `${pcbName}-${config.fileSuffix}.dxf`,
   );
-}
+});
 
-export function getSolderMaskPngPath(
-  projectPath: string,
-  pcbName: string,
-  side: SolderMaskSide,
-) {
+export const getSolderMaskPngPath = Effect.fn(
+  "flatmaxx.xtool.getSolderMaskPngPath",
+)(function* (projectPath: string, pcbName: string, side: SolderMaskSide) {
+  const path = yield* Path.Path;
   const config = solderMaskSideConfig[side];
-  return resolve(
+  return path.resolve(
     projectPath,
     "..",
     "png",
     `${pcbName}-${config.fileSuffix}.png`,
   );
-}
+});

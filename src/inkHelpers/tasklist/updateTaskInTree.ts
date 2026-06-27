@@ -1,10 +1,10 @@
 import type { TaskDef, TaskPath } from "./types";
 
-export function updateTaskInTree(
+export const updateTaskInTree = (
   tasks: readonly TaskDef[],
   path: TaskPath,
   update: (task: TaskDef) => TaskDef,
-): TaskDef[] {
+): TaskDef[] => {
   const [id, ...rest] = path;
 
   return tasks.map((task) => {
@@ -25,4 +25,4 @@ export function updateTaskInTree(
       ),
     };
   });
-}
+};

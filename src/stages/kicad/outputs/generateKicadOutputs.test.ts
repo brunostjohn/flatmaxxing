@@ -11,15 +11,15 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buildBoardImageSvgExportArgs } from "./boardImage";
+import { getBoardImagePngPath, getBoardImageSvgPath } from "./boardImagePaths";
 import {
   boardImageLayers,
   boardImagePngZoom,
-  buildBoardImageSvgExportArgs,
-  generateKicadOutputs,
-  generatePngFromSvg,
   solderMaskPngZoom,
-} from "./generateKicadOutputs";
-import { getBoardImagePngPath, getBoardImageSvgPath } from "./boardImagePaths";
+} from "./constants";
+import { generateKicadOutputs } from "./generateKicadOutputs";
+import { generatePngFromSvg } from "./generatePngFromSvg";
 
 const tempProject = () => mkdtempSync(join(tmpdir(), "flatmaxx-kicad-"));
 

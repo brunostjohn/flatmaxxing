@@ -1,103 +1,72 @@
-import { renderOnce, renderWaiting, renderWithOutput } from "@/inkHelpers";
 import type { BoardSelectionOptions } from "@/config";
-import { Alert } from "@inkjs/ui";
-import { Array, Effect } from "effect";
-import { FileSystem } from "effect/FileSystem";
+import { KicadError } from "@/errors";
+import { createTasklist, renderWithOutput } from "@/inkHelpers";
+import { findProjectTasks } from "@/stages/kicad/discovery/tasks";
+import { discoveryTaskPaths } from "@/stages/kicad/discovery/taskPaths";
+import { Array, Effect, FileSystem, Match, Path } from "effect";
 import { Text } from "ink";
 import SelectInput from "ink-select-input";
-import { resolve } from "node:path";
 
-export const findPCBProject = Effect.fn("flatmaxx.findPCBProject")(function* (
-  pathToDirectory: string,
-  options: BoardSelectionOptions = {},
-) {
-  const fs = yield* FileSystem;
+const resolveConfiguredBoardFile = Effect.fn(
+  "flatmaxx.findPCBProject.resolveConfiguredBoardFile",
+)(function* (boardFile: string) {
+  const fs = yield* FileSystem.FileSystem;
 
-  const [success] = yield* renderWaiting({
-    success: "KiCAD project found",
-    loading: "Checking for KiCAD projects...",
-  });
-
-  if (!(yield* fs.exists(pathToDirectory))) {
-    yield* renderOnce(
-      <Alert variant="error">
-        The directory "{pathToDirectory}" does not exist.
-      </Alert>,
-    );
-
-    yield* Effect.die(
-      new Error(`The directory "${pathToDirectory}" does not exist.`),
+  if (!boardFile.endsWith(".kicad_pcb")) {
+    return yield* Effect.fail(
+      new KicadError({
+        message: `The configured board file "${boardFile}" is not a .kicad_pcb file.`,
+      }),
     );
   }
 
-  if (options.boardFile) {
-    const boardFile = options.boardFile;
+  if (!(yield* fs.exists(boardFile))) {
+    return yield* Effect.fail(
+      new KicadError({
+        message: `The configured board file "${boardFile}" does not exist.`,
+      }),
+    );
+  }
 
-    if (!boardFile.endsWith(".kicad_pcb")) {
-      yield* renderOnce(
-        <Alert variant="error">
-          The configured board file "{boardFile}" is not a .kicad_pcb file.
-        </Alert>,
-      );
+  return boardFile;
+});
 
-      yield* Effect.die(
-        new Error(
-          `The configured board file "${boardFile}" is not a .kicad_pcb file.`,
-        ),
+const findProjects = Effect.fn("flatmaxx.findPCBProject.findProjects")(
+  function* (pathToDirectory: string) {
+    const fs = yield* FileSystem.FileSystem;
+
+    if (!(yield* fs.exists(pathToDirectory))) {
+      return yield* Effect.fail(
+        new KicadError({
+          message: `The directory "${pathToDirectory}" does not exist.`,
+        }),
       );
     }
 
-    if (!(yield* fs.exists(boardFile))) {
-      yield* renderOnce(
-        <Alert variant="error">
-          The configured board file "{boardFile}" does not exist.
-        </Alert>,
-      );
+    const found = yield* fs
+      .readDirectory(pathToDirectory)
+      .pipe(Effect.map(Array.filter((file) => file.endsWith(".kicad_pcb"))));
 
-      yield* Effect.die(
-        new Error(`The configured board file "${boardFile}" does not exist.`),
+    if (found.length === 0) {
+      return yield* Effect.fail(
+        new KicadError({
+          message: `No KiCAD projects found in the directory "${pathToDirectory}".`,
+        }),
       );
     }
 
-    yield* success("Configured project file found.");
-    return boardFile;
-  }
+    return found;
+  },
+);
 
-  const foundProjects = yield* fs
-    .readDirectory(pathToDirectory)
-    .pipe(Effect.map(Array.filter((file) => file.endsWith(".kicad_pcb"))));
-
-  if (foundProjects.length === 0) {
-    yield* renderOnce(
-      <Alert variant="error">
-        No KiCAD projects found in the directory "{pathToDirectory}".
-      </Alert>,
-    );
-
-    yield* Effect.die(
-      new Error(
-        `No KiCAD projects found in the directory "${pathToDirectory}".`,
-      ),
-    );
-  }
-
-  if (foundProjects.length === 1) {
-    yield* success("Single project found.");
-
-    return yield* Effect.sync(() =>
-      resolve(pathToDirectory, foundProjects[0]!),
-    );
-  }
-
-  yield* success("Multiple projects found.");
-
-  const project = yield* renderWithOutput<string>((send) => (
+const selectProject = (projects: readonly string[]) =>
+  renderWithOutput<string>((send) => (
     <>
       <Text color="gray">
         Found more than one project. Select which one to use:
       </Text>
       <SelectInput
-        items={foundProjects.map((project) => ({
+        items={projects.map((project) => ({
           label: project,
           value: project,
         }))}
@@ -106,5 +75,39 @@ export const findPCBProject = Effect.fn("flatmaxx.findPCBProject")(function* (
     </>
   ));
 
-  return yield* Effect.sync(() => resolve(pathToDirectory, project));
-});
+export const findPCBProject = Effect.fn("flatmaxx.findPCBProject")(function* (
+  pathToDirectory: string,
+  options: BoardSelectionOptions = {},
+) {
+  const path = yield* Path.Path;
+  const tasks = yield* createTasklist(findProjectTasks);
+
+  if (options.boardFile) {
+    return yield* tasks.runTask({
+      path: discoveryTaskPaths.findProject,
+      effect: resolveConfiguredBoardFile(options.boardFile),
+      loading: { status: "Validating configured board file..." },
+      success: { label: "Configured project file found." },
+      error: { label: "Configured board file invalid." },
+    });
+  }
+
+  const projects = yield* tasks.runTask({
+    path: discoveryTaskPaths.findProject,
+    effect: findProjects(pathToDirectory),
+    loading: { status: "Checking for KiCAD projects..." },
+    success: { label: "KiCAD project found." },
+    error: { label: "No KiCAD project found." },
+  });
+
+  return yield* Match.value(projects.length).pipe(
+    Match.when(1, () =>
+      Effect.succeed(path.resolve(pathToDirectory, projects[0]!)),
+    ),
+    Match.orElse(() =>
+      selectProject(projects).pipe(
+        Effect.map((project) => path.resolve(pathToDirectory, project)),
+      ),
+    ),
+  );
+}, Effect.scoped);

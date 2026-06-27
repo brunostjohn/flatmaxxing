@@ -1,31 +1,28 @@
 import { Effect } from "effect";
 import { type RenderOptions, render } from "ink";
 import type { ReactNode } from "react";
+import { RenderError } from "@/errors";
 
 export const renderOnce = Effect.fn("flatmaxx.ink.renderOnce")(function* (
   component: ReactNode,
   options?: RenderOptions,
 ) {
-  yield* Effect.callback<void>((resume, signal) => {
+  yield* Effect.callback<void, RenderError>((resume, signal) => {
     const { unmount, waitUntilRenderFlush, waitUntilExit } = render(
       component,
       options,
     );
 
-    signal.onabort = async () => {
+    const settle = (result: Effect.Effect<void, RenderError>) => async () => {
       await waitUntilRenderFlush();
       unmount();
-      resume(Effect.succeed(undefined));
+      resume(result);
       await waitUntilExit();
     };
 
-    const complete = async () => {
-      await waitUntilRenderFlush();
-      unmount();
-      resume(Effect.succeed(undefined));
-      await waitUntilExit();
-    };
-
-    complete();
+    signal.onabort = settle(
+      Effect.fail(new RenderError({ message: "Aborted" })),
+    );
+    settle(Effect.succeed(undefined))();
   });
 });

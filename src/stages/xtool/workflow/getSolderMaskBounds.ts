@@ -16,7 +16,7 @@ export const getSolderMaskBounds = Effect.fn(
   const fs = yield* FileSystem.FileSystem;
   const config = solderMaskSideConfig[side];
   const paths = config.taskPaths;
-  const dxfPath = getSolderMaskDxfPath(projectPath, pcbName, side);
+  const dxfPath = yield* getSolderMaskDxfPath(projectPath, pcbName, side);
 
   const dxfFile = yield* tasks.runTask({
     path: paths.readDxf,
@@ -35,7 +35,6 @@ export const getSolderMaskBounds = Effect.fn(
 
   return yield* tasks.runTask({
     path: paths.measureBounds,
-    // Runs the bounds math (incl. spline Bézier extrema) in a Bun worker.
     effect: dxfBounds(dxf),
     loading: { status: `Measuring ${config.fileSuffix} geometry bounds...` },
     success: { label: `Measured ${config.label} solder mask bounds.` },

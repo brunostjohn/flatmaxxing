@@ -1,28 +1,31 @@
+import { MakeraCamError } from "@/errors";
 import { setWindowBounds, waitForElement } from "@/macos";
-import { Context, Effect, Layer } from "effect";
+import { Context, Duration, Effect, Layer } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import {
-  dismissRestorePrompt,
-  dismissUpdateNag,
-  MAKERACAM_APP,
-} from "./actions";
+import { dismissRestorePrompt, dismissUpdateNag } from "./actions";
 import { confirmCloseExistingMakeraCam } from "./confirmCloseExistingMakeraCam";
 import {
   DEFAULT_APP_PATH,
   getMakeraCamPids,
   launchMakeraCam,
+  MAKERACAM_PROCESS,
   quitMakeraCam,
   waitForMakeraCamToExit,
 } from "./process";
-import type { MakeracamStepOptions } from "./types";
+import type { MakeraCamSession, MakeracamStepOptions } from "./types";
 
-export type LifecycleReport = (message: string) => Effect.Effect<void>;
-
-const noopReport: LifecycleReport = () => Effect.void;
-
-export interface MakeraCamSession {
-  readonly pid: number;
+export interface MakeraCamReporterShape {
+  readonly report: (message: string) => Effect.Effect<void>;
 }
+
+export class MakeraCamReporter extends Context.Service<
+  MakeraCamReporter,
+  MakeraCamReporterShape
+>()("flatmaxx/makeracam/Reporter") {}
+
+export const MakeraCamReporterNoop = Layer.succeed(MakeraCamReporter, {
+  report: () => Effect.void,
+});
 
 export interface MakeraCamProcessControlService {
   readonly getPids: () => Effect.Effect<readonly number[], unknown>;
@@ -74,9 +77,10 @@ export const ensureMakeraCamNotAlreadyRunning = Effect.fn(
   const shouldWait = yield* processControl.confirmCloseExisting(existing);
   if (!shouldWait) {
     return yield* Effect.fail(
-      new Error(
-        "MakeraCAM was already open and the user declined to continue.",
-      ),
+      new MakeraCamError({
+        message:
+          "MakeraCAM was already open and the user declined to continue.",
+      }),
     );
   }
 
@@ -84,35 +88,38 @@ export const ensureMakeraCamNotAlreadyRunning = Effect.fn(
   return "closed" as const;
 });
 
-export const withMakeraCamSession = <A, E, R>(
-  options: MakeracamStepOptions,
-  body: (session: MakeraCamSession) => Effect.Effect<A, E, R>,
-  report: LifecycleReport = noopReport,
-) =>
-  Effect.gen(function* () {
-    yield* report("Checking for an existing MakeraCAM process...");
-    const existingSession = yield* ensureMakeraCamNotAlreadyRunning();
-    if (existingSession === "closed") {
-      yield* report("Existing MakeraCAM process closed.");
+export const withMakeraCamSession = Effect.fn("flatmaxx.makeracam.withSession")(
+  function* (options: MakeracamStepOptions) {
+    const reporter = yield* MakeraCamReporter;
+
+    yield* reporter.report("Checking for an existing MakeraCAM process...");
+    const existing = yield* ensureMakeraCamNotAlreadyRunning();
+    if (existing === "closed") {
+      yield* reporter.report("Existing MakeraCAM process closed.");
     }
 
-    yield* report("Launching MakeraCAM...");
-    const appPath = options.appPath || DEFAULT_APP_PATH;
-    const pid = yield* launchMakeraCam(appPath);
-
+    yield* reporter.report("Launching MakeraCAM...");
+    const pid = yield* launchMakeraCam(options.appPath || DEFAULT_APP_PATH);
     yield* Effect.addFinalizer(() => quitMakeraCam(pid).pipe(Effect.ignore));
 
-    yield* report("Waiting for the MakeraCAM welcome window...");
+    yield* reporter.report("Waiting for the MakeraCAM welcome window...");
     yield* dismissRestorePrompt(pid);
 
-    const b = options.windowBounds;
-    yield* setWindowBounds(MAKERACAM_APP, b).pipe(Effect.ignore);
-
+    yield* setWindowBounds(MAKERACAM_PROCESS, options.windowBounds).pipe(
+      Effect.ignore,
+    );
     yield* dismissUpdateNag(pid).pipe(Effect.ignore);
 
-    yield* waitForElement(pid, { title: "3 AXIS" }, { timeoutMs: 30_000 });
+    yield* waitForElement(
+      pid,
+      { title: "3 AXIS" },
+      { timeout: Duration.seconds(30) },
+    );
 
-    yield* setWindowBounds(MAKERACAM_APP, b).pipe(Effect.ignore);
+    yield* setWindowBounds(MAKERACAM_PROCESS, options.windowBounds).pipe(
+      Effect.ignore,
+    );
 
-    return yield* body({ pid });
-  }).pipe(Effect.scoped);
+    return { pid } satisfies MakeraCamSession;
+  },
+);

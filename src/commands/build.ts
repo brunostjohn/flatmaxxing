@@ -27,9 +27,8 @@ import {
   validateIsolation,
   validateKicadBoard,
 } from "@/stages";
-import { Effect, FileSystem } from "effect";
+import { Effect, FileSystem, Path } from "effect";
 import { Command } from "effect/unstable/cli";
-import { join } from "node:path";
 import {
   type FlatmaxxCliInput,
   type ProjectCliInput,
@@ -46,13 +45,13 @@ export type BoardImagePreviewRenderer = (
   pngPath: string,
 ) => Effect.Effect<void>;
 
-export type MaybeRenderBoardImagePreviewOptions = {
+export interface MaybeRenderBoardImagePreviewOptions {
   readonly enabled: boolean;
-  readonly pngPath?: string | undefined;
-  readonly alreadyShown?: boolean | undefined;
-  readonly isInteractive?: boolean | undefined;
-  readonly renderPreview?: BoardImagePreviewRenderer | undefined;
-};
+  readonly pngPath?: string;
+  readonly alreadyShown?: boolean;
+  readonly isInteractive?: boolean;
+  readonly renderPreview?: BoardImagePreviewRenderer;
+}
 
 export const maybeRenderBoardImagePreview = Effect.fn(
   "flatmaxx.build.maybeRenderBoardImagePreview",
@@ -63,12 +62,15 @@ export const maybeRenderBoardImagePreview = Effect.fn(
   isInteractive = process.stdout.isTTY === true,
   renderPreview = renderBoardImagePreview,
 }: MaybeRenderBoardImagePreviewOptions) {
+  const fs = yield* FileSystem.FileSystem;
+
   if (!enabled || alreadyShown || !pngPath || !isInteractive) {
     return false;
   }
 
-  const fs = yield* FileSystem.FileSystem;
-  if (!(yield* fs.exists(pngPath))) {
+  const exists = yield* fs.exists(pngPath);
+
+  if (!exists) {
     return false;
   }
 
@@ -79,11 +81,12 @@ export const maybeRenderBoardImagePreview = Effect.fn(
 export const runBuildWorkflow = Effect.fn("flatmaxx.build")(function* (
   input: FlatmaxxCliInput,
 ) {
+  const path = yield* Path.Path;
   yield* Effect.sync(resetSteps);
 
   const config = yield* loadConfigFromCli(input);
   const { kicadCli, pcbFile, pcbName, projectDir } =
-    yield* prepareProjectContext(input, config);
+    yield* prepareProjectContext(config);
   const flatcam = resolveFlatcam(config);
   const showedBoardImagePreview = yield* maybeRenderBoardImagePreview({
     enabled: !config.skipRenderBoard,
@@ -141,13 +144,13 @@ export const runBuildWorkflow = Effect.fn("flatmaxx.build")(function* (
     : 0;
   yield* runPlatedHoles(
     pcbName,
-    join(config.paths.gerbers, `${pcbName}-PTH_EdgeCuts.dxf`),
+    path.join(config.paths.gerbers, `${pcbName}-PTH_EdgeCuts.dxf`),
     contourMillDiameter,
     buildMakeracamStepOptions(config, "plated"),
   );
   yield* runFinalCut(
     pcbName,
-    join(config.paths.gerbers, `${pcbName}-Final_EdgeCuts.dxf`),
+    path.join(config.paths.gerbers, `${pcbName}-Final_EdgeCuts.dxf`),
     contourMillDiameter,
     buildMakeracamStepOptions(config, "final"),
   );

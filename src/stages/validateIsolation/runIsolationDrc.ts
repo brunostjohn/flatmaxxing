@@ -1,94 +1,49 @@
 import type { IsolationValidationOptions } from "@/config";
-import { Effect, Fiber, FileSystem, Ref, Stream } from "effect";
-import { ChildProcess } from "effect/unstable/process";
-import { basename, dirname, join } from "node:path";
+import { DrcError } from "@/errors";
+import { runCollectingBoth } from "@/process";
+import { Array, Effect, FileSystem, Path, Result, Schema } from "effect";
+import { CLEARANCE_TYPES } from "./constants";
+import { DrcReportSchema, type DrcViolation } from "./schema";
+import type { IsolationDrcResult, PartitionedViolations } from "./types";
 
-export interface DrcViolationItem {
-  readonly description?: string;
-  readonly pos?: { readonly x: number; readonly y: number };
-  readonly uuid?: string;
-}
-
-export interface DrcViolation {
-  readonly type: string;
-  readonly severity: string;
-  readonly description?: string;
-  readonly items?: readonly DrcViolationItem[];
-}
-
-interface DrcReport {
-  readonly violations?: readonly DrcViolation[];
-}
-
-export interface IsolationDrcResult {
-  /** Violations that mean the tool cannot fully isolate (copper/hole clearance). */
-  readonly clearanceViolations: readonly DrcViolation[];
-  /** Total violation count (includes non-clearance issues we ignore). */
-  readonly totalViolations: number;
-}
-
-// Clearance-family violation types from the KiCad DRC report that indicate two
-// copper features are closer than the (effective tool) clearance constraint.
-const CLEARANCE_TYPES = new Set([
-  "clearance",
-  "hole_clearance",
-  "hole_to_hole",
-]);
-
-/** Searchable text for a violation: its description + every feature involved. */
-export const violationText = (violation: DrcViolation): string =>
+export const violationText = (violation: DrcViolation) =>
   [violation.description, ...(violation.items ?? []).map((i) => i.description)]
     .filter((s): s is string => Boolean(s))
     .join(" | ");
 
-export interface PartitionedViolations {
-  /** Violations that should block the run. */
-  readonly blocking: readonly DrcViolation[];
-  /** Violations excluded by the configured ignore patterns. */
-  readonly ignored: readonly DrcViolation[];
-}
-
-/** Splits violations into ignored (matching any pattern) vs blocking. */
 export const partitionViolations = (
   violations: readonly DrcViolation[],
   patterns: readonly RegExp[],
 ): PartitionedViolations => {
-  const blocking: DrcViolation[] = [];
-  const ignored: DrcViolation[] = [];
-  for (const violation of violations) {
+  const [blocking, ignored] = Array.partition(violations, (violation) => {
     const text = violationText(violation);
-    if (patterns.some((pattern) => pattern.test(text))) {
-      ignored.push(violation);
-    } else {
-      blocking.push(violation);
-    }
-  }
+    return patterns.some((pattern) => pattern.test(text))
+      ? Result.succeed(violation)
+      : Result.fail(violation);
+  });
   return { blocking, ignored };
 };
 
-/** Compiles ignore-regex strings, with a clear error on an invalid pattern. */
-export const compileIgnorePatterns = (patterns: readonly string[]): RegExp[] =>
-  patterns.map((pattern) => {
-    try {
-      return new RegExp(pattern);
-    } catch (error) {
-      throw new Error(
-        `Invalid validation.isolationFeasibility.ignore regex ${JSON.stringify(
-          pattern,
-        )}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+const makeRegexUnsafe = (pattern: string) => new RegExp(pattern);
+
+const invalidIgnorePatternError = (pattern: string, cause: unknown) =>
+  new DrcError({
+    message: `Invalid validation.isolationFeasibility.ignore regex ${JSON.stringify(
+      pattern,
+    )}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    cause,
   });
 
-const formatMm = (value: number): string => value.toFixed(4);
+export const compileIgnorePatterns = (patterns: readonly string[]) =>
+  Effect.forEach(patterns, (pattern) =>
+    Effect.try({
+      try: () => makeRegexUnsafe(pattern),
+      catch: (cause) => invalidIgnorePatternError(pattern, cause),
+    }),
+  );
 
-/**
- * Builds a custom KiCad design-rule that requires `effectiveDiameter` of
- * clearance between copper features on the machined layers. kicad-cli auto-loads
- * a sibling `<board>.kicad_dru`. DRC uses the max of applicable clearance rules,
- * so this raises the checked clearance to the tool width where the design allows
- * tighter gaps, and is harmlessly subsumed where the design is already wider.
- */
+const formatMm = (value: number) => value.toFixed(4);
+
 export const buildIsolationDru = (
   effectiveDiameter: number,
   layers: readonly string[],
@@ -108,22 +63,28 @@ export const buildIsolationDru = (
   ].join("\n");
 };
 
-const collectStream = (
-  stream: Stream.Stream<Uint8Array, unknown>,
-  sink: Ref.Ref<string>,
-) => {
-  const decoder = new TextDecoder();
-  return Stream.runForEach(stream, (chunk) =>
-    Ref.update(sink, (acc) => acc + decoder.decode(chunk)),
-  );
-};
+const parseJsonUnsafe = (text: string) => JSON.parse(text);
 
-/**
- * Copies the board (and its project, to preserve real net-class rules) into a
- * temp dir, drops in the isolation `.kicad_dru`, runs `kicad-cli pcb drc`, and
- * returns the clearance-family violations. Scope-bound: the temp dir is removed
- * when the calling scope closes.
- */
+const parseDrcReport = Effect.fn("flatmaxx.validateIsolation.parseDrcReport")(
+  function* (text: string) {
+    const raw = yield* Effect.try({
+      try: () => parseJsonUnsafe(text),
+      catch: (cause) =>
+        new DrcError({ message: "KiCad DRC report is not valid JSON.", cause }),
+    });
+
+    return yield* Schema.decodeUnknownEffect(DrcReportSchema)(raw).pipe(
+      Effect.mapError(
+        (cause) =>
+          new DrcError({
+            message: "KiCad DRC report has an invalid shape.",
+            cause,
+          }),
+      ),
+    );
+  },
+);
+
 export const runIsolationDrc = Effect.fn("flatmaxx.validateIsolation.runDrc")(
   function* (
     kicadCli: string,
@@ -131,37 +92,32 @@ export const runIsolationDrc = Effect.fn("flatmaxx.validateIsolation.runDrc")(
     options: IsolationValidationOptions,
   ) {
     const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
 
-    const base = basename(pcbFile, ".kicad_pcb");
+    const base = path.basename(pcbFile, ".kicad_pcb");
     const tempDir = yield* fs.makeTempDirectoryScoped({
       prefix: "flatmaxx-drc-",
     });
-    const tempPcb = join(tempDir, `${base}.kicad_pcb`);
+    const tempPcb = path.join(tempDir, `${base}.kicad_pcb`);
     yield* fs.copyFile(pcbFile, tempPcb);
 
-    // Preserve the project's real design rules / net classes when present.
-    // Skip an empty/missing .kicad_pro — copying it makes kicad-cli log a
-    // JSON parse error, and it carries no rules anyway (DRC falls back to
-    // defaults + our injected .kicad_dru).
-    const projectFile = join(dirname(pcbFile), `${base}.kicad_pro`);
+    const projectFile = path.join(path.dirname(pcbFile), `${base}.kicad_pro`);
     const projectContent = yield* fs
       .readFileString(projectFile)
       .pipe(Effect.orElseSucceed(() => ""));
-    if (projectContent.trim().length > 0) {
-      yield* fs.writeFileString(
-        join(tempDir, `${base}.kicad_pro`),
-        projectContent,
-      );
-    }
+
+    yield* fs
+      .writeFileString(path.join(tempDir, `${base}.kicad_pro`), projectContent)
+      .pipe(Effect.when(Effect.sync(() => projectContent.trim().length > 0)));
 
     yield* fs.writeFileString(
-      join(tempDir, `${base}.kicad_dru`),
+      path.join(tempDir, `${base}.kicad_dru`),
       buildIsolationDru(options.effectiveDiameter, options.layers),
     );
 
-    const reportPath = join(tempDir, "drc-report.json");
+    const reportPath = path.join(tempDir, "drc-report.json");
 
-    const handle = yield* ChildProcess.make(
+    const { stdout, stderr, exitCode } = yield* runCollectingBoth(
       kicadCli,
       [
         "pcb",
@@ -176,31 +132,19 @@ export const runIsolationDrc = Effect.fn("flatmaxx.validateIsolation.runDrc")(
       { cwd: tempDir },
     );
 
-    const output = yield* Ref.make("");
-    const stderrFiber = yield* collectStream(handle.stderr, output).pipe(
-      Effect.forkChild,
-    );
-    const stdoutFiber = yield* collectStream(handle.stdout, output).pipe(
-      Effect.forkChild,
-    );
-
-    const code = yield* handle.exitCode;
-    yield* Effect.all([Fiber.join(stderrFiber), Fiber.join(stdoutFiber)]);
-
     const reportExists = yield* fs.exists(reportPath);
-    if (!reportExists) {
-      const log = yield* Ref.get(output);
-      return yield* Effect.fail(
-        new Error(
-          `kicad-cli pcb drc produced no report (exit ${code}).\n${log}`,
-        ),
-      );
-    }
 
-    const report = JSON.parse(
-      yield* fs.readFileString(reportPath),
-    ) as DrcReport;
-    const violations = report.violations ?? [];
+    const violations = yield* fs.readFileString(reportPath).pipe(
+      Effect.filterOrFail(
+        () => reportExists,
+        () =>
+          new DrcError({
+            message: `kicad-cli pcb drc produced no report (exit ${exitCode}).\n${stderr}${stdout}`,
+          }),
+      ),
+      Effect.flatMap(parseDrcReport),
+      Effect.map((report) => report.violations ?? []),
+    );
 
     return {
       clearanceViolations: violations.filter((v) =>

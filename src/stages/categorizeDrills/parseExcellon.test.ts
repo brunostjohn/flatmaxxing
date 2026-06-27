@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { type Hole, parseExcellon } from "./parseExcellon";
+import { parseExcellon } from "./parseExcellon";
+import type { Hole } from "./types";
 
 // Faithful trim of a KiCad 9 "MixedPlating" Excellon with the oval format set to
 // `route` (G00/M15/G01/M16). Covers PTH vias, an NPTH component drill, and PTH
@@ -121,4 +122,62 @@ test("inch files are converted to millimetres", () => {
   const round = circles(holes);
   expect(round[0]!.diameter).toBeCloseTo(1.0, 2); // 0.0394in ≈ 1mm
   expect(round[0]!.x).toBeCloseTo(25.4, 6);
+});
+
+test("a multi-segment slot only records cutting (G01) moves in its centerline", () => {
+  const routed = [
+    "M48",
+    "METRIC",
+    "; #@! TA.AperFunction,Plated,PTH,ComponentDrill",
+    "T1C0.500",
+    "%",
+    "T1",
+    "G00X0.0Y0.0",
+    "M15",
+    "G01X0.0Y1.0",
+    "G01X1.0Y1.0",
+    "M16",
+    "G05",
+    "M30",
+  ].join("\n");
+  const { holes } = parseExcellon(routed);
+  const slot = holes.find((h) => h.kind === "slot");
+  expect(slot).toBeDefined();
+  if (slot?.kind === "slot") {
+    expect(slot.path).toHaveLength(3);
+    expect(slot.path[0]).toMatchObject({ x: 0, y: 0 });
+    expect(slot.length).toBeCloseTo(2 + 0.5, 6);
+  }
+});
+
+test("T0 deselects the active tool so trailing coordinates drill nothing", () => {
+  const deselect = [
+    "M48",
+    "METRIC",
+    "T1C0.400",
+    "%",
+    "T1",
+    "X1.0Y1.0",
+    "T0",
+    "X2.0Y2.0",
+    "M30",
+  ].join("\n");
+  expect(circles(parseExcellon(deselect).holes)).toHaveLength(1);
+});
+
+test("a TD attribute comment resets pending plating to unknown", () => {
+  const reset = [
+    "M48",
+    "METRIC",
+    "; #@! TA.AperFunction,Plated,PTH,ViaDrill",
+    "; #@! TD",
+    "T1C0.400",
+    "%",
+    "T1",
+    "X1.0Y1.0",
+    "M30",
+  ].join("\n");
+  const round = circles(parseExcellon(reset).holes);
+  expect(round).toHaveLength(1);
+  expect(round[0]!.plating).toBe("unknown");
 });

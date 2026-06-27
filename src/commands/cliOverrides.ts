@@ -1,9 +1,12 @@
 import { isRecord, type TomlValue } from "@/config";
+import { CliError } from "@/errors";
+import { Array, Option, Record } from "effect";
+import { parse } from "toml";
 import {
   configEditorFields,
   type ConfigEditorFieldKind,
 } from "./configEditorModel";
-import { parse } from "toml";
+import { setPath } from "./configEditorModel/tomlValues";
 
 export type CliOverrideValue =
   | {
@@ -24,22 +27,28 @@ type CliUnsetOverrideValue = Extract<
   { readonly type: "unset" }
 >;
 
-export type CliAliasOverride = {
+export interface CliAliasOverride {
   readonly path: string;
   readonly value: unknown;
   readonly source: string;
-};
+}
 
-export type BuildCliOverridesOptions = {
+export interface BuildCliOverridesOptions {
   readonly set?: readonly string[] | undefined;
   readonly unset?: readonly string[] | undefined;
   readonly aliases?: readonly CliAliasOverride[] | undefined;
-};
+}
 
-type ConfigFieldMetadata = {
+interface ConfigFieldMetadata {
   readonly path: readonly string[];
   readonly kind: ConfigEditorFieldKind;
-};
+}
+
+interface ResolvedOverride {
+  readonly path: readonly string[];
+  readonly value: unknown;
+  readonly source: string;
+}
 
 const pathKey = (path: readonly string[]) => path.join(".");
 
@@ -57,20 +66,25 @@ const optionalFieldKinds = new Set<ConfigEditorFieldKind>([
 ]);
 
 const parseTomlAssignmentValue = (value: string, source: string): unknown => {
-  const parsed = (() => {
-    try {
-      return parse(`value = ${value}`) as unknown;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`${source} has invalid TOML literal: ${message}`);
-    }
-  })();
+  const parsed = parseTomlValueText(value, source);
 
   if (!isRecord(parsed)) {
-    throw new Error(`${source} must parse to a TOML value.`);
+    throw new CliError({ message: `${source} must parse to a TOML value.` });
   }
 
   return parsed.value;
+};
+
+const parseTomlValueText = (value: string, source: string): unknown => {
+  try {
+    return parse(`value = ${value}`) as unknown;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new CliError({
+      message: `${source} has invalid TOML literal: ${message}`,
+      cause,
+    });
+  }
 };
 
 const asTomlValue = (value: unknown, source: string): TomlValue => {
@@ -95,24 +109,26 @@ const asTomlValue = (value: unknown, source: string): TomlValue => {
     );
   }
 
-  throw new Error(
-    `${source} must be a TOML string, number, boolean, array, or inline table.`,
-  );
+  throw new CliError({
+    message: `${source} must be a TOML string, number, boolean, array, or inline table.`,
+  });
 };
 
 const validatePath = (path: string, source: string): ConfigFieldMetadata => {
   const field = fieldsByPath.get(path);
 
   if (!field) {
-    throw new Error(
-      `${source} references unknown config path "${path}". Use one of: ${[
-        ...fieldsByPath.keys(),
-      ].join(", ")}.`,
-    );
+    throw new CliError({
+      message: `${source} references unknown config path "${path}". Use one of: ${Array.fromIterable(
+        fieldsByPath.keys(),
+      ).join(", ")}.`,
+    });
   }
 
   if (path === "extends") {
-    throw new Error(`${source} cannot override extends from the command line.`);
+    throw new CliError({
+      message: `${source} cannot override extends from the command line.`,
+    });
   }
 
   return field;
@@ -129,14 +145,16 @@ export const parseCliSetOverride = (
   const equalsIndex = text.indexOf("=");
 
   if (equalsIndex <= 0) {
-    throw new Error(`${source} must use path=value syntax.`);
+    throw new CliError({ message: `${source} must use path=value syntax.` });
   }
 
   const path = text.slice(0, equalsIndex).trim();
   const valueText = text.slice(equalsIndex + 1).trim();
 
   if (path === "" || valueText === "") {
-    throw new Error(`${source} must include both a path and a value.`);
+    throw new CliError({
+      message: `${source} must include both a path and a value.`,
+    });
   }
 
   validatePath(path, source);
@@ -159,7 +177,9 @@ export const parseCliUnsetOverride = (
   const field = validatePath(trimmedPath, source);
 
   if (!optionalFieldKinds.has(field.kind)) {
-    throw new Error(`${source} can only clear optional config paths.`);
+    throw new CliError({
+      message: `${source} can only clear optional config paths.`,
+    });
   }
 
   return {
@@ -169,38 +189,41 @@ export const parseCliUnsetOverride = (
   };
 };
 
-const setPath = (
-  target: Record<string, unknown>,
-  path: readonly string[],
-  value: unknown,
-) => {
-  let current = target;
-
-  for (const part of path.slice(0, -1)) {
-    const next = current[part];
-    if (!isRecord(next)) {
-      current[part] = {};
-    }
-    current = current[part] as Record<string, unknown>;
-  }
-
-  current[path[path.length - 1]!] = value;
+const aliasOverride = (alias: CliAliasOverride): ResolvedOverride => {
+  const field = validatePath(alias.path, alias.source);
+  validateSetValue(alias.value, alias.source);
+  return { path: field.path, value: alias.value, source: alias.source };
 };
 
-const assertUniquePath = (
-  seen: Map<string, string>,
-  path: string,
-  source: string,
-) => {
-  const previous = seen.get(path);
+const setOverride = (text: string): ResolvedOverride => {
+  const override = parseCliSetOverride(text);
+  const field = validatePath(override.path, override.source);
+  return { path: field.path, value: override.value, source: override.source };
+};
 
-  if (previous !== undefined) {
-    throw new Error(
-      `Config path "${path}" was overridden more than once (${previous}, ${source}).`,
-    );
+const unsetOverride = (path: string): ResolvedOverride => {
+  const override = parseCliUnsetOverride(path);
+  const field = validatePath(override.path, override.source);
+  return { path: field.path, value: undefined, source: override.source };
+};
+
+const assertUniquePaths = (overrides: readonly ResolvedOverride[]) => {
+  const grouped = Array.groupBy(overrides, (override) =>
+    pathKey(override.path),
+  );
+  const duplicate = Array.findFirst(
+    Record.toEntries(grouped),
+    ([, entries]) => entries.length > 1,
+  );
+
+  if (Option.isSome(duplicate)) {
+    const [path, entries] = duplicate.value;
+    throw new CliError({
+      message: `Config path "${path}" was overridden more than once (${entries
+        .map((entry) => entry.source)
+        .join(", ")}).`,
+    });
   }
-
-  seen.set(path, source);
 };
 
 export const buildCliOverrides = ({
@@ -208,29 +231,17 @@ export const buildCliOverrides = ({
   unset = [],
   aliases = [],
 }: BuildCliOverridesOptions): Record<string, unknown> => {
-  const overrides: Record<string, unknown> = {};
-  const seen = new Map<string, string>();
+  const resolved: readonly ResolvedOverride[] = [
+    ...Array.map(aliases, aliasOverride),
+    ...Array.map(set, setOverride),
+    ...Array.map(unset, unsetOverride),
+  ];
 
-  for (const alias of aliases) {
-    const field = validatePath(alias.path, alias.source);
-    validateSetValue(alias.value, alias.source);
-    assertUniquePath(seen, alias.path, alias.source);
-    setPath(overrides, field.path, alias.value);
-  }
+  assertUniquePaths(resolved);
 
-  for (const value of set) {
-    const override = parseCliSetOverride(value);
-    const field = validatePath(override.path, override.source);
-    assertUniquePath(seen, override.path, override.source);
-    setPath(overrides, field.path, override.value);
-  }
-
-  for (const path of unset) {
-    const override = parseCliUnsetOverride(path);
-    const field = validatePath(override.path, override.source);
-    assertUniquePath(seen, override.path, override.source);
-    setPath(overrides, field.path, undefined);
-  }
-
-  return overrides;
+  return Array.reduce(
+    resolved,
+    {} as Record<string, unknown>,
+    (overrides, override) => setPath(overrides, override.path, override.value),
+  );
 };

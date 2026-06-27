@@ -1,30 +1,42 @@
+import { ConfigError } from "@/errors";
 import { ConfigFileSchema, type ConfigFile } from "@/config/schema";
-import { Effect, Schema } from "effect";
+import { Array, Effect, Path, Schema } from "effect";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { parse } from "toml";
-import { deepMerge, isRecord } from "./deepMerge";
+import { isRecord } from "./isRecord";
+import { merge } from "./merge";
 import { normalizeConfig } from "./normalizeConfig";
 import { resolveFrom, resolveSibling } from "./paths";
-import type { ResolvedConfig } from "./types";
 
-export type LoadFlatmaxxConfigOptions = {
+export interface LoadFlatmaxxConfigOptions {
   readonly projectRoot: string;
   readonly configPath?: string | undefined;
   readonly cliOverrides?: Record<string, unknown> | undefined;
-};
+}
 
 const parseOptions = {
   errors: "all",
   onExcessProperty: "error",
 } as const;
 
+const configFilename = "flatmaxxing.toml";
+
+const toConfigError = (cause: unknown): ConfigError =>
+  cause instanceof ConfigError
+    ? cause
+    : new ConfigError({
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause,
+      });
+
 export const readToml = (filePath: string): Record<string, unknown> => {
   const text = readFileSync(filePath, "utf8");
   const parsed = parse(text) as unknown;
 
   if (!isRecord(parsed)) {
-    throw new Error(`Config file "${filePath}" must contain a TOML table.`);
+    throw new ConfigError({
+      message: `Config file "${filePath}" must contain a TOML table.`,
+    });
   }
 
   return parsed;
@@ -44,60 +56,66 @@ export const readExtends = (
     !Array.isArray(value) ||
     value.some((entry) => typeof entry !== "string")
   ) {
-    throw new Error(
-      `Config file "${filePath}" has invalid extends; expected an array of strings.`,
-    );
+    throw new ConfigError({
+      message: `Config file "${filePath}" has invalid extends; expected an array of strings.`,
+    });
   }
 
-  return value;
+  return Array.filter(
+    value,
+    (entry): entry is string => typeof entry === "string",
+  );
 };
 
 export const loadConfigFile = (
   filePath: string,
   loading: readonly string[] = [],
-): Effect.Effect<Record<string, unknown>, Error> =>
+): Effect.Effect<Record<string, unknown>, ConfigError, Path.Path> =>
   Effect.try({
     try: () => {
       if (loading.includes(filePath)) {
-        throw new Error(
-          `Config extends cycle detected: ${[...loading, filePath].join(" -> ")}`,
-        );
+        throw new ConfigError({
+          message: `Config extends cycle detected: ${[...loading, filePath].join(" -> ")}`,
+        });
       }
 
       if (!existsSync(filePath)) {
-        throw new Error(`Config file "${filePath}" does not exist.`);
+        throw new ConfigError({
+          message: `Config file "${filePath}" does not exist.`,
+        });
       }
 
       return readToml(filePath);
     },
-    catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+    catch: toConfigError,
   }).pipe(
-    Effect.flatMap((raw) => {
-      const nextStack = [...loading, filePath];
-      return Effect.gen(function* () {
-        const parents = readExtends(filePath, raw).map((path) =>
-          resolveSibling(filePath, path),
+    Effect.flatMap((raw) =>
+      Effect.gen(function* () {
+        const nextStack = [...loading, filePath];
+        const parents = yield* Effect.forEach(
+          readExtends(filePath, raw),
+          (path) => resolveSibling(filePath, path),
         );
-        let inherited: Record<string, unknown> = {};
+        const parentConfigs = yield* Effect.forEach(parents, (parentPath) =>
+          loadConfigFile(parentPath, nextStack),
+        );
+        const inherited = Array.reduce(
+          parentConfigs,
+          {} as Record<string, unknown>,
+          (accumulated, parentConfig) => merge(accumulated, parentConfig),
+        );
 
-        for (const parentPath of parents) {
-          const parentConfig = yield* loadConfigFile(parentPath, nextStack);
-          inherited = deepMerge(inherited, parentConfig);
-        }
-
-        return deepMerge(inherited, raw);
-      });
-    }),
+        return merge(inherited, raw);
+      }),
+    ),
   );
 
 export const decodeConfig = (
   raw: Record<string, unknown>,
-): Effect.Effect<ConfigFile, Error> =>
+): Effect.Effect<ConfigFile, ConfigError> =>
   Effect.try({
     try: () => Schema.decodeUnknownSync(ConfigFileSchema, parseOptions)(raw),
-    catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+    catch: toConfigError,
   });
 
 export const loadFlatmaxxConfig = Effect.fn("flatmaxx.config.load")(function* ({
@@ -105,22 +123,30 @@ export const loadFlatmaxxConfig = Effect.fn("flatmaxx.config.load")(function* ({
   configPath,
   cliOverrides,
 }: LoadFlatmaxxConfigOptions) {
-  const resolvedProjectRoot = resolveFrom(process.cwd(), projectRoot);
-  const autoConfigPath = resolve(resolvedProjectRoot, "flatmaxxing.toml");
-  const requestedConfigPath = configPath
-    ? resolveFrom(resolvedProjectRoot, configPath)
-    : autoConfigPath;
-  const shouldLoad = configPath !== undefined || existsSync(autoConfigPath);
+  const pathService = yield* Path.Path;
+  const cwd = yield* Effect.sync(() => process.cwd());
+  const resolvedProjectRoot = yield* resolveFrom(cwd, projectRoot);
+  const autoConfigPath = pathService.resolve(
+    resolvedProjectRoot,
+    configFilename,
+  );
+  const requestedConfigPath =
+    configPath === undefined
+      ? autoConfigPath
+      : yield* resolveFrom(resolvedProjectRoot, configPath);
+  const shouldLoad =
+    configPath !== undefined ||
+    (yield* Effect.sync(() => existsSync(autoConfigPath)));
   const configRoot = shouldLoad
-    ? dirname(requestedConfigPath)
+    ? pathService.dirname(requestedConfigPath)
     : resolvedProjectRoot;
 
   const raw = shouldLoad
     ? yield* loadConfigFile(requestedConfigPath)
     : ({} as Record<string, unknown>);
   const withOverrides =
-    cliOverrides === undefined ? raw : deepMerge(raw, cliOverrides);
+    cliOverrides === undefined ? raw : merge(raw, cliOverrides);
   const decoded = yield* decodeConfig(withOverrides);
 
-  return normalizeConfig(decoded, configRoot);
+  return yield* normalizeConfig(decoded, configRoot);
 });

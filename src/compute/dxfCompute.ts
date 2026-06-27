@@ -1,43 +1,56 @@
 import type { IDxf } from "dxf-parser";
-import { Effect } from "effect";
-import type { DxfWorkerRequest, DxfWorkerResponse } from "./dxfWorker";
+import { Effect, Match, Schema } from "effect";
+import { DxfWorkerError } from "@/errors";
+import { DxfWorkerResponseSchema } from "./schema";
+import type { DxfBounds } from "./schema";
+import type { DxfWorkerRequest } from "./types";
 
 const workerUrl = new URL("./dxfWorker.ts", import.meta.url).href;
 
-/**
- * Runs one DXF computation in a fresh Bun worker, wrapped as an Effect that
- * resolves with the result. The worker is acquired and terminated within the
- * Effect (on success, failure, or interruption), so structured parallelism via
- * `Effect.all({ concurrency })` spins up one worker per task and cleans each up.
- */
-const runInWorker = <A>(request: DxfWorkerRequest): Effect.Effect<A, Error> =>
+const decodeResponse = Schema.decodeUnknownEffect(DxfWorkerResponseSchema);
+
+const resolveResponse = <A>(value: unknown) =>
+  decodeResponse(value).pipe(
+    Effect.mapError(
+      (cause) =>
+        new DxfWorkerError({ message: "Invalid DXF worker response", cause }),
+    ),
+    Effect.flatMap((response) =>
+      Match.value(response).pipe(
+        Match.when({ ok: true }, (ok) => Effect.succeed(ok.result as A)),
+        Match.orElse((failure) =>
+          Effect.fail(new DxfWorkerError({ message: failure.error })),
+        ),
+      ),
+    ),
+  );
+
+const runInWorker = <A>(request: DxfWorkerRequest) =>
   Effect.acquireUseRelease(
     Effect.sync(() => new Worker(workerUrl, { type: "module" })),
     (worker) =>
-      Effect.callback<A, Error>((resume) => {
-        worker.onmessage = (event: MessageEvent<DxfWorkerResponse>) => {
-          const data = event.data;
+      Effect.callback<A, DxfWorkerError>((resume) => {
+        worker.onmessage = (event: MessageEvent) =>
+          resume(resolveResponse<A>(event.data));
+        worker.onerror = (event: ErrorEvent) =>
           resume(
-            data.ok
-              ? Effect.succeed(data.result as A)
-              : Effect.fail(new Error(data.error)),
+            Effect.fail(
+              new DxfWorkerError({
+                message: event.message ?? "DXF worker error",
+              }),
+            ),
           );
-        };
-        worker.onerror = (event: ErrorEvent) => {
-          resume(Effect.fail(new Error(event.message ?? "DXF worker error")));
-        };
         worker.postMessage(request);
       }),
     (worker) => Effect.sync(() => worker.terminate()),
   );
 
-/** Measure a parsed DXF's bounding box, off the main thread. */
 export const dxfBounds = (
   dxf: IDxf,
-): Effect.Effect<{ width: number; height: number }, Error> =>
+): Effect.Effect<DxfBounds, DxfWorkerError> =>
   runInWorker({ op: "bounds", dxf });
 
-/** Whether a parsed DXF contains any plottable geometry, off the main thread. */
 export const dxfHasPlottableGeometry = (
   dxf: IDxf,
-): Effect.Effect<boolean, Error> => runInWorker({ op: "plottable", dxf });
+): Effect.Effect<boolean, DxfWorkerError> =>
+  runInWorker({ op: "plottable", dxf });

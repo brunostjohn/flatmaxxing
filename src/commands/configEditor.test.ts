@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { loadFlatmaxxConfig } from "@/config";
-import { Effect } from "effect";
+import { BunServices } from "@effect/platform-bun";
+import { Effect, Path } from "effect";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,7 +50,7 @@ test("user config save writes sparse overrides", async () => {
       values["paths.gcode"] = "./custom-gcodes";
       return Effect.succeed({ type: "save", values });
     },
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
 
   expect(result.type).toBe("saved");
   const configText = readFileSync(userConfigPath, "utf8");
@@ -62,7 +63,7 @@ test("user config save writes sparse overrides", async () => {
   const config = await loadFlatmaxxConfig({
     projectRoot: root,
     configPath: userConfigPath,
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(Path.layer), Effect.runPromise);
   expect(config.dependencies.kicadCli).toBe("/custom/kicad-cli");
   expect(config.paths.gcode).toBe(join(root, "custom-gcodes"));
 });
@@ -94,7 +95,7 @@ generate = false
       values["drills.withEdgeCuts"] = true;
       return Effect.succeed({ type: "save", values });
     },
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
 
   expect(result.type).toBe("saved");
   const configPath = join(projectRoot, "flatmaxxing.toml");
@@ -107,7 +108,7 @@ generate = false
 
   const config = await loadFlatmaxxConfig({
     projectRoot,
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(Path.layer), Effect.runPromise);
   expect(config.dependencies.flatcam).toBe("flatcam-from-user");
   expect(config.solderMask.generate).toBe(false);
   expect(config.drills.withEdgeCuts).toBe(true);
@@ -128,7 +129,7 @@ test("project config preserves explicit config path", async () => {
       values["place.generate"] = false;
       return Effect.succeed({ type: "save", values });
     },
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
 
   expect(result.type).toBe("saved");
   const configText = readFileSync(

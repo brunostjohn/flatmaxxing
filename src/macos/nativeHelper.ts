@@ -25,8 +25,9 @@ import {
   waitForGone as waitForGoneNative,
   type AxQuery,
 } from "@flatmaxxing/accessibility";
-import { Effect } from "effect";
-import { AXError, MouseError } from "./errors";
+import { AXError, MouseError } from "@/errors";
+import { Duration, Effect } from "effect";
+import type { WaitOptions } from "./types";
 
 const wrapAx = <A extends unknown[], R>(name: string, fn: (...args: A) => R) =>
   Effect.fn(name)(function* (...args: A) {
@@ -119,14 +120,31 @@ export const axPerformAction = wrapAx(
 export const axActions = wrapAx("flatmaxx.macos.axActions", axActionsNative);
 export const axSetValue = wrapAx("flatmaxx.macos.axSetValue", axSetValueNative);
 
-export const waitForElement = wrapAxAsync(
-  "flatmaxx.macos.waitForElement",
-  waitForElementNative,
+const toWaitOptions = (options: WaitOptions | undefined) =>
+  options === undefined
+    ? undefined
+    : { timeoutMs: Duration.toMillis(options.timeout) };
+
+export const waitForElement = Effect.fn("flatmaxx.macos.waitForElement")(
+  function* (pid: number, query: AxQuery, options?: WaitOptions) {
+    return yield* Effect.tryPromise({
+      try: () => waitForElementNative(pid, query, toWaitOptions(options)),
+      catch: (cause) =>
+        new AXError({ message: "waitForElement failed", cause }),
+    });
+  },
 );
-export const waitForGone = wrapAxAsync(
-  "flatmaxx.macos.waitForGone",
-  waitForGoneNative,
-);
+
+export const waitForGone = Effect.fn("flatmaxx.macos.waitForGone")(function* (
+  pid: number,
+  query: AxQuery,
+  options?: WaitOptions,
+) {
+  return yield* Effect.tryPromise({
+    try: () => waitForGoneNative(pid, query, toWaitOptions(options)),
+    catch: (cause) => new AXError({ message: "waitForGone failed", cause }),
+  });
+});
 
 export const mousePos = wrapMouse("flatmaxx.macos.mousePos", mousePosNative);
 export const mouseMove = wrapMouse("flatmaxx.macos.mouseMove", mouseMoveNative);

@@ -1,4 +1,5 @@
 import { Effect, Schedule } from "effect";
+import { XToolError } from "@/errors";
 import { getXToolStudioProcessIds } from "./getXToolStudioProcessIds";
 
 export const waitForXToolStudioProcessIds = Effect.fn(
@@ -9,7 +10,9 @@ export const waitForXToolStudioProcessIds = Effect.fn(
 
     if (processIds.length === 0) {
       return yield* Effect.fail(
-        new Error("xTool Studio process is not visible to pgrep yet"),
+        new XToolError({
+          message: "xTool Studio process is not visible to pgrep yet",
+        }),
       );
     }
 

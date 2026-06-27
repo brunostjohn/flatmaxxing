@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
+import { Effect, Path } from "effect";
 import { join } from "node:path";
 import {
   assignToolNumbers,
   planToolpaths,
   stepFilename,
 } from "./orchestrateMakeracamStep";
-import type { PlannedToolpath, ToolpathKind } from "./types";
+import type { ToolpathKind } from "./types";
 
 const tp = (
   kind: ToolpathKind,
@@ -22,6 +23,19 @@ const tp = (
 
 const contour = tp("contour", 0, "contour");
 
+const runPlan = (
+  files: readonly string[],
+  board: string,
+  step: "plated" | "final",
+  drillsDir: string,
+  edgeCutGerberPath: string,
+) =>
+  Effect.runSync(
+    planToolpaths(files, board, step, drillsDir, edgeCutGerberPath).pipe(
+      Effect.provide(Path.layer),
+    ),
+  );
+
 test("stepFilename encodes the exact per-step export base name", () => {
   expect(stepFilename("myboard", "plated")).toBe(
     "myboard_align-PTH_Holes-PTH_EdgeCuts",
@@ -33,7 +47,7 @@ test("stepFilename encodes the exact per-step export base name", () => {
 
 test("planToolpaths puts the contour first and maps drills after it", () => {
   const files = ["board_PTH-drills-0.4mm.drl", "board_PTH-pockets-0.6mm.drl"];
-  const planned = planToolpaths(
+  const planned = runPlan(
     files,
     "board",
     "plated",

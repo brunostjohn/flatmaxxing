@@ -1,43 +1,28 @@
-import type {
-  ElectroplatingContainerOptions,
-  ElectroplatingOffsets,
-  ElectroplatingRecipeOptions,
-} from "@/config";
+import type { ElectroplatingOffsets } from "@/config";
 import {
   dimensionsOfPlatingBounds,
   type PlatingLayout,
 } from "@/stages/generateEdgeCutDxfs/platingOutline";
-
-export type PlatingBathOrientation = "normal" | "rotated";
-
-export type PlatingBathFitResult = {
-  readonly configured: boolean;
-  readonly fits: boolean;
-  readonly orientation?: PlatingBathOrientation | undefined;
-  readonly message: string;
-  readonly suggestions: readonly string[];
-};
-
-export type ElectroplatingValues = {
-  readonly areaCm2: number;
-  readonly currentMa: number;
-  readonly currentA: number;
-  readonly waterLiters: number;
-  readonly copperSulfatePentahydrateGrams: number;
-  readonly citricAcidGrams: number;
-  readonly polysorbate20Milliliters: number;
-  readonly hclMilliliters: number;
-  readonly bathFit: PlatingBathFitResult;
-};
-
-export type ElectroplatingCalculationInput = {
-  readonly layout: PlatingLayout;
-  readonly offsets: ElectroplatingOffsets;
-  readonly container: ElectroplatingContainerOptions;
-  readonly recipe: ElectroplatingRecipeOptions;
-};
-
-const DIMENSION_EPSILON_MM = 1e-9;
+import { Array, Option, Order, pipe } from "effect";
+import {
+  DEFAULT_DECIMALS,
+  DIMENSION_EPSILON_MM,
+  MA_PER_A,
+  ML_PER_LITER,
+  MM_PER_CM,
+  NEGATIVE_ZERO,
+  PLATING_SIDES,
+  TRAILING_ZEROS,
+} from "./constants";
+import type {
+  ElectroplatingCalculationInput,
+  ElectroplatingValues,
+  OffsetPair,
+  OffsetSuggestion,
+  PlatingBathFitResult,
+  PlatingBathOrientation,
+  RequiredContainerBounds,
+} from "./types";
 
 const fitsWithin = (
   widthMm: number,
@@ -48,28 +33,36 @@ const fitsWithin = (
   widthMm <= maxWidthMm + DIMENSION_EPSILON_MM &&
   heightMm <= maxHeightMm + DIMENSION_EPSILON_MM;
 
-export const formatPlatingNumber = (value: number, maxDecimals = 3) =>
+export const formatPlatingNumber = (
+  value: number,
+  maxDecimals = DEFAULT_DECIMALS,
+) =>
   value
     .toFixed(maxDecimals)
-    .replace(/\.?0+$/, "")
-    .replace(/^-0$/, "0");
+    .replace(TRAILING_ZEROS, "")
+    .replace(NEGATIVE_ZERO, "0");
 
-const reduceOffsetPair = (first: number, second: number, maxTotal: number) => {
-  const next = { first, second };
-  let excess = Math.max(0, first + second - maxTotal);
-  const order =
-    first >= second
-      ? (["first", "second"] as const)
-      : (["second", "first"] as const);
+const reduceOffsetPair = (
+  first: number,
+  second: number,
+  maxTotal: number,
+): OffsetPair => {
+  const excess = Math.max(0, first + second - maxTotal);
+  const order: readonly ("first" | "second")[] =
+    first >= second ? ["first", "second"] : ["second", "first"];
 
-  for (const key of order) {
-    if (excess <= DIMENSION_EPSILON_MM) break;
-    const reduction = Math.min(next[key], excess);
-    next[key] -= reduction;
-    excess -= reduction;
-  }
+  const [, reduced] = Array.mapAccum(
+    order,
+    { remaining: excess, pair: { first, second } },
+    (acc, key) => {
+      const value = acc.pair[key];
+      const reduction = Math.min(value, Math.max(0, acc.remaining));
+      const pair: OffsetPair = { ...acc.pair, [key]: value - reduction };
+      return [{ remaining: acc.remaining - reduction, pair }, pair];
+    },
+  );
 
-  return next;
+  return Array.last(reduced).pipe(Option.getOrElse(() => ({ first, second })));
 };
 
 const offsetSuggestionForTarget = (
@@ -78,10 +71,10 @@ const offsetSuggestionForTarget = (
   targetWidthMm: number,
   targetHeightMm: number,
   orientation: PlatingBathOrientation,
-) => {
+): Option.Option<OffsetSuggestion> => {
   const base = dimensionsOfPlatingBounds(layout.baseBounds);
   if (!fitsWithin(base.widthMm, base.heightMm, targetWidthMm, targetHeightMm)) {
-    return undefined;
+    return Option.none();
   }
 
   const maxHorizontalOffsets = targetWidthMm - base.widthMm;
@@ -105,7 +98,7 @@ const offsetSuggestionForTarget = (
     maxVerticalOffsets,
   );
 
-  return {
+  return Option.some({
     orientation,
     totalExcess: horizontalExcess + verticalExcess,
     suggestions: [
@@ -118,100 +111,85 @@ const offsetSuggestionForTarget = (
         vertical.first,
       )}, bottom=${formatPlatingNumber(vertical.second)}.`,
     ],
-  };
+  });
 };
+
+const excessOrder = Order.mapInput(
+  Order.Number,
+  (suggestion: OffsetSuggestion) => suggestion.totalExcess,
+);
+
+const rotatedSuggestion = (
+  layout: PlatingLayout,
+  offsets: ElectroplatingOffsets,
+  container: RequiredContainerBounds,
+): Option.Option<OffsetSuggestion> =>
+  container.allowRotation
+    ? offsetSuggestionForTarget(
+        layout,
+        offsets,
+        container.maxBoardHeightMm,
+        container.maxBoardWidthMm,
+        "rotated",
+      )
+    : Option.none();
 
 const bathFitSuggestions = (
   layout: PlatingLayout,
   offsets: ElectroplatingOffsets,
-  container: Required<
-    Pick<
-      ElectroplatingContainerOptions,
-      "allowRotation" | "maxBoardHeightMm" | "maxBoardWidthMm"
-    >
-  >,
-) => {
-  const candidates = [
-    offsetSuggestionForTarget(
-      layout,
-      offsets,
-      container.maxBoardWidthMm,
-      container.maxBoardHeightMm,
-      "normal",
-    ),
-    container.allowRotation
-      ? offsetSuggestionForTarget(
-          layout,
-          offsets,
-          container.maxBoardHeightMm,
-          container.maxBoardWidthMm,
-          "rotated",
-        )
-      : undefined,
-  ].filter((candidate) => candidate !== undefined);
-
-  candidates.sort((a, b) => a.totalExcess - b.totalExcess);
-  return candidates[0]?.suggestions ?? [];
-};
-
-export const checkPlatingBathFit = (
-  layout: PlatingLayout,
-  offsets: ElectroplatingOffsets,
-  container: ElectroplatingContainerOptions,
-): PlatingBathFitResult => {
-  const { maxBoardWidthMm, maxBoardHeightMm } = container;
-  if (maxBoardWidthMm === undefined || maxBoardHeightMm === undefined) {
-    return {
-      configured: false,
-      fits: true,
-      message: "Bath fit was not checked; no max board size is configured.",
-      suggestions: [],
-    };
-  }
-
-  const normalFits = fitsWithin(
-    layout.widthMm,
-    layout.heightMm,
-    maxBoardWidthMm,
-    maxBoardHeightMm,
+  container: RequiredContainerBounds,
+): readonly string[] =>
+  pipe(
+    Array.getSomes([
+      offsetSuggestionForTarget(
+        layout,
+        offsets,
+        container.maxBoardWidthMm,
+        container.maxBoardHeightMm,
+        "normal",
+      ),
+      rotatedSuggestion(layout, offsets, container),
+    ]),
+    Array.sort(excessOrder),
+    Array.head,
+    Option.match({
+      onNone: () => [],
+      onSome: (best) => best.suggestions,
+    }),
   );
-  if (normalFits) {
-    return {
-      configured: true,
-      fits: true,
-      orientation: "normal",
-      message: `Fits ${formatPlatingNumber(maxBoardWidthMm)}mm x ${formatPlatingNumber(
-        maxBoardHeightMm,
-      )}mm bath in normal orientation.`,
-      suggestions: [],
-    };
-  }
 
-  const rotatedFits =
-    container.allowRotation &&
-    fitsWithin(
-      layout.heightMm,
-      layout.widthMm,
-      maxBoardWidthMm,
-      maxBoardHeightMm,
-    );
-  if (rotatedFits) {
-    return {
-      configured: true,
-      fits: true,
-      orientation: "rotated",
-      message: `Fits ${formatPlatingNumber(maxBoardWidthMm)}mm x ${formatPlatingNumber(
-        maxBoardHeightMm,
-      )}mm bath when rotated 90 degrees.`,
-      suggestions: [],
-    };
-  }
+const notConfiguredResult = (): PlatingBathFitResult => ({
+  configured: false,
+  fits: true,
+  message: "Bath fit was not checked; no max board size is configured.",
+  suggestions: [],
+});
 
-  const suggestions = bathFitSuggestions(layout, offsets, {
-    allowRotation: container.allowRotation,
-    maxBoardWidthMm,
-    maxBoardHeightMm,
-  });
+const fitResult = (
+  orientation: PlatingBathOrientation,
+  maxBoardWidthMm: number,
+  maxBoardHeightMm: number,
+): PlatingBathFitResult => ({
+  configured: true,
+  fits: true,
+  orientation,
+  message:
+    orientation === "normal"
+      ? `Fits ${formatPlatingNumber(maxBoardWidthMm)}mm x ${formatPlatingNumber(
+          maxBoardHeightMm,
+        )}mm bath in normal orientation.`
+      : `Fits ${formatPlatingNumber(maxBoardWidthMm)}mm x ${formatPlatingNumber(
+          maxBoardHeightMm,
+        )}mm bath when rotated 90 degrees.`,
+  suggestions: [],
+});
+
+const noFitResult = (
+  layout: PlatingLayout,
+  maxBoardWidthMm: number,
+  maxBoardHeightMm: number,
+  suggestions: readonly string[],
+): PlatingBathFitResult => {
   const base = dimensionsOfPlatingBounds(layout.baseBounds);
   const suggestionText =
     suggestions.length > 0
@@ -236,20 +214,64 @@ export const checkPlatingBathFit = (
   };
 };
 
+export const checkPlatingBathFit = (
+  layout: PlatingLayout,
+  offsets: ElectroplatingOffsets,
+  container: ElectroplatingCalculationInput["container"],
+): PlatingBathFitResult => {
+  const { maxBoardWidthMm, maxBoardHeightMm } = container;
+  if (maxBoardWidthMm === undefined || maxBoardHeightMm === undefined) {
+    return notConfiguredResult();
+  }
+
+  if (
+    fitsWithin(
+      layout.widthMm,
+      layout.heightMm,
+      maxBoardWidthMm,
+      maxBoardHeightMm,
+    )
+  ) {
+    return fitResult("normal", maxBoardWidthMm, maxBoardHeightMm);
+  }
+
+  if (
+    container.allowRotation &&
+    fitsWithin(
+      layout.heightMm,
+      layout.widthMm,
+      maxBoardWidthMm,
+      maxBoardHeightMm,
+    )
+  ) {
+    return fitResult("rotated", maxBoardWidthMm, maxBoardHeightMm);
+  }
+
+  const suggestions = bathFitSuggestions(layout, offsets, {
+    allowRotation: container.allowRotation,
+    maxBoardWidthMm,
+    maxBoardHeightMm,
+  });
+  return noFitResult(layout, maxBoardWidthMm, maxBoardHeightMm, suggestions);
+};
+
 export const calculateElectroplatingValues = ({
   layout,
   offsets,
   container,
   recipe,
 }: ElectroplatingCalculationInput): ElectroplatingValues => {
-  const waterLiters = container.waterMl / 1000;
-  const areaCm2 = (layout.widthMm / 10) * (layout.heightMm / 10) * 2;
+  const waterLiters = container.waterMl / ML_PER_LITER;
+  const areaCm2 =
+    (layout.widthMm / MM_PER_CM) *
+    (layout.heightMm / MM_PER_CM) *
+    PLATING_SIDES;
   const currentMa = areaCm2 * recipe.currentDensityMaPerCm2;
 
   return {
     areaCm2,
     currentMa,
-    currentA: currentMa / 1000,
+    currentA: currentMa / MA_PER_A,
     waterLiters,
     copperSulfatePentahydrateGrams:
       recipe.copperSulfatePentahydrate.gramsPerLiter * waterLiters,

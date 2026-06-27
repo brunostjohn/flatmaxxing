@@ -8,7 +8,7 @@ import {
 } from "@/commands";
 import { MakeraCamProcessControlLive } from "@/stages/makeracam";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Path } from "effect";
 import { Command } from "effect/unstable/cli";
 
 const Flatmaxx = rootBuildCommand.pipe(
@@ -65,6 +65,7 @@ const Flatmaxx = rootBuildCommand.pipe(
 
 const AppLayer = Layer.mergeAll(
   BunServices.layer,
+  Path.layer,
   MakeraCamProcessControlLive.pipe(Layer.provide(BunServices.layer)),
 );
 

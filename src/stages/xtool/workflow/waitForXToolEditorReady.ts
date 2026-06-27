@@ -1,5 +1,6 @@
 import type { Client } from "chrome-remote-interface";
 import { Effect, Schedule } from "effect";
+import { XToolError } from "@/errors";
 import { runScriptInXToolStudio } from "../cdp";
 import { isPageLoadingUnmounted } from "../scripts";
 
@@ -14,7 +15,9 @@ export const waitForXToolEditorReady = Effect.fn(
     );
 
     if (!isUnmounted) {
-      return yield* Effect.fail(new Error("#page-loading is still mounted"));
+      return yield* Effect.fail(
+        new XToolError({ message: "#page-loading is still mounted" }),
+      );
     }
   });
 

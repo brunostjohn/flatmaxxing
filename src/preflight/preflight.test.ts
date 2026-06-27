@@ -1,15 +1,14 @@
+import { loadFlatmaxxConfig, type ResolvedConfig } from "@/config";
+import { BunServices } from "@effect/platform-bun";
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { Effect, Path } from "effect";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadFlatmaxxConfig, type ResolvedConfig } from "@/config";
-import {
-  buildPreflightRequirements,
-  failIfPreflightFailed,
-  resolveExecutableDependency,
-  type PreflightReport,
-} from "./preflight";
+import { failIfPreflightFailed } from "./preflight";
+import { buildPreflightRequirements } from "./requirements";
+import { resolveExecutableDependency } from "./dependencyResolver";
+import type { PreflightReport } from "./types";
 
 const tempDir = (prefix = "flatmaxx-preflight-") =>
   mkdtempSync(join(tmpdir(), prefix));
@@ -21,31 +20,43 @@ const writeConfig = (root: string, content: string) => {
 };
 
 const loadConfig = (projectRoot: string) =>
-  loadFlatmaxxConfig({ projectRoot }).pipe(Effect.runPromise);
+  loadFlatmaxxConfig({ projectRoot }).pipe(
+    Effect.provide(Path.layer),
+    Effect.runPromise,
+  );
+
+const resolveExecutable = (
+  value: string,
+  options?: Parameters<typeof resolveExecutableDependency>[1],
+) =>
+  resolveExecutableDependency(value, options).pipe(
+    Effect.provide(BunServices.layer),
+    Effect.runPromise,
+  );
 
 const ids = (config: ResolvedConfig) =>
   buildPreflightRequirements(config).map((requirement) => requirement.id);
 
-test("resolves an absolute executable path", () => {
+test("resolves an absolute executable path", async () => {
   const root = tempDir();
   const executable = join(root, "tool");
   writeFileSync(executable, "#!/bin/sh\n");
   chmodSync(executable, 0o755);
 
-  expect(resolveExecutableDependency(executable)).toEqual({
+  expect(await resolveExecutable(executable)).toEqual({
     status: "found",
     path: executable,
   });
 });
 
-test("resolves a command from PATH", () => {
+test("resolves a command from PATH", async () => {
   const root = tempDir();
   const executable = join(root, "flatcam");
   writeFileSync(executable, "#!/bin/sh\n");
   chmodSync(executable, 0o755);
 
   expect(
-    resolveExecutableDependency("flatcam", {
+    await resolveExecutable("flatcam", {
       env: { PATH: root },
     }),
   ).toEqual({
@@ -54,9 +65,9 @@ test("resolves a command from PATH", () => {
   });
 });
 
-test("reports a missing command", () => {
+test("reports a missing command", async () => {
   expect(
-    resolveExecutableDependency("definitely-not-flatmaxx", {
+    await resolveExecutable("definitely-not-flatmaxx", {
       env: { PATH: tempDir() },
     }),
   ).toMatchObject({
@@ -65,13 +76,13 @@ test("reports a missing command", () => {
   });
 });
 
-test("reports a non-executable file", () => {
+test("reports a non-executable file", async () => {
   const root = tempDir();
   const executable = join(root, "tool");
   writeFileSync(executable, "#!/bin/sh\n");
   chmodSync(executable, 0o644);
 
-  expect(resolveExecutableDependency(executable)).toMatchObject({
+  expect(await resolveExecutable(executable)).toMatchObject({
     status: "missing",
     message: `"${executable}" exists but is not executable.`,
   });

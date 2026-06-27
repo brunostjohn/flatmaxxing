@@ -17,6 +17,10 @@ export interface TaskDef {
 
 export type TaskPatch = Partial<TaskDef>;
 
+export interface BranchPatch extends TaskPatch {
+  readonly childStatus?: string | undefined;
+}
+
 export interface RunTaskOptions<A, E, R> {
   path: TaskPathInput;
   effect: Effect.Effect<A, E, R>;

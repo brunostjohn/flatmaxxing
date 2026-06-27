@@ -6,14 +6,14 @@ import type {
 import { ensureElectroplatingBathFit } from "@/stages/kicad/validation/ensureElectroplatingBathFit";
 import { ensureKicadHasAValidOrigin } from "@/stages/kicad/validation/ensureKicadHasAValidOrigin";
 import { ensureManufacturableLayerCount } from "@/stages/kicad/validation/ensureManufacturableLayerCount";
-import { Effect, Fiber } from "effect";
+import { Array, Effect, Fiber } from "effect";
 import type { KicadPcb } from "kicadts";
 
-export {
-  BoardValidationError,
-  type BoardFix,
-  type BoardValidationContext,
-  type BoardValidator,
+export { BoardValidationError } from "@/errors";
+export type {
+  BoardFix,
+  BoardValidationContext,
+  BoardValidator,
 } from "@/stages/kicad/validation/boardValidationTypes";
 
 const boardValidators = [
@@ -38,7 +38,7 @@ export const validateBoardWithValidators = Effect.fn(
     validators.map((validator) => validator(context).pipe(Effect.forkChild)),
   );
   const results = yield* Effect.all(fibers.map(Fiber.join));
-  const fixes = results.flatMap((result) => result ?? []);
+  const fixes = Array.flatMap(results, (result) => result ?? []);
 
   return fixes.length === 0 ? null : fixes;
 });
@@ -51,11 +51,7 @@ export const applyBoardFixes = Effect.fn("flatmaxx.applyBoardFixes")(function* (
     return false;
   }
 
-  yield* Effect.sync(() => {
-    for (const fix of fixes) {
-      fix.apply(pcb);
-    }
-  });
+  yield* Effect.sync(() => Array.map(fixes, (fix) => fix.apply(pcb)));
 
   return true;
 });

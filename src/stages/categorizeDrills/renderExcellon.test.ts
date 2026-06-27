@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { type Hole, parseExcellon } from "./parseExcellon";
+import { parseExcellon } from "./parseExcellon";
 import { renderExcellon } from "./renderExcellon";
+import type { Hole } from "./types";
 
 test("renders a valid metric Excellon with one tool per distinct size", () => {
   const holes: Hole[] = [

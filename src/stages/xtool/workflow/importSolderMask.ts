@@ -1,5 +1,5 @@
 import { markTaskBranch } from "@/inkHelpers";
-import { runAppleScript } from "@/utils";
+import { runAppleScript } from "@/macos";
 import type { Client } from "chrome-remote-interface";
 import { Effect } from "effect";
 import { applescriptCopyFileToClipboard } from "../scripts";
@@ -38,13 +38,10 @@ export const importSolderMask = Effect.fn("flatmaxx.xtool.importSolderMask")(
       tasks,
     );
 
+    const pngPath = yield* getSolderMaskPngPath(projectPath, pcbName, side);
     yield* tasks.runTask({
       path: paths.copyPng,
-      effect: runAppleScript(
-        applescriptCopyFileToClipboard(
-          getSolderMaskPngPath(projectPath, pcbName, side),
-        ),
-      ),
+      effect: runAppleScript(applescriptCopyFileToClipboard(pngPath)),
       loading: { status: `Copying ${config.fileSuffix} PNG to clipboard...` },
       success: { label: `${config.fileSuffix} PNG copied to clipboard.` },
     });

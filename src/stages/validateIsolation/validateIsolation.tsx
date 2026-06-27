@@ -1,16 +1,23 @@
 import type { IsolationValidationOptions } from "@/config";
-import { nextStep, renderOnce, renderWaiting } from "@/inkHelpers";
+import { DrcError } from "@/errors";
+import {
+  createTasklist,
+  markTaskBranch,
+  nextStep,
+  renderOnce,
+} from "@/inkHelpers";
 import { Alert } from "@inkjs/ui";
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import { Box, Text } from "ink";
+import { MAX_SHOWN_VIOLATIONS } from "./constants";
 import {
   compileIgnorePatterns,
-  type DrcViolation,
   partitionViolations,
   runIsolationDrc,
 } from "./runIsolationDrc";
-
-const MAX_SHOWN = 12;
+import type { DrcViolation } from "./schema";
+import { isolationTasks } from "./tasks";
+import { isolationTaskPaths } from "./taskPaths";
 
 const describeViolation = (violation: DrcViolation): string => {
   const pos = violation.items?.find((item) => item.pos)?.pos;
@@ -27,7 +34,7 @@ const ViolationReport = ({
   effectiveDiameter: number;
   variant: "error" | "warning";
 }) => {
-  const shown = violations.slice(0, MAX_SHOWN);
+  const shown = violations.slice(0, MAX_SHOWN_VIOLATIONS);
   const remaining = violations.length - shown.length;
   return (
     <Box flexDirection="column">
@@ -50,47 +57,46 @@ const ViolationReport = ({
   );
 };
 
-/**
- * Pre-flight gate: confirms the configured isolation V-bit can separate every
- * trace before any G-code is generated. Implemented as a KiCad DRC run whose
- * clearance constraint is the tool's effective cutting width — any clearance
- * violation is a gap the tool cannot machine. Hard-fails (or warns) per config.
- */
 export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
   function* (
     kicadCli: string,
     pcbFile: string,
     options: IsolationValidationOptions,
   ) {
+    const title = options.enabled
+      ? `Step ${nextStep()}: Validate isolation feasibility`
+      : "Validate isolation feasibility (skipped)";
+    const tasks = yield* createTasklist(isolationTasks, title);
+
     if (!options.enabled) {
-      const [success] = yield* renderWaiting({
-        loading: "Isolation feasibility check...",
+      yield* markTaskBranch(tasks, isolationTasks, isolationTaskPaths.root, {
+        state: "success",
+        label: "Isolation feasibility check skipped.",
+        status: "Isolation feasibility check disabled.",
+        childStatus: "Isolation feasibility check disabled.",
       });
-      yield* success("Isolation feasibility check disabled — skipping.");
       return;
     }
 
     const eff = options.effectiveDiameter.toFixed(4);
-    // Compute the step once and prefix every terminal message with it, so the
-    // completed line keeps its "Step N:" title instead of dropping the number.
-    const step = nextStep();
-    const tag = (message: string): string => `Step ${step}: ${message}`;
-    const [success, error, stop, warning] = yield* renderWaiting({
-      loading: tag(
-        `Validating traces are isolatable with the ${eff}mm V-bit...`,
-      ),
+
+    const patterns = yield* tasks.runTask({
+      path: isolationTaskPaths.compilePatterns,
+      effect: compileIgnorePatterns(options.ignorePatterns),
+      loading: { status: "Compiling ignore patterns..." },
+      success: { label: "Ignore patterns compiled." },
+      error: { label: "Invalid ignore pattern." },
     });
 
-    // Compile ignore patterns up front so a bad regex fails fast and clearly.
-    const patterns = yield* Effect.try({
-      try: () => compileIgnorePatterns(options.ignorePatterns),
-      catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
-    }).pipe(Effect.tapError(() => stop));
-
-    const result = yield* runIsolationDrc(kicadCli, pcbFile, options).pipe(
-      Effect.tapError(() => stop),
-    );
+    const result = yield* tasks.runTask({
+      path: isolationTaskPaths.runDrc,
+      effect: runIsolationDrc(kicadCli, pcbFile, options),
+      loading: {
+        status: `Validating traces are isolatable with the ${eff}mm V-bit...`,
+      },
+      success: { label: "KiCad clearance DRC complete." },
+      error: { label: "KiCad clearance DRC failed." },
+    });
 
     const { blocking, ignored } = partitionViolations(
       result.clearanceViolations,
@@ -99,49 +105,57 @@ export const validateIsolation = Effect.fn("flatmaxx.validateIsolation")(
     const ignoredNote =
       ignored.length > 0 ? ` (${ignored.length} ignored by config)` : "";
 
-    if (blocking.length === 0) {
-      yield* success(
-        tag(
-          `All traces can be isolated with the ${eff}mm V-bit (DRC clean)${ignoredNote}.`,
-        ),
-      );
-      return;
-    }
-
     const count = blocking.length;
 
-    if (options.onFailure === "warn") {
-      yield* warning(
-        tag(
-          `${count} location(s) cannot be isolated with the ${eff}mm V-bit — continuing anyway${ignoredNote}.`,
-        ),
-      );
-      yield* renderOnce(
-        <ViolationReport
-          violations={blocking}
-          effectiveDiameter={options.effectiveDiameter}
-          variant="warning"
-        />,
-      );
-      return;
-    }
-
-    yield* error(
-      tag(
-        `${count} location(s) cannot be isolated with the ${eff}mm V-bit${ignoredNote}.`,
+    return yield* Match.value({
+      hasBlocking: count > 0,
+      onFailure: options.onFailure,
+    }).pipe(
+      Match.when({ hasBlocking: false }, () =>
+        tasks.patchTask(isolationTaskPaths.evaluate, {
+          state: "success",
+          label: `All traces isolatable with the ${eff}mm V-bit.`,
+          status: `DRC clean${ignoredNote}.`,
+        }),
       ),
-    );
-    yield* renderOnce(
-      <ViolationReport
-        violations={blocking}
-        effectiveDiameter={options.effectiveDiameter}
-        variant="error"
-      />,
-    );
-    yield* Effect.fail(
-      new Error(
-        `Isolation infeasible: ${count} clearance violation(s) with the ${eff}mm V-bit. ` +
-          "Use a finer tip/angle, a shallower cut, or add a validation.isolationFeasibility.ignore regex for intentional offenders.",
+      Match.when({ onFailure: "warn" }, () =>
+        Effect.gen(function* () {
+          yield* tasks.patchTask(isolationTaskPaths.evaluate, {
+            state: "warning",
+            label: `${count} location(s) cannot be isolated with the ${eff}mm V-bit.`,
+            status: `Continuing anyway${ignoredNote}.`,
+          });
+          yield* renderOnce(
+            <ViolationReport
+              violations={blocking}
+              effectiveDiameter={options.effectiveDiameter}
+              variant="warning"
+            />,
+          );
+        }),
+      ),
+      Match.orElse(() =>
+        Effect.gen(function* () {
+          yield* tasks.patchTask(isolationTaskPaths.evaluate, {
+            state: "error",
+            label: `${count} location(s) cannot be isolated with the ${eff}mm V-bit.`,
+            status: ignoredNote.trim(),
+          });
+          yield* renderOnce(
+            <ViolationReport
+              violations={blocking}
+              effectiveDiameter={options.effectiveDiameter}
+              variant="error"
+            />,
+          );
+          return yield* Effect.fail(
+            new DrcError({
+              message:
+                `Isolation infeasible: ${count} clearance violation(s) with the ${eff}mm V-bit. ` +
+                "Use a finer tip/angle, a shallower cut, or add a validation.isolationFeasibility.ignore regex for intentional offenders.",
+            }),
+          );
+        }),
       ),
     );
   },

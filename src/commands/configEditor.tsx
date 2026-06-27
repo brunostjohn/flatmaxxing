@@ -4,11 +4,9 @@ import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
 import { Tab, Tabs } from "ink-tab";
 import { Box, Text, useInput, useStdout } from "ink";
 import { TitledBox, titleStyles } from "@mishieck/ink-titled-box";
-import { Effect, Option } from "effect";
+import { Effect, FileSystem, Match, Option, Path } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
-import { mkdirSync } from "node:fs";
-import { basename, dirname } from "node:path";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { rootBuildCommand } from "./build";
 import {
   buildConfigEditorSave,
@@ -28,10 +26,10 @@ import {
   projectArgument,
 } from "./helpers";
 
-type ConfigEditorSearchItem = {
+interface ConfigEditorSearchItem {
   readonly label: string;
   readonly value: string;
-};
+}
 
 type ConfigEditorResult =
   | {
@@ -121,18 +119,15 @@ const searchItems = configEditorFields.map((field) => {
   } satisfies ConfigEditorSearchItem;
 });
 
-type QuickSearchProps = {
+interface QuickSearchProps {
   readonly items: readonly ConfigEditorSearchItem[];
   readonly onSelect: (item: ConfigEditorSearchItem) => void;
   readonly onCancel: () => void;
   readonly focus?: boolean | undefined;
   readonly limit?: number | undefined;
   readonly label?: string | undefined;
-};
+}
 
-// ink-quicksearch-input@1.0.0 targets Ink 2. Its published entrypoints are not
-// directly importable with Bun + Ink 7, so this keeps the documented interaction
-// shape while rendering with modern Ink primitives.
 const QuickSearchInputCompat = ({
   items,
   onSelect,
@@ -219,7 +214,7 @@ const QuickSearchInputCompat = ({
       {visibleItems.length === 0 ? (
         <Text color="red">No matches</Text>
       ) : (
-        visibleItems.map((item, index) => {
+        visibleItems.map((item) => {
           const isSelected = item === selectedItem;
           return (
             <Text key={item.value} color={isSelected ? "green" : undefined}>
@@ -238,10 +233,10 @@ const QuickSearchInputCompat = ({
   );
 };
 
-type ConfigEditorAppProps = {
+interface ConfigEditorAppProps {
   readonly target: ConfigEditorTarget;
   readonly onFinish: (result: ConfigEditorResult) => void;
-};
+}
 
 const ConfigEditorApp = ({ target, onFinish }: ConfigEditorAppProps) => {
   const [activeSectionId, setActiveSectionId] = useState<string>(
@@ -417,11 +412,13 @@ export const defaultConfigEditorRenderer: ConfigEditorRenderer = (target) =>
 
 export const saveConfigEditorValues = Effect.fn("flatmaxx.config.save")(
   function* (target: ConfigEditorTarget, values: Record<string, unknown>) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
     const built = buildConfigEditorSave(target, values);
-    yield* Effect.sync(() => {
-      mkdirSync(dirname(built.targetPath), { recursive: true });
+    yield* fs.makeDirectory(path.dirname(built.targetPath), {
+      recursive: true,
     });
-    yield* Effect.promise(() => Bun.write(built.targetPath, built.toml));
+    yield* fs.writeFileString(built.targetPath, built.toml);
     return built;
   },
 );
@@ -458,20 +455,20 @@ export const makeConfigCommand = (parentCommand: typeof rootBuildCommand) =>
     Effect.fn("flatmaxx.config.command")(function* (
       input: ProjectCliInput & { readonly user: boolean },
     ) {
+      const path = yield* Path.Path;
       const parent = (yield* parentCommand) as SharedCliInput;
       const result = yield* runConfigWorkflow({
         kicadProject: input.kicadProject,
         user: input.user,
         configPath: Option.getOrUndefined(parent.configPath),
       });
+      const name = path.basename(result.targetPath);
+      const message = Match.value(result.type).pipe(
+        Match.when("saved", () => `Saved ${name}.`),
+        Match.orElse(() => `No changes written to ${name}.`),
+      );
 
-      yield* Effect.sync(() => {
-        if (result.type === "saved") {
-          console.log(`Saved ${basename(result.targetPath)}.`);
-        } else {
-          console.log(`No changes written to ${basename(result.targetPath)}.`);
-        }
-      });
+      yield* Effect.sync(() => console.log(message));
     }),
   ).pipe(
     Command.withDescription(

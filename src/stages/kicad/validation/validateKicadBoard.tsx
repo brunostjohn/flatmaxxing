@@ -1,111 +1,160 @@
 import type { BoardValidationOptions } from "@/config";
-import { renderOnce, renderWaiting, renderWithOutput } from "@/inkHelpers";
+import { BoardValidationError, KicadError } from "@/errors";
+import {
+  createTasklist,
+  markTaskBranch,
+  renderOnce,
+  renderWithOutput,
+} from "@/inkHelpers";
 import {
   applyBoardFixes,
-  BoardValidationError,
   validateBoard,
 } from "@/stages/kicad/validation/boardValidation";
+import type { BoardFix } from "@/stages/kicad/validation/boardValidationTypes";
+import { validateBoardTasks } from "@/stages/kicad/validation/tasks";
+import { validateBoardTaskPaths } from "@/stages/kicad/validation/taskPaths";
 import { Alert, ConfirmInput, StatusMessage } from "@inkjs/ui";
-import { Effect } from "effect";
-import { FileSystem } from "effect/FileSystem";
+import { Effect, FileSystem, Match } from "effect";
 import { Box, Text } from "ink";
-import { parseKicadPcb } from "kicadts";
+import { parseKicadPcb, type KicadPcb } from "kicadts";
+
+const confirmFix = (fixes: readonly BoardFix[]) =>
+  renderWithOutput<boolean>((send) => (
+    <>
+      {fixes.map(({ message }) => (
+        <StatusMessage key={message} variant="error">
+          {message}
+        </StatusMessage>
+      ))}
+      <Box gap={1}>
+        <Text color="magenta" bold>
+          Fix the board?
+        </Text>
+        <ConfirmInput
+          defaultChoice="confirm"
+          onConfirm={() => send(true)}
+          onCancel={() => send(false)}
+        />
+      </Box>
+    </>
+  ));
+
+const writeFixedBoard = Effect.fn(
+  "flatmaxx.validateKicadBoard.writeFixedBoard",
+)(function* (
+  projectFilePath: string,
+  pcb: KicadPcb,
+  fixes: readonly BoardFix[],
+) {
+  const fs = yield* FileSystem.FileSystem;
+
+  pcb.generator = `"pcbnew"`;
+  pcb.generatorVersion = `"9.0"`;
+
+  yield* fs.writeFileString(projectFilePath, `${pcb.getStringIndented()}\n`);
+  yield* renderOnce(
+    <Alert variant="success" title="Board updated">
+      {fixes.map((fix) => fix.message).join("\n")}
+    </Alert>,
+  );
+});
 
 export const validateKicadBoard = Effect.fn("flatmaxx.validateKicadBoard")(
   function* (
     projectFilePath: string,
     options: BoardValidationOptions = { autoFix: false },
   ) {
-    const fs = yield* FileSystem;
+    const fs = yield* FileSystem.FileSystem;
+    const tasks = yield* createTasklist(validateBoardTasks);
 
-    const [success, error, end, warning] = yield* renderWaiting({
-      success: "KiCAD board validated.",
-      error: "KiCAD board validation failed.",
-      loading: "Validating KiCAD board...",
+    const { source, pcb } = yield* tasks.runTask({
+      path: validateBoardTaskPaths.parse,
+      loading: { status: "Reading KiCAD PCB file..." },
+      success: { label: "KiCAD PCB file parsed." },
+      error: { label: "Failed to parse KiCAD PCB file." },
+      effect: Effect.gen(function* () {
+        const source = yield* fs.readFileString(projectFilePath);
+        const pcb = yield* Effect.try({
+          try: () => parseKicadPcb(source),
+          catch: (cause) =>
+            new BoardValidationError({
+              message: `Unable to parse KiCad PCB file "${projectFilePath}".`,
+              cause,
+            }),
+        });
+        return { source, pcb };
+      }),
     });
 
-    const source = yield* fs.readFileString(projectFilePath);
-    const pcb = yield* Effect.try({
-      try: () => parseKicadPcb(source),
-      catch: (cause) =>
-        new BoardValidationError(
-          `Unable to parse KiCad PCB file "${projectFilePath}".`,
-          { cause },
-        ),
-    }).pipe(
-      Effect.tapError((error) =>
-        renderOnce(<Alert variant="error">{error.message}</Alert>),
-      ),
-    );
-
-    const fixes = yield* validateBoard({
-      projectFilePath,
-      pcb,
-      source,
-      platingBath: options.platingBath,
-    }).pipe(
-      Effect.tapError((error) =>
-        renderOnce(<Alert variant="error">{error.message}</Alert>),
-      ),
-    );
+    const fixes = yield* tasks.runTask({
+      path: validateBoardTaskPaths.validate,
+      effect: validateBoard({
+        projectFilePath,
+        pcb,
+        source,
+        platingBath: options.platingBath,
+      }),
+      loading: { status: "Running board validators..." },
+      success: { label: "Board validators complete." },
+      error: { label: "Board validation failed." },
+    });
 
     if (fixes === null) {
-      yield* success("No validation errors found.");
-
-      return;
-    }
-
-    yield* warning("The board has validation errors.");
-
-    const shouldFix = options.autoFix
-      ? true
-      : yield* renderWithOutput<boolean>((send) => (
-          <>
-            {fixes.map(({ message }) => (
-              <StatusMessage key={message} variant="error">
-                {message}
-              </StatusMessage>
-            ))}
-            <Box gap={1}>
-              <Text color="magenta" bold>
-                Fix the board?
-              </Text>
-              <ConfirmInput
-                defaultChoice="confirm"
-                onConfirm={() => send(true)}
-                onCancel={() => send(false)}
-              />
-            </Box>
-          </>
-        ));
-
-    if (!shouldFix) {
-      yield* error("User did not want to fix the board.");
-
-      return yield* Effect.die(
-        new Error("User did not want to fix the board."),
+      yield* tasks.patchTask(validateBoardTaskPaths.validate, {
+        state: "success",
+        label: "No validation errors found.",
+      });
+      return yield* markTaskBranch(
+        tasks,
+        validateBoardTasks,
+        validateBoardTaskPaths.applyFixes,
+        {
+          state: "success",
+          label: "No board fixes needed.",
+          status: "Board already valid.",
+        },
       );
     }
 
-    const changed = yield* applyBoardFixes(pcb, fixes);
-    if (!changed) {
-      yield* error("No board changes were made.");
+    yield* tasks.patchTask(validateBoardTaskPaths.validate, {
+      state: "warning",
+      label: "The board has validation errors.",
+    });
 
-      return yield* Effect.die(new Error("No board changes were made."));
-    }
+    const shouldFix = options.autoFix ? true : yield* confirmFix(fixes);
 
-    yield* end;
-
-    // the library i'm using has a bug where it doesnt output this as a string
-    // so we need to manually set it
-    pcb.generator = `"pcbnew"`;
-    pcb.generatorVersion = `"9.0"`;
-
-    yield* fs.writeFileString(projectFilePath, `${pcb.getStringIndented()}\n`);
-    yield* renderOnce(
-      <Alert variant="success" title="Board updated">
-        {fixes.map((fix) => fix.message).join("\n")}
-      </Alert>,
+    return yield* Match.value(shouldFix).pipe(
+      Match.when(false, () =>
+        Effect.gen(function* () {
+          yield* tasks.patchTask(validateBoardTaskPaths.applyFixes, {
+            state: "error",
+            label: "User did not want to fix the board.",
+          });
+          return yield* Effect.fail(
+            new KicadError({
+              message: "User did not want to fix the board.",
+            }),
+          );
+        }),
+      ),
+      Match.orElse(() =>
+        tasks.runTask({
+          path: validateBoardTaskPaths.applyFixes,
+          loading: { status: "Applying board fixes..." },
+          success: { label: "Board fixes applied." },
+          error: { label: "Failed to apply board fixes." },
+          effect: Effect.gen(function* () {
+            const changed = yield* applyBoardFixes(pcb, fixes);
+            if (!changed) {
+              return yield* Effect.fail(
+                new KicadError({ message: "No board changes were made." }),
+              );
+            }
+            yield* writeFixedBoard(projectFilePath, pcb, fixes);
+          }),
+        }),
+      ),
     );
   },
+  Effect.scoped,
 );

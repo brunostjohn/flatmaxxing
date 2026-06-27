@@ -1,3 +1,2 @@
-export function errorToTaskOutput(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+export const errorToTaskOutput = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);

@@ -31,3 +31,12 @@ export interface ParsedDrillFilename {
   readonly method: string;
   readonly diameterMm: number;
 }
+
+export interface MakeraCamSession {
+  readonly pid: number;
+}
+
+export interface WaitForMakeraCamToExitOptions {
+  readonly intervalMs?: number | undefined;
+  readonly recurs?: number | undefined;
+}

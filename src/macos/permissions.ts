@@ -1,5 +1,5 @@
+import { AccessibilityPermissionError } from "@/errors";
 import { Effect } from "effect";
-import { AccessibilityPermissionError } from "./errors";
 import {
   axRequestTrusted,
   axTrusted,

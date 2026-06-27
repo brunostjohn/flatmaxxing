@@ -5,17 +5,17 @@ import {
   loadFlatmaxxConfig,
   type ResolvedConfig,
 } from "@/config";
+import { CliError } from "@/errors";
 import { ensureKicadExists, findPCBProject } from "@/stages";
-import { Effect, Option } from "effect";
+import { Effect, Option, Path } from "effect";
 import { Argument, Flag } from "effect/unstable/cli";
-import { basename } from "node:path";
 import { buildCliOverrides, type CliAliasOverride } from "./cliOverrides";
 
-export type ProjectCliInput = {
+export interface ProjectCliInput {
   readonly kicadProject: string;
-};
+}
 
-export type SharedCliInput = {
+export interface SharedCliInput {
   readonly pathToKicad: Option.Option<string>;
   readonly configPath: Option.Option<string>;
   readonly setOverrides: readonly string[];
@@ -33,17 +33,17 @@ export type SharedCliInput = {
   readonly isolationFeedRate: Option.Option<number>;
   readonly isolationToolDiameter: Option.Option<number>;
   readonly xtoolCdpPort: Option.Option<number>;
-};
+}
 
 export type FlatmaxxCliInput = ProjectCliInput & SharedCliInput;
 
-export type FlatmaxxProjectContext = {
+export interface FlatmaxxProjectContext {
   readonly config: ResolvedConfig;
   readonly projectDir: string;
   readonly kicadCli: string;
   readonly pcbFile: string;
   readonly pcbName: string;
-};
+}
 
 export const projectArgument = Argument.string("kicad-project").pipe(
   Argument.withDescription("The path to the KiCAD project directory."),
@@ -184,7 +184,12 @@ export const loadConfigFromCli = Effect.fn("flatmaxx.loadConfigFromCli")(
     const cliOverrides = yield* Effect.try({
       try: () => buildCliOverrideObject(input),
       catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
+        cause instanceof CliError
+          ? cause
+          : new CliError({
+              message: cause instanceof Error ? cause.message : String(cause),
+              cause,
+            }),
     });
 
     return yield* loadFlatmaxxConfig({
@@ -204,10 +209,10 @@ export const resolveFlatcam = (config: ResolvedConfig) =>
 export const prepareProjectContext = Effect.fn(
   "flatmaxx.prepareProjectContext",
 )(function* (
-  input: ProjectCliInput,
   config: ResolvedConfig,
   options: { readonly checkKicad?: boolean | undefined } = {},
 ) {
+  const path = yield* Path.Path;
   const kicadCli = resolveKicadCli(config);
 
   if (options.checkKicad) {
@@ -218,7 +223,7 @@ export const prepareProjectContext = Effect.fn(
     config.projectDir,
     buildBoardSelectionOptions(config),
   );
-  const pcbName = yield* Effect.sync(() => basename(pcbFile, ".kicad_pcb"));
+  const pcbName = path.basename(pcbFile, ".kicad_pcb");
 
   return {
     config,

@@ -1,5 +1,6 @@
 import type { Client } from "chrome-remote-interface";
 import { Effect, Schedule } from "effect";
+import { XToolError } from "@/errors";
 import { runScriptInXToolStudio } from "../cdp";
 import { isShellCreateProjectButtonReady } from "../scripts";
 
@@ -15,7 +16,9 @@ export const waitForXToolStudioShellCreateProjectButton = Effect.fn(
 
     if (!isReady) {
       return yield* Effect.fail(
-        new Error("xTool Studio shell plus button is not ready"),
+        new XToolError({
+          message: "xTool Studio shell plus button is not ready",
+        }),
       );
     }
   });

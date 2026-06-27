@@ -6,4 +6,5 @@ export * from "./process";
 export * from "./runFinalCut";
 export * from "./runPlatedHoles";
 export * from "./selectStepDrills";
+export * from "./tasks";
 export * from "./types";

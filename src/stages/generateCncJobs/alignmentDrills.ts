@@ -1,24 +1,9 @@
 import { renderExcellon } from "@/stages/categorizeDrills/renderExcellon";
+import { Array } from "effect";
+import type { BoardBounds, DrillPoint } from "./types";
 
-export interface BoardBounds {
-  readonly xmin: number;
-  readonly ymin: number;
-  readonly xmax: number;
-  readonly ymax: number;
-}
+export type { BoardBounds, DrillPoint } from "./types";
 
-export interface DrillPoint {
-  readonly x: number;
-  readonly y: number;
-}
-
-/**
- * The four registration drill positions: one per board corner, offset outward
- * by `distance` on each axis. The pattern is symmetric about the board centre,
- * so its centre coincides with the board bounding-box centre — which is exactly
- * the axis the back copper is mirrored about (`mirror -box <outline>`). That is
- * what keeps the flipped board registered on the dowel pins.
- */
 export const alignmentDrillPoints = (
   bounds: BoardBounds,
   distance: { readonly x: number; readonly y: number },
@@ -34,18 +19,12 @@ export const alignmentDrillPoints = (
   ];
 };
 
-/**
- * A minimal absolute-metric decimal Excellon file with a single tool. Written
- * directly (FlatCAM's `export_excellon` Tcl command is broken in this build) so
- * the registration holes can be drilled in the same coordinate system as the
- * copper gerbers. Delegates to the shared {@link renderExcellon} writer.
- */
 export const renderAlignmentExcellon = (
   points: readonly DrillPoint[],
   diameter: number,
 ): string =>
   renderExcellon(
-    points.map((p) => ({
+    Array.map(points, (p) => ({
       kind: "circle",
       plating: "unknown",
       diameter,

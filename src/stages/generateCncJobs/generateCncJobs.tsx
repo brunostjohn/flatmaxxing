@@ -1,3 +1,4 @@
+import { CncError } from "@/errors";
 import {
   createTasklist,
   markTaskBranch,
@@ -5,8 +6,16 @@ import {
   type TaskDef,
 } from "@/inkHelpers";
 import type { Side } from "@/config";
-import { Effect, FileSystem } from "effect";
-import { basename, join } from "node:path";
+import {
+  Array,
+  Effect,
+  FileSystem,
+  Match,
+  Option,
+  Path,
+  Result,
+  Schema,
+} from "effect";
 import {
   alignmentDrillPoints,
   type BoardBounds,
@@ -25,6 +34,7 @@ import {
   type ToolSection,
 } from "./ncGcode";
 import { runFlatcam } from "./runFlatcam";
+import { BoundsTupleSchema } from "./schema";
 
 const cncTasks: TaskDef[] = [
   {
@@ -44,46 +54,36 @@ const cncTasks: TaskDef[] = [
   },
 ];
 
+const layerForSide: Record<Side, string> = {
+  front: "F_Cu",
+  back: "B_Cu",
+};
+
 const findGerber = (
   files: readonly string[],
   board: string,
   layer: string,
 ): string | undefined => files.find((f) => f.startsWith(`${board}-${layer}.`));
 
-const parseBounds = (raw: string): BoardBounds => {
-  const [xmin, ymin, xmax, ymax] = raw
-    .trim()
-    .split(/\s+/)
-    .map((n) => Number.parseFloat(n));
-  if (
-    xmin === undefined ||
-    ymin === undefined ||
-    xmax === undefined ||
-    ymax === undefined ||
-    [xmin, ymin, xmax, ymax].some((v) => !Number.isFinite(v))
-  ) {
-    throw new Error(`Could not parse board bounds from: "${raw}"`);
-  }
-  return { xmin, ymin, xmax, ymax };
-};
+const decodeBounds = Schema.decodeUnknownEffect(BoundsTupleSchema);
 
-/**
- * Step 4: turn the copper gerbers into Carvera-ready milling G-code.
- *
- * One headless FlatCAM run produces per-(side,tool) `.nc` files in a scratch dir
- * plus the board bounds; we then (a) write the alignment-drill Excellon into the
- * gerbers dir and (b) merge each side's tool files into a single Carvera program
- * with clean `M6 T<n>` toolchanges in the gcode dir — isolation first (V-bit),
- * then the full NCC sequence (mills biggest→smallest, then the V-bit again as the
- * fine finish, so the V-bit is loaded twice).
- */
+const parseBounds = (raw: string): Effect.Effect<BoardBounds, CncError> =>
+  decodeBounds(raw.trim().split(/\s+/).map(Number)).pipe(
+    Effect.mapError(
+      (cause) =>
+        new CncError({
+          message: `Could not parse board bounds from: "${raw}"`,
+          cause,
+        }),
+    ),
+    Effect.map(([xmin, ymin, xmax, ymax]) => ({ xmin, ymin, xmax, ymax })),
+  );
+
 export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
   flatcam: string,
   pcbFile: string,
   options: CncJobOptions,
 ) {
-  // Only consume a step number when we're actually generating jobs, so a
-  // skipped CNC stage doesn't leave a gap in the displayed step sequence.
   const title = options.enabled
     ? `Step ${nextStep()}: Generate CNC jobs`
     : "Generate CNC jobs (skipped)";
@@ -112,7 +112,8 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
   }
 
   const fs = yield* FileSystem.FileSystem;
-  const board = basename(pcbFile, ".kicad_pcb");
+  const path = yield* Path.Path;
+  const board = path.basename(pcbFile, ".kicad_pcb");
 
   const gerberFiles = yield* fs.readDirectory(options.gerbersDir);
   const edgeCuts = findGerber(gerberFiles, board, "Edge_Cuts");
@@ -122,38 +123,35 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
       output: `No Edge_Cuts gerber found in ${options.gerbersDir}`,
     });
     return yield* Effect.fail(
-      new Error(`Missing ${board}-Edge_Cuts.* in ${options.gerbersDir}`),
+      new CncError({
+        message: `Missing ${board}-Edge_Cuts.* in ${options.gerbersDir}`,
+      }),
     );
   }
 
-  const layerForSide: Record<Side, string> = {
-    front: "F_Cu",
-    back: "B_Cu",
-  };
-  const sideGerbers: SideGerber[] = [];
-  for (const side of options.sides) {
+  const sideGerbers: SideGerber[] = Array.filterMap(options.sides, (side) => {
     const copper = findGerber(gerberFiles, board, layerForSide[side]);
-    if (copper) {
-      sideGerbers.push({
-        side,
-        copperGerber: join(options.gerbersDir, copper),
-      });
-    }
-  }
+    return copper
+      ? Result.succeed({
+          side,
+          copperGerber: path.join(options.gerbersDir, copper),
+        } satisfies SideGerber)
+      : Result.fail(undefined);
+  });
 
   const scratch = yield* fs.makeTempDirectoryScoped({
     prefix: "flatmaxx-cnc-",
   });
-  const boundsFile = join(scratch, "bounds.txt");
-  const shellFile = join(scratch, "job.tcl");
-  const logFile = join(scratch, "flatcam.log");
-  const doneFile = join(scratch, "done.flag");
+  const boundsFile = path.join(scratch, "bounds.txt");
+  const shellFile = path.join(scratch, "job.tcl");
+  const logFile = path.join(scratch, "flatcam.log");
+  const doneFile = path.join(scratch, "done.flag");
 
   yield* fs.writeFileString(
     shellFile,
     buildFlatcamScript({
       sides: sideGerbers,
-      edgeCutsGerber: join(options.gerbersDir, edgeCuts),
+      edgeCutsGerber: path.join(options.gerbersDir, edgeCuts),
       mirrorAxis: options.mirrorAxis,
       plan: options.plan,
       scratchDir: scratch,
@@ -185,15 +183,14 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
     label: "FlatCAM finished.",
   });
 
-  // ---- Alignment drills (only when the back is actually machined) ----
-  const backMachined = yield* fs.exists(join(scratch, isoNcName("back")));
+  const backMachined = yield* fs.exists(path.join(scratch, isoNcName("back")));
   if (options.alignmentDrills.generate && backMachined) {
-    const bounds = parseBounds(yield* fs.readFileString(boundsFile));
+    const bounds = yield* parseBounds(yield* fs.readFileString(boundsFile));
     const points = alignmentDrillPoints(
       bounds,
       options.alignmentDrills.distance,
     );
-    const drlPath = join(options.gerbersDir, `${board}-alignment.drl`);
+    const drlPath = path.join(options.gerbersDir, `${board}-alignment.drl`);
     yield* fs.writeFileString(
       drlPath,
       renderAlignmentExcellon(points, options.alignmentDrills.diameter),
@@ -209,52 +206,62 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
     });
   }
 
-  // ---- Merge per side into one Carvera program ----
   yield* fs.makeDirectory(options.gcodeDir, { recursive: true });
   yield* patchTask("merge", { state: "loading" });
 
+  const readBody = Effect.fn("flatmaxx.generateCncJobs.readBody")(function* (
+    name: string,
+  ) {
+    const filePath = path.join(scratch, name);
+    return yield* Match.value(yield* fs.exists(filePath)).pipe(
+      Match.when(true, () =>
+        fs.readFileString(filePath).pipe(Effect.map(extractToolpathBody)),
+      ),
+      Match.orElse(() => Effect.succeed([] as string[])),
+    );
+  });
+
+  const sectionOf = (
+    body: readonly string[],
+    label: string,
+    spindleSpeed: number,
+  ): Option.Option<ToolSection> =>
+    Array.isReadonlyArrayNonEmpty(body)
+      ? Option.some({
+          toolNumber: 0,
+          label,
+          spindleSpeed,
+          travelZ: options.plan.clearance.travelZ,
+          body,
+        })
+      : Option.none();
+
+  const nccLabel = (tool: CncJobOptions["plan"]["ncc"]["tools"][number]) =>
+    tool.kind === "vbit" ? `${tool.label} (clearing)` : tool.label;
+
   const assembleSide = Effect.fn("flatmaxx.generateCncJobs.assembleSide")(
     function* (side: Side) {
-      const readBody = Effect.fn("readBody")(function* (name: string) {
-        const path = join(scratch, name);
-        if (!(yield* fs.exists(path))) return [];
-        return extractToolpathBody(yield* fs.readFileString(path));
-      });
-
-      const sections: ToolSection[] = [];
-      let toolNumber = 0;
-
-      // 1) Isolation first, as its own V-bit operation.
       const isoBody = yield* readBody(isoNcName(side));
-      if (isoBody.length > 0) {
-        toolNumber += 1;
-        sections.push({
-          toolNumber,
-          label: `${options.plan.isolation.label} (isolation)`,
-          spindleSpeed: options.plan.isolation.spindleSpeed,
-          travelZ: options.plan.clearance.travelZ,
-          body: isoBody,
-        });
-      }
+      const isoSection = sectionOf(
+        isoBody,
+        `${options.plan.isolation.label} (isolation)`,
+        options.plan.isolation.spindleSpeed,
+      );
 
-      // 2) Then NCC, all of its tools in clearing order (mills biggest→
-      // smallest, then the V-bit again as the fine finish). Each tool that
-      // produced a toolpath is its own section/toolchange — so the V-bit is
-      // loaded twice (isolation, then NCC finish), which is expected.
-      for (const tool of options.plan.ncc.tools) {
-        const body = yield* readBody(nccNcName(side, tool.uid));
-        if (body.length > 0) {
-          toolNumber += 1;
-          sections.push({
-            toolNumber,
-            label:
-              tool.kind === "vbit" ? `${tool.label} (clearing)` : tool.label,
-            spindleSpeed: tool.spindleSpeed,
-            travelZ: options.plan.clearance.travelZ,
-            body,
-          });
-        }
-      }
+      const nccSections = yield* Effect.forEach(
+        options.plan.ncc.tools,
+        (tool) =>
+          readBody(nccNcName(side, tool.uid)).pipe(
+            Effect.map((body) =>
+              sectionOf(body, nccLabel(tool), tool.spindleSpeed),
+            ),
+          ),
+      );
+
+      const sections = Array.map(
+        Array.getSomes([isoSection, ...nccSections]),
+        (section, index) => ({ ...section, toolNumber: index + 1 }),
+      );
 
       if (sections.length === 0) {
         yield* markTaskBranch(taskControls, cncTasks, ["merge", side], {
@@ -273,7 +280,7 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
           "Carvera-targeted; manual tool changes at M6 (TLO re-probe).",
         ],
       });
-      const outPath = join(options.gcodeDir, `${board}-${side}.nc`);
+      const outPath = path.join(options.gcodeDir, `${board}-${side}.nc`);
       yield* fs.writeFileString(outPath, gcode);
       yield* markTaskBranch(taskControls, cncTasks, ["merge", side], {
         state: "success",
@@ -282,16 +289,17 @@ export const generateCncJobs = Effect.fn("flatmaxx.generateCncJobs")(function* (
     },
   );
 
-  for (const side of ["front", "back"] as const) {
-    if (options.sides.includes(side)) {
-      yield* assembleSide(side);
-    } else {
-      yield* markTaskBranch(taskControls, cncTasks, ["merge", side], {
-        state: "success",
-        label: `${side} skipped (board.ignoreSide).`,
-      });
-    }
-  }
+  yield* Effect.forEach(["front", "back"] as const, (side) =>
+    Match.value(options.sides.includes(side)).pipe(
+      Match.when(true, () => assembleSide(side)),
+      Match.orElse(() =>
+        markTaskBranch(taskControls, cncTasks, ["merge", side], {
+          state: "success",
+          label: `${side} skipped (board.ignoreSide).`,
+        }),
+      ),
+    ),
+  );
 
   yield* patchTask("merge", {
     state: "success",

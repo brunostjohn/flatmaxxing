@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { IDxf } from "dxf-parser";
 import DxfParser from "dxf-parser";
-import { Effect, Exit } from "effect";
+import { Array, Effect, Exit } from "effect";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getDxfBounds } from "@/stages/xtool/geometry";
@@ -30,19 +30,17 @@ test("worker dxfHasPlottableGeometry matches the direct result", async () => {
 });
 
 test("multiple worker computations run in parallel and all resolve", async () => {
-  // Front fixtures both carry geometry (this board's back side is empty).
   const files = ["valid_board-F_Mask.dxf", "valid_board-F_Paste.dxf"];
   const results = await Effect.runPromise(
     Effect.all(
-      files.map((f) => dxfBounds(fixture(f))),
+      Array.map(files, (file) => dxfBounds(fixture(file))),
       { concurrency: "unbounded" },
     ),
   );
   expect(results).toHaveLength(2);
-  for (const bounds of results) {
-    expect(bounds.width).toBeGreaterThan(0);
-    expect(bounds.height).toBeGreaterThan(0);
-  }
+  expect(results.every((bounds) => bounds.width > 0 && bounds.height > 0)).toBe(
+    true,
+  );
 });
 
 test("worker surfaces the empty-DXF error as an Effect failure", async () => {

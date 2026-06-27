@@ -1,5 +1,6 @@
 import type { XToolLifecycleOptions } from "@/config";
-import { Effect, Ref, Schedule } from "effect";
+import { XToolError } from "@/errors";
+import { Duration, Effect, Ref, Schedule } from "effect";
 import { getTargets, getXToolStudioShell } from "../cdp";
 import {
   closeOwnedXToolStudio,
@@ -78,7 +79,9 @@ export const startXToolStudioLifecycle = Effect.fn(
       });
 
       return yield* Effect.fail(
-        new Error("xTool Studio was already open before the xTool stage."),
+        new XToolError({
+          message: "xTool Studio was already open before the xTool stage.",
+        }),
       );
     }
 
@@ -134,12 +137,14 @@ export const startXToolStudioLifecycle = Effect.fn(
       .runTask({
         path: paths.close,
         effect: Effect.gen(function* () {
-          for (const seconds of [5, 4, 3, 2, 1]) {
-            yield* tasks.patchTask(paths.close, {
-              status: `Closing xTool Studio in ${seconds}...`,
-            });
-            yield* Effect.sleep(1000);
-          }
+          yield* Effect.forEach([5, 4, 3, 2, 1], (seconds) =>
+            Effect.gen(function* () {
+              yield* tasks.patchTask(paths.close, {
+                status: `Closing xTool Studio in ${seconds}...`,
+              });
+              yield* Effect.sleep(Duration.millis(1000));
+            }),
+          );
 
           yield* tasks.patchTask(paths.close, {
             status: `Sending SIGTERM to xTool Studio (${handle.processIds.join(", ")})...`,
@@ -192,7 +197,12 @@ export const startXToolStudioLifecycle = Effect.fn(
           const message =
             error instanceof Error ? error.message : String(error);
 
-          return yield* Effect.fail(new Error(`${message}. ${processDetail}.`));
+          return yield* Effect.fail(
+            new XToolError({
+              message: `${message}. ${processDetail}.`,
+              cause: error,
+            }),
+          );
         }),
       ),
       Effect.retry(

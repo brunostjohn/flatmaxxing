@@ -14,7 +14,6 @@ import type {
 export const defaultKicadCli =
   "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
 
-// The CNC stage shells out to FlatCAM headlessly (`flatcam --shellfile=… --headless=1`).
 export const defaultFlatcam = "flatcam";
 
 export const defaultDependencies = {
@@ -132,7 +131,6 @@ export const defaultStencilXTool = {
 export const defaultAlignmentDrills = {
   generate: true,
   distance: defaultAlignmentDrillDistance,
-  // Diameter of the registration dowel holes (CarveraPCBGuide uses 2mm).
   diameter: 2,
 };
 
@@ -160,8 +158,6 @@ export const defaultStencil = {
 
 export const defaultDrills = {
   generate: true,
-  // This currently only annotates downstream handling; KiCad drill generation
-  // is unchanged by the flag.
   withEdgeCuts: false,
 };
 
@@ -185,9 +181,6 @@ export const defaultCncDrillTool = {
   diameter: 1,
 };
 
-// Trace isolation with the V-bit. Feeds follow the CarveraPCBGuide values
-// (XY 120 / Z 60). zCutDepth (0.05) drives the effective V-bit width:
-// effective_dia = tip + 2*|cutZ|*tan(angle/2) = 0.14 + 2*0.05*tan(30deg) ≈ 0.198.
 export const defaultCncIsolation = {
   feedRate: 120,
   spindleSpeed: 15000,
@@ -196,15 +189,9 @@ export const defaultCncIsolation = {
   tool: defaultCncVBitTool,
   passes: 3,
   overlap: 60,
-  // 0 = exteriors, 1 = interiors, 2 = full isolation (both).
   isoType: 2,
 } satisfies CncIsolationOptions;
 
-// Non-copper clearing. The tool list is derived at build time from
-// cnc.availableMills (biggest→smallest) plus the isolation V-bit appended last,
-// run as a non-rest multi-tool job (FlatCAM's non-rest path already clears
-// complementary "rest" areas). Mills cut deeper (millZCutDepth) than the V-bit
-// (zCutDepth) because corn-bit TLO probing is unreliable.
 export const defaultCncNonCopperClearing = {
   feedRate: 120,
   spindleSpeed: 15000,
@@ -217,8 +204,6 @@ export const defaultCncNonCopperClearing = {
   millZCutDepth: 0.075,
 } satisfies CncNonCopperClearingOptions;
 
-// Machine clearance/travel heights shared by isolation + NCC. Values from the
-// user's last real Carvera run. seamZ is the retract between merged operations.
 export const defaultCncClearance = {
   travelZ: 2,
   endZ: 15,
@@ -226,8 +211,6 @@ export const defaultCncClearance = {
   seamZ: 15,
 } satisfies CncClearanceOptions;
 
-// Back side is machined after flipping the board left-right on the alignment
-// dowels, so the back copper is mirrored across the X axis.
 export const defaultCncBackside = {
   mirrorAxis: "X" as const,
 };
@@ -253,9 +236,6 @@ export const defaultAvailableMills = [
   { type: "mill", diameter: 1.5 },
 ] satisfies CncMillBitOptions[];
 
-// Hole→tool matching: a drill bit may be at most matchToleranceMm wider than a
-// hole and still be used (rounding up — never undersize). On tiny boards even
-// +0.05mm matters, so every round-up is warned and logged to ROUNDED_UP.txt.
 export const defaultCncDrilling = {
   matchToleranceMm: 0.05,
 } satisfies CncDrillingOptions;
@@ -297,22 +277,12 @@ export const defaultValidationRanges = {
   electroplatingConcentrationPercent: { min: 0.001, max: 100 },
 };
 
-// Pre-flight gate: verify the chosen V-bit can isolate every trace (via a KiCad
-// DRC run with the effective tool diameter as the clearance constraint) before
-// generating any G-code. "error" aborts the run; "warn" only logs.
-// `ignore` is a list of regexes matched against each clearance violation's text
-// (description + the items involved); matching violations are excluded from the
-// gate. Use it for intentional offenders like awkward antenna footprints.
 export const defaultIsolationFeasibility = {
   enabled: true,
   onFailure: "error" as const,
   ignore: [] as string[],
 };
 
-// Pre-flight gate: verify every component hole can be made with the tools on
-// hand (an exact/round-up drill, else a cornmill that fits as a pocket) before
-// generating any G-code. "error" aborts the run; "warn" only logs. No ignore
-// list — unlike isolation, an unmachinable hole is never intentional.
 export const defaultDrillFeasibility = {
   enabled: true,
   onFailure: "error" as const,

@@ -1,4 +1,4 @@
-import { Effect, MutableHashMap } from "effect";
+import { Array, Effect, MutableHashMap } from "effect";
 import { render } from "ink";
 import { errorToTaskOutput } from "./errorToTaskOutput";
 import { joinTaskPath } from "./joinTaskPath";
@@ -22,12 +22,12 @@ export const createTasklist = Effect.fn("flatmaxx.ink.createTasklist")(
       ...initialTasks.map((task) => [task.id, task] as const),
     );
 
-    const readTasks = () => Array.from(MutableHashMap.values(tasks));
+    const readTasks = () => Array.fromIterable(MutableHashMap.values(tasks));
     const writeTasks = (nextTasks: readonly TaskDef[]) => {
       MutableHashMap.clear(tasks);
-      for (const task of nextTasks) {
+      Array.forEach(nextTasks, (task) => {
         MutableHashMap.set(tasks, task.id, task);
-      }
+      });
     };
     const renderTasks = () =>
       rerender(<TaskRenderer tasks={readTasks()} title={title} />);

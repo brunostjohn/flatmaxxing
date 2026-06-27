@@ -1,22 +1,37 @@
+import { Effect, Path } from "effect";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, resolve } from "node:path";
 
-export const expandHome = (path: string): string => {
+export const expandHome = Effect.fn("flatmaxx.config.expandHome")(function* (
+  path: string,
+) {
+  const pathService = yield* Path.Path;
+
   if (path === "~") {
-    return homedir();
+    return yield* Effect.sync(() => homedir());
   }
 
   if (path.startsWith("~/")) {
-    return resolve(homedir(), path.slice(2));
+    const home = yield* Effect.sync(() => homedir());
+    return pathService.resolve(home, path.slice(2));
   }
 
   return path;
-};
+});
 
-export const resolveFrom = (baseDirectory: string, path: string): string => {
-  const expanded = expandHome(path);
-  return isAbsolute(expanded) ? expanded : resolve(baseDirectory, expanded);
-};
+export const resolveFrom = Effect.fn("flatmaxx.config.resolveFrom")(function* (
+  baseDirectory: string,
+  path: string,
+) {
+  const pathService = yield* Path.Path;
+  const expanded = yield* expandHome(path);
+  return pathService.isAbsolute(expanded)
+    ? expanded
+    : pathService.resolve(baseDirectory, expanded);
+});
 
-export const resolveSibling = (fromFile: string, path: string): string =>
-  resolveFrom(dirname(fromFile), path);
+export const resolveSibling = Effect.fn("flatmaxx.config.resolveSibling")(
+  function* (fromFile: string, path: string) {
+    const pathService = yield* Path.Path;
+    return yield* resolveFrom(pathService.dirname(fromFile), path);
+  },
+);

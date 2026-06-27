@@ -3,21 +3,32 @@ import type {
   AlignmentDrillCategorizationOptions,
   DrillCategorizationOptions,
 } from "@/config";
-import { nextStep, renderOnce, renderWaiting } from "@/inkHelpers";
-import { Alert } from "@inkjs/ui";
-import { Effect, FileSystem } from "effect";
-import { Box, Text } from "ink";
-import { basename, dirname, join } from "node:path";
+import { DrillError } from "@/errors";
 import {
-  categorizeHoles,
-  renderRoundedUpReport,
-  type RoundUpEvent,
-  type UnmachinableHole,
-} from "./categorizeHoles";
-import { type Hole, parseExcellon } from "./parseExcellon";
+  createTasklist,
+  markTaskBranch,
+  nextStep,
+  renderOnce,
+  type TaskDef,
+} from "@/inkHelpers";
+import { Alert } from "@inkjs/ui";
+import { Array, Effect, FileSystem, Match, Option, Path, pipe } from "effect";
+import { Box, Text } from "ink";
+import { categorizeHoles, renderRoundedUpReport } from "./categorizeHoles";
+import { MAX_SHOWN } from "./constants";
+import { parseExcellon } from "./parseExcellon";
 import { renderExcellon } from "./renderExcellon";
+import type {
+  Hole,
+  RoundUpEvent,
+  ToolInventory,
+  UnmachinableHole,
+} from "./types";
 
-const MAX_SHOWN = 12;
+const ROUNDED_UP_FILE = "ROUNDED_UP.txt";
+const PCB_SUFFIX = ".kicad_pcb";
+const DRL_SUFFIX = ".drl";
+const ALIGNMENT_SUFFIX = "-alignment.drl";
 
 const holeLocation = (hole: Hole): string => {
   const p = hole.kind === "circle" ? hole : hole.path[0]!;
@@ -84,243 +95,394 @@ const RoundUpReport = ({ events }: { events: readonly RoundUpEvent[] }) => {
   );
 };
 
-const isComponentDrill = (file: string, board: string): boolean => {
-  if (!file.toLowerCase().endsWith(".drl")) return false;
-  if (file.endsWith("-alignment.drl")) return false;
-  return file === `${board}.drl` || file.startsWith(`${board}-`);
-};
+const isComponentDrill = (file: string, board: string): boolean =>
+  pipe(
+    Match.value(file),
+    Match.when(
+      (f) => !f.toLowerCase().endsWith(DRL_SUFFIX),
+      () => false,
+    ),
+    Match.when(
+      (f) => f.endsWith(ALIGNMENT_SUFFIX),
+      () => false,
+    ),
+    Match.orElse(
+      (f) => f === `${board}${DRL_SUFFIX}` || f.startsWith(`${board}-`),
+    ),
+  );
 
-/**
- * Step 2: categorise every KiCad-exported component hole by how it must be made
- * with the tools on hand, and gate the run on machinability.
- *
- * Reads `gerbers/<board>*.drl` (excluding the alignment file), buckets each hole
- * into one `.drl` per (plating × method × tool) in `paths.drills`, and — when a
- * hole has no exact bit — records the oversize drill to `ROUNDED_UP.txt`. If any
- * hole can't be made at all, it hard-fails before the long CNC job (per config).
- * Alignment holes are handled separately by the CNC stage (this gate ignores them).
- */
+const inventoryOf = (options: {
+  readonly availableDrills: ToolInventory["drills"];
+  readonly availableMills: ToolInventory["mills"];
+  readonly matchToleranceMm: number;
+}): ToolInventory => ({
+  drills: options.availableDrills,
+  mills: options.availableMills,
+  toleranceMm: options.matchToleranceMm,
+});
+
+const categorizeTasks: TaskDef[] = [
+  { id: "scan", label: "Scanning component drill files...", state: "loading" },
+  { id: "categorize", label: "Categorizing holes...", state: "pending" },
+  {
+    id: "write",
+    label: "Writing categorized drill files...",
+    state: "pending",
+  },
+];
+
 export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
   function* (pcbFile: string, options: DrillCategorizationOptions) {
-    if (!options.enabled) {
-      const [success] = yield* renderWaiting({
-        loading: "Drill machinability check...",
-      });
-      yield* success("Drill categorization disabled — skipping.");
-      return;
-    }
-
     const fs = yield* FileSystem.FileSystem;
-    const board = basename(pcbFile, ".kicad_pcb");
-    const projectRoot = dirname(pcbFile);
-    const roundedUpPath = join(projectRoot, "ROUNDED_UP.txt");
+    const path = yield* Path.Path;
 
-    // Compute the step once and prefix every terminal message with it, so the
-    // completed line keeps its "Step N:" title instead of dropping the number.
-    const step = nextStep();
-    const tag = (message: string): string => `Step ${step}: ${message}`;
-    const [success, error, stop, warning] = yield* renderWaiting({
-      loading: tag("Categorizing drills & checking machinability..."),
-    });
+    const title = options.enabled
+      ? `Step ${nextStep()}: Categorize drills`
+      : "Categorize drills (skipped)";
+    const controls = yield* createTasklist(categorizeTasks, title);
+    const { patchTask } = controls;
+
+    const board = path.basename(pcbFile, PCB_SUFFIX);
+    const projectRoot = path.dirname(pcbFile);
+    const roundedUpPath = path.join(projectRoot, ROUNDED_UP_FILE);
 
     const clearStaleRoundedUp = Effect.gen(function* () {
-      if (yield* fs.exists(roundedUpPath)) yield* fs.remove(roundedUpPath);
+      const exists = yield* fs.exists(roundedUpPath);
+      yield* Match.value(exists).pipe(
+        Match.when(true, () => fs.remove(roundedUpPath)),
+        Match.orElse(() => Effect.void),
+      );
     });
 
-    if (!(yield* fs.exists(options.gerbersDir))) {
-      yield* clearStaleRoundedUp;
-      yield* success(tag("No gerbers directory — no drills to categorize."));
+    const finishSkipped = (label: string) =>
+      Effect.gen(function* () {
+        yield* markTaskBranch(controls, categorizeTasks, "scan", {
+          state: "success",
+          label,
+        });
+        yield* markTaskBranch(controls, categorizeTasks, "categorize", {
+          state: "success",
+          label: "Nothing to categorize.",
+        });
+        yield* markTaskBranch(controls, categorizeTasks, "write", {
+          state: "success",
+          label: "No files written.",
+        });
+      });
+
+    if (!options.enabled) {
+      yield* finishSkipped("Drill categorization disabled — skipping.");
       return;
     }
 
-    const drillFiles = (yield* fs.readDirectory(options.gerbersDir)).filter(
-      (file) => isComponentDrill(file, board),
+    const gerbersExist = yield* fs.exists(options.gerbersDir);
+    if (!gerbersExist) {
+      yield* clearStaleRoundedUp;
+      yield* finishSkipped("No gerbers directory — no drills to categorize.");
+      return;
+    }
+
+    const drillFiles = pipe(
+      yield* fs.readDirectory(options.gerbersDir),
+      Array.filter((file) => isComponentDrill(file, board)),
     );
     if (drillFiles.length === 0) {
       yield* clearStaleRoundedUp;
-      yield* success(
-        tag("No component drill files found — nothing to categorize."),
-      );
+      yield* finishSkipped("No component drill files found.");
       return;
     }
 
-    const holes: Hole[] = [];
-    for (const file of drillFiles) {
-      const text = yield* fs
-        .readFileString(join(options.gerbersDir, file))
-        .pipe(Effect.tapError(() => stop));
-      holes.push(...parseExcellon(text).holes);
-    }
+    yield* patchTask("scan", {
+      state: "success",
+      label: `Found ${drillFiles.length} component drill file(s).`,
+    });
+    yield* patchTask("categorize", { state: "loading" });
+
+    const holes = yield* Effect.forEach(drillFiles, (file) =>
+      fs.readFileString(path.join(options.gerbersDir, file)).pipe(
+        Effect.mapError(
+          (cause) =>
+            new DrillError({
+              message: `Could not read drill file ${file}.`,
+              cause,
+            }),
+        ),
+        Effect.map((text) => parseExcellon(text).holes),
+      ),
+    ).pipe(
+      Effect.map(Array.flatten),
+      Effect.tapError(() => patchTask("categorize", { state: "error" })),
+    );
 
     if (holes.length === 0) {
       yield* clearStaleRoundedUp;
-      yield* success(tag("Drill files contain no holes."));
+      yield* patchTask("categorize", {
+        state: "success",
+        label: "Drill files contain no holes.",
+      });
+      yield* patchTask("write", {
+        state: "success",
+        label: "No files written.",
+      });
       return;
     }
 
-    const { groups, unmachinable, roundUps } = categorizeHoles(holes, {
-      drills: options.availableDrills,
-      mills: options.availableMills,
-      toleranceMm: options.matchToleranceMm,
-    });
+    const { groups, unmachinable, roundUps } = categorizeHoles(
+      holes,
+      inventoryOf(options),
+    );
 
-    // Hard gate — fail before writing anything (and before the CNC job).
-    if (unmachinable.length > 0 && options.onFailure === "error") {
-      yield* error(
-        tag(
-          `${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
-        ),
-      );
-      yield* renderOnce(
-        <UnmachinableReport items={unmachinable} variant="error" />,
-      );
-      return yield* Effect.fail(
-        new Error(
-          `Drill infeasible: ${unmachinable.length} hole(s) have no usable tool. ` +
-            "Add a matching drill bit (within cnc.drilling.matchToleranceMm) or a smaller cornmill to availableMills.",
-        ),
-      );
-    }
+    yield* Match.value({
+      blocked: unmachinable.length > 0 && options.onFailure === "error",
+    }).pipe(
+      Match.when({ blocked: true }, () =>
+        Effect.gen(function* () {
+          yield* patchTask("categorize", {
+            state: "error",
+            label: `${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
+          });
+          yield* renderOnce(
+            <UnmachinableReport items={unmachinable} variant="error" />,
+          );
+          return yield* Effect.fail(
+            new DrillError({
+              message: `Drill infeasible: ${unmachinable.length} hole(s) have no usable tool. Add a matching drill bit (within cnc.drilling.matchToleranceMm) or a smaller cornmill to availableMills.`,
+            }),
+          );
+        }),
+      ),
+      Match.orElse(() => Effect.void),
+    );
+
+    yield* patchTask("categorize", {
+      state: "success",
+      label: `Categorized ${holes.length} hole(s) into ${groups.length} group(s).`,
+    });
+    yield* patchTask("write", { state: "loading" });
 
     yield* fs.makeDirectory(options.drillsDir, { recursive: true });
-    for (const group of groups) {
-      yield* fs.writeFileString(
-        join(options.drillsDir, `${board}_${group.fileSuffix}.drl`),
+    yield* Effect.forEach(groups, (group) =>
+      fs.writeFileString(
+        path.join(
+          options.drillsDir,
+          `${board}_${group.fileSuffix}${DRL_SUFFIX}`,
+        ),
         renderExcellon(group.holes),
-      );
-    }
+      ),
+    );
 
-    if (roundUps.length > 0) {
-      yield* fs.writeFileString(
-        roundedUpPath,
-        renderRoundedUpReport(board, roundUps),
-      );
-    } else {
-      yield* clearStaleRoundedUp;
-    }
-
-    const fileNote = `${groups.length} file(s) in ${basename(options.drillsDir)}/`;
-
-    // A round-up or (in warn mode) an unmachinable hole both warrant a warning
-    // terminal; otherwise it's a clean success.
-    if (unmachinable.length > 0) {
-      yield* warning(
-        tag(
-          `Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
+    yield* Match.value(roundUps.length > 0).pipe(
+      Match.when(true, () =>
+        fs.writeFileString(
+          roundedUpPath,
+          renderRoundedUpReport(board, roundUps),
         ),
-      );
-      yield* renderOnce(
-        <UnmachinableReport items={unmachinable} variant="warning" />,
-      );
-    } else if (roundUps.length > 0) {
-      yield* warning(
-        tag(
-          `Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ROUNDED_UP.txt).`,
-        ),
-      );
-    } else {
-      yield* success(tag(`Categorized ${holes.length} holes → ${fileNote}.`));
-    }
+      ),
+      Match.orElse(() => clearStaleRoundedUp),
+    );
 
-    if (roundUps.length > 0) {
-      yield* renderOnce(<RoundUpReport events={roundUps} />);
-    }
+    const fileNote = `${groups.length} file(s) in ${path.basename(
+      options.drillsDir,
+    )}/`;
+
+    yield* Match.value({
+      unmachinable: unmachinable.length > 0,
+      rounded: roundUps.length > 0,
+    }).pipe(
+      Match.when({ unmachinable: true }, () =>
+        Effect.gen(function* () {
+          yield* patchTask("write", {
+            state: "warning",
+            label: `Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
+          });
+          yield* renderOnce(
+            <UnmachinableReport items={unmachinable} variant="warning" />,
+          );
+        }),
+      ),
+      Match.when({ rounded: true }, () =>
+        Effect.gen(function* () {
+          yield* patchTask("write", {
+            state: "warning",
+            label: `Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ${ROUNDED_UP_FILE}).`,
+          });
+          yield* renderOnce(<RoundUpReport events={roundUps} />);
+        }),
+      ),
+      Match.orElse(() =>
+        patchTask("write", {
+          state: "success",
+          label: `Categorized ${holes.length} holes → ${fileNote}.`,
+        }),
+      ),
+    );
   },
+  Effect.scoped,
 );
 
-/**
- * Post-CNC pass: categorise the alignment/registration `.drl` the CNC stage
- * writes (`gerbers/<board>-alignment.drl`) into `paths.drills` under the
- * `alignment` category. These holes are exempt from the component machinability
- * gate (registration is a separate first operation with forgiving tooling), but
- * the pass still hard-fails if literally no tool fits them. Any (rare) round-up
- * is appended to ROUNDED_UP.txt so oversize drilling is never silent.
- */
+const alignmentTasks: TaskDef[] = [
+  {
+    id: "scan",
+    label: "Scanning alignment drill file...",
+    state: "loading",
+  },
+  {
+    id: "categorize",
+    label: "Categorizing alignment holes...",
+    state: "pending",
+  },
+  {
+    id: "write",
+    label: "Writing categorized alignment drills...",
+    state: "pending",
+  },
+];
+
+const appendRoundedUpSection = Effect.fn(
+  "flatmaxx.categorizeAlignmentDrills.appendRoundedUpSection",
+)(function* (roundedUpPath: string, section: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const existing = yield* fs.exists(roundedUpPath).pipe(
+    Effect.flatMap((found) =>
+      Match.value(found).pipe(
+        Match.when(true, () => fs.readFileString(roundedUpPath)),
+        Match.orElse(() => Effect.succeed("")),
+      ),
+    ),
+  );
+  yield* fs.writeFileString(
+    roundedUpPath,
+    existing === "" ? section : `${existing}\n${section}`,
+  );
+});
+
 export const categorizeAlignmentDrills = Effect.fn(
   "flatmaxx.categorizeAlignmentDrills",
 )(function* (pcbFile: string, options: AlignmentDrillCategorizationOptions) {
-  const [success, error, stop, warning] = yield* renderWaiting({
-    loading: "Categorizing alignment drills...",
-  });
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+
+  const controls = yield* createTasklist(
+    alignmentTasks,
+    "Categorize alignment drills",
+  );
+  const { patchTask } = controls;
+
+  const board = path.basename(pcbFile, PCB_SUFFIX);
+  const alignmentPath = path.join(
+    options.gerbersDir,
+    `${board}${ALIGNMENT_SUFFIX}`,
+  );
+
+  const finishSkipped = (label: string) =>
+    Effect.gen(function* () {
+      yield* markTaskBranch(controls, alignmentTasks, "scan", {
+        state: "success",
+        label,
+      });
+      yield* markTaskBranch(controls, alignmentTasks, "categorize", {
+        state: "success",
+        label: "Nothing to categorize.",
+      });
+      yield* markTaskBranch(controls, alignmentTasks, "write", {
+        state: "success",
+        label: "No files written.",
+      });
+    });
 
   if (!options.enabled) {
-    yield* success("Alignment drills disabled — skipping.");
+    yield* finishSkipped("Alignment drills disabled — skipping.");
     return;
   }
 
-  const fs = yield* FileSystem.FileSystem;
-  const board = basename(pcbFile, ".kicad_pcb");
-  const alignmentPath = join(options.gerbersDir, `${board}-alignment.drl`);
-
-  if (!(yield* fs.exists(alignmentPath))) {
-    // Only written for double-sided boards; single-sided has nothing to do.
-    yield* success("No alignment drill file (single-sided) — skipping.");
+  const exists = yield* fs.exists(alignmentPath);
+  if (!exists) {
+    yield* finishSkipped("No alignment drill file (single-sided) — skipping.");
     return;
   }
 
-  const text = yield* fs
-    .readFileString(alignmentPath)
-    .pipe(Effect.tapError(() => stop));
+  const text = yield* fs.readFileString(alignmentPath).pipe(
+    Effect.mapError(
+      (cause) =>
+        new DrillError({
+          message: `Could not read alignment drill file ${alignmentPath}.`,
+          cause,
+        }),
+    ),
+    Effect.tapError(() => patchTask("scan", { state: "error" })),
+  );
   const { holes } = parseExcellon(text);
   if (holes.length === 0) {
-    yield* success("Alignment drill file is empty — skipping.");
+    yield* finishSkipped("Alignment drill file is empty — skipping.");
     return;
   }
+
+  yield* patchTask("scan", {
+    state: "success",
+    label: `Found ${holes.length} alignment hole(s).`,
+  });
+  yield* patchTask("categorize", { state: "loading" });
 
   const { groups, unmachinable, roundUps } = categorizeHoles(
     holes,
-    {
-      drills: options.availableDrills,
-      mills: options.availableMills,
-      toleranceMm: options.matchToleranceMm,
-    },
+    inventoryOf(options),
     { categoryOverride: "alignment" },
   );
 
-  if (unmachinable.length > 0) {
-    yield* error(
-      `${unmachinable.length} alignment hole(s) cannot be made with any configured tool.`,
-    );
-    yield* renderOnce(
-      <UnmachinableReport items={unmachinable} variant="error" />,
-    );
-    return yield* Effect.fail(
-      new Error(
-        `Alignment drills infeasible: ${unmachinable.length} hole(s) have no usable tool. ` +
-          "Add a drill bit or a cornmill that fits the registration holes.",
-      ),
-    );
-  }
+  yield* Match.value(unmachinable.length > 0).pipe(
+    Match.when(true, () =>
+      Effect.gen(function* () {
+        yield* patchTask("categorize", {
+          state: "error",
+          label: `${unmachinable.length} alignment hole(s) cannot be made with any configured tool.`,
+        });
+        yield* renderOnce(
+          <UnmachinableReport items={unmachinable} variant="error" />,
+        );
+        return yield* Effect.fail(
+          new DrillError({
+            message: `Alignment drills infeasible: ${unmachinable.length} hole(s) have no usable tool. Add a drill bit or a cornmill that fits the registration holes.`,
+          }),
+        );
+      }),
+    ),
+    Match.orElse(() => Effect.void),
+  );
+
+  yield* patchTask("categorize", {
+    state: "success",
+    label: `Categorized ${holes.length} alignment hole(s) into ${groups.length} group(s).`,
+  });
+  yield* patchTask("write", { state: "loading" });
 
   yield* fs.makeDirectory(options.drillsDir, { recursive: true });
-  for (const group of groups) {
-    yield* fs.writeFileString(
-      join(options.drillsDir, `${board}_${group.fileSuffix}.drl`),
+  yield* Effect.forEach(groups, (group) =>
+    fs.writeFileString(
+      path.join(options.drillsDir, `${board}_${group.fileSuffix}${DRL_SUFFIX}`),
       renderExcellon(group.holes),
-    );
-  }
-
-  if (roundUps.length > 0) {
-    // Rare (registration holes are usually pocketed), but oversize is never silent.
-    const roundedUpPath = join(dirname(pcbFile), "ROUNDED_UP.txt");
-    const existing = (yield* fs.exists(roundedUpPath))
-      ? yield* fs.readFileString(roundedUpPath)
-      : "";
-    const section = renderRoundedUpReport(`${board} (alignment)`, roundUps);
-    yield* fs.writeFileString(
-      roundedUpPath,
-      existing ? `${existing}\n${section}` : section,
-    );
-    yield* warning(
-      `Categorized ${holes.length} alignment hole(s) → ${groups.length} file(s); ${roundUps.length} rounded up (see ROUNDED_UP.txt).`,
-    );
-    yield* renderOnce(<RoundUpReport events={roundUps} />);
-    return;
-  }
-
-  yield* success(
-    `Categorized ${holes.length} alignment hole(s) → ${groups.length} file(s) in ${basename(
-      options.drillsDir,
-    )}/.`,
+    ),
   );
-});
+
+  yield* Match.value(roundUps.length > 0).pipe(
+    Match.when(true, () =>
+      Effect.gen(function* () {
+        const roundedUpPath = path.join(path.dirname(pcbFile), ROUNDED_UP_FILE);
+        const section = renderRoundedUpReport(`${board} (alignment)`, roundUps);
+        yield* appendRoundedUpSection(roundedUpPath, section);
+        yield* patchTask("write", {
+          state: "warning",
+          label: `Categorized ${holes.length} alignment hole(s) → ${groups.length} file(s); ${roundUps.length} rounded up (see ${ROUNDED_UP_FILE}).`,
+        });
+        yield* renderOnce(<RoundUpReport events={roundUps} />);
+      }),
+    ),
+    Match.orElse(() =>
+      patchTask("write", {
+        state: "success",
+        label: `Categorized ${holes.length} alignment hole(s) → ${groups.length} file(s) in ${path.basename(
+          options.drillsDir,
+        )}/.`,
+      }),
+    ),
+  );
+}, Effect.scoped);

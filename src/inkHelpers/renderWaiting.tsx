@@ -1,13 +1,8 @@
 import { Spinner, StatusMessage } from "@inkjs/ui";
 import { Effect } from "effect";
 import { render } from "ink";
-
-interface RenderWaitingOptions {
-  success?: string;
-  error?: string;
-  loading?: string;
-  warning?: string;
-}
+import type { ReactNode } from "react";
+import type { RenderWaitingOptions, StatusVariant } from "./types";
 
 export const renderWaiting = Effect.fn("flatmaxx.ink.renderWaiting")(
   function* ({ success, error, loading, warning }: RenderWaitingOptions) {
@@ -15,53 +10,35 @@ export const renderWaiting = Effect.fn("flatmaxx.ink.renderWaiting")(
       <Spinner label={loading} type="dots" />,
     );
 
-    return [
-      Effect.fn("flatmaxx.ink.renderWaiting.success")(function* (
-        customMessage?: string,
-      ) {
-        yield* Effect.sync(() =>
-          rerender(
-            <StatusMessage variant="success">
-              {customMessage ?? success}
-            </StatusMessage>,
-          ),
-        );
-        yield* Effect.promise(() => waitUntilRenderFlush());
-        yield* Effect.sync(() => unmount());
-        yield* Effect.promise(() => waitUntilExit());
-      }),
-      Effect.fn("flatmaxx.ink.renderWaiting.error")(function* (
-        customMessage?: string,
-      ) {
-        yield* Effect.sync(() =>
-          rerender(
-            <StatusMessage variant="error">
-              {customMessage ?? error}
-            </StatusMessage>,
-          ),
-        );
-        yield* Effect.promise(() => waitUntilRenderFlush());
-        yield* Effect.sync(() => unmount());
-        yield* Effect.promise(() => waitUntilExit());
-      }),
+    const flush = Effect.promise(() => waitUntilRenderFlush());
+    const stop = Effect.gen(function* () {
+      yield* Effect.sync(() => unmount());
+      yield* Effect.promise(() => waitUntilExit());
+    });
+
+    const show = (component: ReactNode) =>
       Effect.gen(function* () {
-        yield* Effect.sync(() => unmount());
-        yield* Effect.promise(() => waitUntilExit());
-      }),
-      Effect.fn("flatmaxx.ink.renderWaiting.warning")(function* (
+        yield* Effect.sync(() => rerender(component));
+        yield* flush;
+        yield* stop;
+      });
+
+    const settle = (variant: StatusVariant, fallback?: string) =>
+      Effect.fn(`flatmaxx.ink.renderWaiting.${variant}`)(function* (
         customMessage?: string,
       ) {
-        yield* Effect.sync(() =>
-          rerender(
-            <StatusMessage variant="warning">
-              {customMessage ?? warning}
-            </StatusMessage>,
-          ),
+        yield* show(
+          <StatusMessage variant={variant}>
+            {customMessage ?? fallback}
+          </StatusMessage>,
         );
-        yield* Effect.promise(() => waitUntilRenderFlush());
-        yield* Effect.sync(() => unmount());
-        yield* Effect.promise(() => waitUntilExit());
-      }),
+      });
+
+    return [
+      settle("success", success),
+      settle("error", error),
+      stop,
+      settle("warning", warning),
     ] as const;
   },
 );

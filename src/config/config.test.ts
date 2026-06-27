@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Path } from "effect";
+import { merge } from "./merge";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +11,6 @@ import {
   buildKicadOutputOptions,
   buildBoardValidationOptions,
   buildXToolProjectOptions,
-  deepMerge,
   defaultAvailableDrills,
   defaultAvailableMills,
   defaultCncIsolation,
@@ -28,7 +28,10 @@ const writeConfig = (root: string, filename: string, content: string) => {
 };
 
 const loadConfig = (projectRoot: string, configPath?: string) =>
-  loadFlatmaxxConfig({ projectRoot, configPath }).pipe(Effect.runPromise);
+  loadFlatmaxxConfig({ projectRoot, configPath }).pipe(
+    Effect.provide(Path.layer),
+    Effect.runPromise,
+  );
 
 test("loads defaults when no auto config exists", async () => {
   const root = tempProject();
@@ -108,7 +111,7 @@ file = "board.kicad_pcb"
   const config = await loadFlatmaxxConfig({
     projectRoot: root,
     configPath: "config/flatmaxxing.toml",
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(Path.layer), Effect.runPromise);
 
   expect(config.projectDir).toBe(projectDir);
   expect(config.paths.svg).toBe(join(projectDir, "from-base"));
@@ -313,7 +316,7 @@ solutionConcentrationPercent = 20
 
 test("deep merge keeps nested keys and replaces arrays", () => {
   expect(
-    deepMerge(
+    merge(
       {
         solderMask: {
           generate: true,

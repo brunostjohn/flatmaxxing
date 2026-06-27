@@ -1,3 +1,4 @@
+import { Array, Result } from "effect";
 import {
   At,
   PtsArc,
@@ -7,50 +8,50 @@ import {
   type Pts,
 } from "kicadts";
 
-export type Coordinate = {
+export interface Coordinate {
   readonly x: number;
   readonly y: number;
-};
+}
 
 export type PointTransform = (point: Coordinate) => Coordinate;
 
 const GEOMETRY_EPSILON = 1e-9;
 
-export type EdgeCutSegment = {
+export interface EdgeCutSegment {
   readonly kind: "segment";
   readonly start: Coordinate;
   readonly end: Coordinate;
-};
+}
 
-export type EdgeCutArc = {
+export interface EdgeCutArc {
   readonly kind: "arc";
   readonly start: Coordinate;
   readonly mid: Coordinate;
   readonly end: Coordinate;
-};
+}
 
-export type EdgeCutCircle = {
+export interface EdgeCutCircle {
   readonly kind: "circle";
   readonly center: Coordinate;
   readonly edge: Coordinate;
-};
+}
 
-export type EdgeCutRect = {
+export interface EdgeCutRect {
   readonly kind: "rect";
   readonly start: Coordinate;
   readonly end: Coordinate;
   readonly transform: PointTransform;
-};
+}
 
-export type EdgeCutCurve = {
+export interface EdgeCutCurve {
   readonly kind: "curve";
   readonly controlPoints: readonly Coordinate[];
-};
+}
 
-export type EdgeCutPoly = {
+export interface EdgeCutPoly {
   readonly kind: "poly";
   readonly points: readonly Coordinate[];
-};
+}
 
 export type EdgeCutPrimitive =
   | EdgeCutSegment
@@ -91,172 +92,164 @@ const getFootprintTransform = (footprint: Footprint): PointTransform => {
   });
 };
 
-export const collectEdgeCutPrimitives = (pcb: KicadPcb): EdgeCutPrimitive[] => {
-  const primitives: EdgeCutPrimitive[] = [];
+const onEdgeCutsLayer = <T extends { layer: Layer | undefined }>(
+  items: readonly T[],
+): readonly T[] => Array.filter(items, (item) => isEdgeCutsLayer(item.layer));
 
-  for (const line of pcb.graphicLines) {
-    if (!isEdgeCutsLayer(line.layer)) continue;
-    if (!line.startPoint || !line.endPoint) continue;
-    primitives.push({
-      kind: "segment",
-      start: { x: line.startPoint.x, y: line.startPoint.y },
-      end: { x: line.endPoint.x, y: line.endPoint.y },
-    });
-  }
-
-  for (const rect of pcb.graphicRects) {
-    if (!isEdgeCutsLayer(rect.layer)) continue;
-    if (!rect.startPoint || !rect.endPoint) continue;
-    primitives.push({
-      kind: "rect",
-      start: { x: rect.startPoint.x, y: rect.startPoint.y },
-      end: { x: rect.endPoint.x, y: rect.endPoint.y },
-      transform: identityTransform,
-    });
-  }
-
-  for (const circle of pcb.graphicCircles) {
-    if (!isEdgeCutsLayer(circle.layer)) continue;
-    if (!circle.centerPoint || !circle.endPoint) continue;
-    primitives.push({
-      kind: "circle",
-      center: { x: circle.centerPoint.x, y: circle.centerPoint.y },
-      edge: { x: circle.endPoint.x, y: circle.endPoint.y },
-    });
-  }
-
-  for (const arc of pcb.graphicArcs) {
-    if (!isEdgeCutsLayer(arc.layer)) continue;
-    if (!arc.startPoint || !arc.midPoint || !arc.endPoint) continue;
-    primitives.push({
-      kind: "arc",
-      start: { x: arc.startPoint.x, y: arc.startPoint.y },
-      mid: { x: arc.midPoint.x, y: arc.midPoint.y },
-      end: { x: arc.endPoint.x, y: arc.endPoint.y },
-    });
-  }
-
-  for (const poly of pcb.graphicPolys) {
-    if (!isEdgeCutsLayer(poly.layer)) continue;
-    collectPolyPoints(primitives, poly.points, identityTransform);
-  }
-
-  for (const curve of pcb.graphicCurves) {
-    if (!isEdgeCutsLayer(curve.layer)) continue;
-    collectCurve(primitives, curve.points, identityTransform);
-  }
-
-  for (const footprint of pcb.footprints) {
-    const transform = getFootprintTransform(footprint);
-
-    for (const line of footprint.fpLines) {
-      if (!isEdgeCutsLayer(line.layer)) continue;
-      if (!line.start || !line.end) continue;
-      primitives.push({
+const segmentFrom = (
+  layer: Layer | undefined,
+  start: Coordinate | undefined,
+  end: Coordinate | undefined,
+  transform: PointTransform,
+): Result.Result<EdgeCutSegment, null> =>
+  isEdgeCutsLayer(layer) && start && end
+    ? Result.succeed({
         kind: "segment",
-        start: transform({ x: line.start.x, y: line.start.y }),
-        end: transform({ x: line.end.x, y: line.end.y }),
-      });
-    }
+        start: transform({ x: start.x, y: start.y }),
+        end: transform({ x: end.x, y: end.y }),
+      })
+    : Result.fail(null);
 
-    for (const rect of footprint.fpRects) {
-      if (!isEdgeCutsLayer(rect.layer)) continue;
-      if (!rect.start || !rect.end) continue;
-      primitives.push({
+const rectFrom = (
+  layer: Layer | undefined,
+  start: Coordinate | undefined,
+  end: Coordinate | undefined,
+  transform: PointTransform,
+): Result.Result<EdgeCutRect, null> =>
+  isEdgeCutsLayer(layer) && start && end
+    ? Result.succeed({
         kind: "rect",
-        start: { x: rect.start.x, y: rect.start.y },
-        end: { x: rect.end.x, y: rect.end.y },
+        start: { x: start.x, y: start.y },
+        end: { x: end.x, y: end.y },
         transform,
-      });
-    }
+      })
+    : Result.fail(null);
 
-    for (const circle of footprint.fpCircles) {
-      if (!isEdgeCutsLayer(circle.layer)) continue;
-      if (!circle.center || !circle.end) continue;
-      primitives.push({
+const circleFrom = (
+  layer: Layer | undefined,
+  center: Coordinate | undefined,
+  edge: Coordinate | undefined,
+  transform: PointTransform,
+): Result.Result<EdgeCutCircle, null> =>
+  isEdgeCutsLayer(layer) && center && edge
+    ? Result.succeed({
         kind: "circle",
-        center: transform({ x: circle.center.x, y: circle.center.y }),
-        edge: transform({ x: circle.end.x, y: circle.end.y }),
-      });
-    }
+        center: transform({ x: center.x, y: center.y }),
+        edge: transform({ x: edge.x, y: edge.y }),
+      })
+    : Result.fail(null);
 
-    for (const arc of footprint.fpArcs) {
-      if (!isEdgeCutsLayer(arc.layer)) continue;
-      if (!arc.start || !arc.mid || !arc.end) continue;
-      primitives.push({
+const arcFrom = (
+  layer: Layer | undefined,
+  start: Coordinate | undefined,
+  mid: Coordinate | undefined,
+  end: Coordinate | undefined,
+  transform: PointTransform,
+): Result.Result<EdgeCutArc, null> =>
+  isEdgeCutsLayer(layer) && start && mid && end
+    ? Result.succeed({
         kind: "arc",
-        start: transform({ x: arc.start.x, y: arc.start.y }),
-        mid: transform({ x: arc.mid.x, y: arc.mid.y }),
-        end: transform({ x: arc.end.x, y: arc.end.y }),
-      });
-    }
+        start: transform({ x: start.x, y: start.y }),
+        mid: transform({ x: mid.x, y: mid.y }),
+        end: transform({ x: end.x, y: end.y }),
+      })
+    : Result.fail(null);
 
-    for (const poly of footprint.fpPolys) {
-      if (!isEdgeCutsLayer(poly.layer)) continue;
-      collectPolyPoints(primitives, poly.points, transform);
-    }
+const collectGraphics = (pcb: KicadPcb): readonly EdgeCutPrimitive[] => [
+  ...Array.filterMap(pcb.graphicLines, (line) =>
+    segmentFrom(line.layer, line.startPoint, line.endPoint, identityTransform),
+  ),
+  ...Array.filterMap(pcb.graphicRects, (rect) =>
+    rectFrom(rect.layer, rect.startPoint, rect.endPoint, identityTransform),
+  ),
+  ...Array.filterMap(pcb.graphicCircles, (circle) =>
+    circleFrom(
+      circle.layer,
+      circle.centerPoint,
+      circle.endPoint,
+      identityTransform,
+    ),
+  ),
+  ...Array.filterMap(pcb.graphicArcs, (arc) =>
+    arcFrom(
+      arc.layer,
+      arc.startPoint,
+      arc.midPoint,
+      arc.endPoint,
+      identityTransform,
+    ),
+  ),
+  ...Array.flatMap(onEdgeCutsLayer(pcb.graphicPolys), (poly) =>
+    pointsPrimitives(poly.points, identityTransform, "poly"),
+  ),
+  ...Array.flatMap(onEdgeCutsLayer(pcb.graphicCurves), (curve) =>
+    pointsPrimitives(curve.points, identityTransform, "curve"),
+  ),
+];
 
-    for (const curve of footprint.fpCurves) {
-      if (!isEdgeCutsLayer(curve.layer)) continue;
-      collectCurve(primitives, curve.points, transform);
-    }
-  }
-
-  return primitives;
+const collectFootprint = (
+  footprint: Footprint,
+): readonly EdgeCutPrimitive[] => {
+  const transform = getFootprintTransform(footprint);
+  return [
+    ...Array.filterMap(footprint.fpLines, (line) =>
+      segmentFrom(line.layer, line.start, line.end, transform),
+    ),
+    ...Array.filterMap(footprint.fpRects, (rect) =>
+      rectFrom(rect.layer, rect.start, rect.end, transform),
+    ),
+    ...Array.filterMap(footprint.fpCircles, (circle) =>
+      circleFrom(circle.layer, circle.center, circle.end, transform),
+    ),
+    ...Array.filterMap(footprint.fpArcs, (arc) =>
+      arcFrom(arc.layer, arc.start, arc.mid, arc.end, transform),
+    ),
+    ...Array.flatMap(onEdgeCutsLayer(footprint.fpPolys), (poly) =>
+      pointsPrimitives(poly.points, transform, "poly"),
+    ),
+    ...Array.flatMap(onEdgeCutsLayer(footprint.fpCurves), (curve) =>
+      pointsPrimitives(curve.points, transform, "curve"),
+    ),
+  ];
 };
 
-const collectPolyPoints = (
-  primitives: EdgeCutPrimitive[],
+export const collectEdgeCutPrimitives = (pcb: KicadPcb): EdgeCutPrimitive[] => [
+  ...collectGraphics(pcb),
+  ...Array.flatMap(pcb.footprints, collectFootprint),
+];
+
+const pointsPrimitives = (
   pts: Pts | undefined,
   transform: PointTransform,
-): void => {
-  if (!pts) return;
+  kind: "poly" | "curve",
+): readonly EdgeCutPrimitive[] => {
+  if (!pts) return [];
 
-  const straight: Coordinate[] = [];
-  for (const point of pts.points) {
-    if (point instanceof PtsArc) {
-      if (point.start && point.mid && point.end) {
-        primitives.push({
+  const arcs = Array.filterMap(pts.points, (point) =>
+    point instanceof PtsArc && point.start && point.mid && point.end
+      ? Result.succeed<EdgeCutArc>({
           kind: "arc",
           start: transform({ x: point.start.x, y: point.start.y }),
           mid: transform({ x: point.mid.x, y: point.mid.y }),
           end: transform({ x: point.end.x, y: point.end.y }),
-        });
-      }
-      continue;
-    }
-    straight.push(transform({ x: point.x, y: point.y }));
-  }
+        })
+      : Result.fail(null),
+  );
 
-  if (straight.length > 0) {
-    primitives.push({ kind: "poly", points: straight });
-  }
-};
+  const straight = Array.filterMap(pts.points, (point) =>
+    point instanceof PtsArc
+      ? Result.fail(null)
+      : Result.succeed(transform({ x: point.x, y: point.y })),
+  );
 
-const collectCurve = (
-  primitives: EdgeCutPrimitive[],
-  pts: Pts | undefined,
-  transform: PointTransform,
-): void => {
-  if (!pts) return;
+  const container: readonly EdgeCutPrimitive[] =
+    straight.length > 0
+      ? [
+          kind === "poly"
+            ? { kind: "poly", points: straight }
+            : { kind: "curve", controlPoints: straight },
+        ]
+      : [];
 
-  const controlPoints: Coordinate[] = [];
-  for (const point of pts.points) {
-    if (point instanceof PtsArc) {
-      if (point.start && point.mid && point.end) {
-        primitives.push({
-          kind: "arc",
-          start: transform({ x: point.start.x, y: point.start.y }),
-          mid: transform({ x: point.mid.x, y: point.mid.y }),
-          end: transform({ x: point.end.x, y: point.end.y }),
-        });
-      }
-      continue;
-    }
-    controlPoints.push(transform({ x: point.x, y: point.y }));
-  }
-
-  if (controlPoints.length > 0) {
-    primitives.push({ kind: "curve", controlPoints });
-  }
+  return [...arcs, ...container];
 };

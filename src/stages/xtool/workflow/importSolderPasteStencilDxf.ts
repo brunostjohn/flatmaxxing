@@ -16,7 +16,11 @@ export const importSolderPasteStencilDxf = Effect.fn(
 ) {
   const config = solderPasteStencilSideConfig[side];
   const paths = config.taskPaths.importDxf;
-  const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
+  const dxfPath = yield* getSolderPasteStencilDxfPath(
+    projectPath,
+    pcbName,
+    side,
+  );
 
   yield* tasks.patchTask(paths.root, {
     state: "loading",

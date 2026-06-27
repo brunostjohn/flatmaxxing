@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { loadFlatmaxxConfig } from "@/config";
-import { Effect } from "effect";
+import { Effect, Path } from "effect";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -169,7 +169,7 @@ gcode = "./from-project"
         },
       ],
     }),
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(Path.layer), Effect.runPromise);
 
   expect(config.paths.gcode).toBe(join(root, "from-cli"));
   expect(config.dependencies.flatcam).toBe("flatcam-from-cli");
@@ -184,7 +184,7 @@ test("CLI override values still pass through resolved config validation", async 
       cliOverrides: buildCliOverrides({
         set: ["solderMask.xtool.intensity=200"],
       }),
-    }).pipe(Effect.runPromise),
+    }).pipe(Effect.provide(Path.layer), Effect.runPromise),
   ).rejects.toThrow("solderMask.xtool.intensity");
 });
 

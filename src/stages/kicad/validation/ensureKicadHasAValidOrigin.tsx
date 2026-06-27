@@ -1,9 +1,9 @@
+import { BoardValidationError } from "@/errors";
+import { getBottomLeftBoardOrigin } from "@/stages/kicad/board/kicadBoardBounds";
 import type {
   BoardFix,
   BoardValidationContext,
 } from "@/stages/kicad/validation/boardValidationTypes";
-import { BoardValidationError } from "@/stages/kicad/validation/boardValidationTypes";
-import { getBottomLeftBoardOrigin } from "@/stages/kicad/board/kicadBoardBounds";
 import { Effect } from "effect";
 import { Setup, type KicadPcb } from "kicadts";
 
@@ -15,10 +15,11 @@ export const ensureKicadHasAValidOrigin = Effect.fn(
     catch: (cause) =>
       cause instanceof BoardValidationError
         ? cause
-        : new BoardValidationError(
-            "Unable to infer the KiCad board origin from Edge.Cuts geometry.",
-            { cause },
-          ),
+        : new BoardValidationError({
+            message:
+              "Unable to infer the KiCad board origin from Edge.Cuts geometry.",
+            cause,
+          }),
   });
 
   const drillPlaceFileOrigin = context.pcb.setup?.auxAxisOrigin;

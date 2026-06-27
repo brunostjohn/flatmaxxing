@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { loadFlatmaxxConfig } from "@/config";
+import { BunServices } from "@effect/platform-bun";
 import { Effect } from "effect";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -67,9 +68,10 @@ test("init inside a KiCad project writes projectDir dot", async () => {
   const result = await runInitWorkflow({
     cwd: root,
     userConfigPath: join(root, "missing-user.toml"),
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
   const configText = readFileSync(result.configPath, "utf8");
   const config = await loadFlatmaxxConfig({ projectRoot: root }).pipe(
+    Effect.provide(BunServices.layer),
     Effect.runPromise,
   );
 
@@ -88,9 +90,10 @@ test("init outside a KiCad project prompts for projectDir", async () => {
     cwd: root,
     userConfigPath: join(root, "missing-user.toml"),
     prompt: promptWith("./pcb"),
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
   const configText = readFileSync(result.configPath, "utf8");
   const config = await loadFlatmaxxConfig({ projectRoot: root }).pipe(
+    Effect.provide(BunServices.layer),
     Effect.runPromise,
   );
 
@@ -108,9 +111,10 @@ test("init writes board file when multiple boards are available", async () => {
     cwd: root,
     userConfigPath: join(root, "missing-user.toml"),
     selectBoard: () => Effect.succeed("b.kicad_pcb"),
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
   const configText = readFileSync(result.configPath, "utf8");
   const config = await loadFlatmaxxConfig({ projectRoot: root }).pipe(
+    Effect.provide(BunServices.layer),
     Effect.runPromise,
   );
 
@@ -127,7 +131,7 @@ test("init detects user config and refuses to overwrite project config", async (
   const result = await runInitWorkflow({
     cwd: root,
     userConfigPath: userConfig,
-  }).pipe(Effect.runPromise);
+  }).pipe(Effect.provide(BunServices.layer), Effect.runPromise);
   const configText = readFileSync(result.configPath, "utf8");
 
   expect(configText).toContain('extends = ["~/flatmaxxing.user.toml"]');
@@ -138,7 +142,7 @@ test("init detects user config and refuses to overwrite project config", async (
     runInitWorkflow({
       cwd: root,
       userConfigPath: userConfig,
-    }).pipe(Effect.runPromise),
+    }).pipe(Effect.provide(BunServices.layer), Effect.runPromise),
   ).rejects.toThrow("already exists");
   expect(readFileSync(result.configPath, "utf8")).toBe("original");
 });

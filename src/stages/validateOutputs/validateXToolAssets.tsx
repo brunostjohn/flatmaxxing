@@ -1,4 +1,5 @@
-import type { XToolProjectOptions } from "@/config";
+import type { Side, XToolProjectOptions } from "@/config";
+import { DxfError } from "@/errors";
 import {
   createTasklist,
   markTaskBranch,
@@ -14,21 +15,9 @@ import {
   solderMaskSideConfig,
   solderPasteStencilSideConfig,
 } from "@/stages/xtool";
-import { Effect, FileSystem } from "effect";
-import { resolve } from "node:path";
+import { Effect, FileSystem, Path } from "effect";
 
-type Side = "front" | "back";
-
-type SolderMaskAssetValidation = {
-  readonly dxfPath: string;
-  readonly pngPath: string;
-  readonly bounds: { readonly width: number; readonly height: number };
-};
-
-type StencilAssetValidation = {
-  readonly dxfPath: string;
-  readonly hasPlottableGeometry: boolean;
-};
+const sides: readonly Side[] = ["front", "back"];
 
 const validateXToolAssetTasks: TaskDef[] = [
   {
@@ -85,7 +74,9 @@ const ensureFileExists = Effect.fn("flatmaxx.validate.ensureFileExists")(
   function* (path: string) {
     const fs = yield* FileSystem.FileSystem;
     if (!(yield* fs.exists(path))) {
-      return yield* Effect.fail(new Error(`Missing required file: ${path}`));
+      return yield* Effect.fail(
+        new DxfError({ message: `Missing required file: ${path}` }),
+      );
     }
     return path;
   },
@@ -94,8 +85,8 @@ const ensureFileExists = Effect.fn("flatmaxx.validate.ensureFileExists")(
 export const validateSolderMaskAssetsForSide = Effect.fn(
   "flatmaxx.validate.solderMaskAssetsForSide",
 )(function* (xtoolProjectPath: string, pcbName: string, side: Side) {
-  const dxfPath = getSolderMaskDxfPath(xtoolProjectPath, pcbName, side);
-  const pngPath = getSolderMaskPngPath(xtoolProjectPath, pcbName, side);
+  const dxfPath = yield* getSolderMaskDxfPath(xtoolProjectPath, pcbName, side);
+  const pngPath = yield* getSolderMaskPngPath(xtoolProjectPath, pcbName, side);
   const bounds = yield* dxfBoundsFile(dxfPath);
   yield* ensureFileExists(pngPath);
   return { dxfPath, pngPath, bounds };
@@ -104,7 +95,11 @@ export const validateSolderMaskAssetsForSide = Effect.fn(
 export const validateStencilAssetsForSide = Effect.fn(
   "flatmaxx.validate.stencilAssetsForSide",
 )(function* (xtoolProjectPath: string, pcbName: string, side: Side) {
-  const dxfPath = getSolderPasteStencilDxfPath(xtoolProjectPath, pcbName, side);
+  const dxfPath = yield* getSolderPasteStencilDxfPath(
+    xtoolProjectPath,
+    pcbName,
+    side,
+  );
   const hasPlottableGeometry = yield* dxfFileHasPlottableGeometry(dxfPath);
   return { dxfPath, hasPlottableGeometry };
 });
@@ -115,18 +110,19 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
     pcbName: string,
     options: XToolProjectOptions,
   ) {
+    const path = yield* Path.Path;
     const title = options.enabled
       ? `Step ${nextStep()}: Validate xTool assets`
       : "Validate xTool assets (skipped)";
     const tasks = yield* createTasklist(validateXToolAssetTasks, title);
-    const xtoolProjectPath = resolve(projectPath, options.outputPath);
+    const xtoolProjectPath = path.resolve(projectPath, options.outputPath);
 
     const skipBranch = (
-      path: string | readonly [string, ...string[]],
+      branch: string | readonly [string, ...string[]],
       label: string,
       status: string,
     ) =>
-      markTaskBranch(tasks, validateXToolAssetTasks, path, {
+      markTaskBranch(tasks, validateXToolAssetTasks, branch, {
         state: "success",
         label,
         status,
@@ -170,18 +166,24 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
         status: `Validating ${config.fileSuffix} assets...`,
       });
 
-      const dxfPath = getSolderMaskDxfPath(xtoolProjectPath, pcbName, side);
+      const dxfPath = yield* getSolderMaskDxfPath(
+        xtoolProjectPath,
+        pcbName,
+        side,
+      );
       const bounds = yield* tasks.runTask({
         path: [...root, "dxf"] as const,
         effect: dxfBoundsFile(dxfPath),
         loading: { status: `Parsing and measuring ${dxfPath}...` },
-        success: {
-          label: `${config.fileSuffix} DXF parsed and measured.`,
-        },
+        success: { label: `${config.fileSuffix} DXF parsed and measured.` },
         error: { label: `Failed to validate ${config.fileSuffix} DXF.` },
       });
 
-      const pngPath = getSolderMaskPngPath(xtoolProjectPath, pcbName, side);
+      const pngPath = yield* getSolderMaskPngPath(
+        xtoolProjectPath,
+        pcbName,
+        side,
+      );
       yield* tasks.runTask({
         path: [...root, "png"] as const,
         effect: ensureFileExists(pngPath),
@@ -217,7 +219,7 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
         status: `Validating ${config.fileSuffix} DXF...`,
       });
 
-      const dxfPath = getSolderPasteStencilDxfPath(
+      const dxfPath = yield* getSolderPasteStencilDxfPath(
         xtoolProjectPath,
         pcbName,
         side,
@@ -246,9 +248,7 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
         options.solderMask.skipReason ?? "solderMask disabled.",
       );
     } else {
-      for (const side of ["front", "back"] as const) {
-        yield* validateSolderMaskSide(side);
-      }
+      yield* Effect.forEach(sides, validateSolderMaskSide);
       yield* tasks.patchTask("solder-mask-assets", {
         state: "success",
         label: "Solder mask assets valid.",
@@ -262,9 +262,7 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
         options.stencil.skipReason ?? "stencil disabled.",
       );
     } else {
-      for (const side of ["front", "back"] as const) {
-        yield* validateStencilSide(side);
-      }
+      yield* Effect.forEach(sides, validateStencilSide);
       yield* tasks.patchTask("stencil-assets", {
         state: "success",
         label: "Solder paste stencil assets valid.",

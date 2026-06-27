@@ -1,6 +1,5 @@
-import type { TaskPath, TaskPathInput } from "./types";
 import { normalizeTaskPath } from "./normalizeTaskPath";
+import type { TaskPath, TaskPathInput } from "./types";
 
-export function joinTaskPath(base: TaskPath, path: TaskPathInput): TaskPath {
-  return [...base, ...normalizeTaskPath(path)] as TaskPath;
-}
+export const joinTaskPath = (base: TaskPath, path: TaskPathInput): TaskPath =>
+  [...base, ...normalizeTaskPath(path)] as TaskPath;

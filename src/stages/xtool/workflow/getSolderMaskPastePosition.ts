@@ -1,11 +1,14 @@
+import { Option } from "effect";
 import type { SolderMaskBounds, SolderMaskPasteOffsets } from "./types";
 
-export function getSolderMaskPastePosition(
+export const getSolderMaskPastePosition = (
   { width, height }: SolderMaskBounds,
   { right, bottom }: SolderMaskPasteOffsets = {},
-) {
-  return {
-    x: right === undefined ? 0 : width + right,
-    y: bottom === undefined ? 0 : height + bottom,
-  };
-}
+) => ({
+  x: Option.fromUndefinedOr(right).pipe(
+    Option.match({ onNone: () => 0, onSome: (value) => width + value }),
+  ),
+  y: Option.fromUndefinedOr(bottom).pipe(
+    Option.match({ onNone: () => 0, onSome: (value) => height + value }),
+  ),
+});

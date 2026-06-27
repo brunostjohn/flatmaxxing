@@ -1,42 +1,25 @@
-import { runAppleScript } from "@/utils";
-import { Duration, Effect } from "effect";
+import { ScreenshotError } from "@/errors";
+import { Duration, Effect, Match } from "effect";
 import { ChildProcess } from "effect/unstable/process";
-import { ScreenshotError } from "./errors";
+import { KEY_ESCAPE, KEY_GO_TO_FOLDER, KEY_RETURN } from "./constants";
+import { runAppleScript } from "./runAppleScript";
 import type { Rect } from "./types";
 
-export {
-  axActions,
-  axFind,
-  axTrusted,
-  mouseClick as clickAt,
-  clickElement,
-  mouseDoubleClick as doubleClickAt,
-  doubleClickElement,
-  elementExists,
-  findElement,
-  mouseMove,
-  mousePos,
-  mouseScroll,
-  axPerformAction as performAction,
-  pickElement,
-  axPress as pressElement,
-  mouseRightClick as rightClickAt,
-  rightClickElement,
-  scrollToVisible,
-  axSetValue as setElementValue,
-  showMenu,
-  waitForElement,
-  waitForGone,
-} from "./nativeHelper";
+export type Modifier = "command" | "shift" | "option" | "control";
 
-const escapeAppleScript = (s: string): string =>
+const escapeAppleScript = (s: string) =>
   s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-export type Modifier = "command" | "shift" | "option" | "control";
-const usingClause = (mods: readonly Modifier[]): string =>
-  mods.length === 0
-    ? ""
-    : ` using {${mods.map((m) => `${m} down`).join(", ")}}`;
+const usingClause = (mods: readonly Modifier[]) =>
+  Match.value(mods.length === 0).pipe(
+    Match.when(true, () => ""),
+    Match.orElse(() => ` using {${mods.map((m) => `${m} down`).join(", ")}}`),
+  );
+
+const regionArgs = (region: Rect | undefined) =>
+  region === undefined
+    ? []
+    : ["-R", `${region.x},${region.y},${region.w},${region.h}`];
 
 export const typeText = Effect.fn("flatmaxx.macos.typeText")(function* (
   text: string,
@@ -57,19 +40,20 @@ export const pressKeyCode = Effect.fn("flatmaxx.macos.pressKeyCode")(function* (
 
 export const pressReturn = Effect.fn("flatmaxx.macos.pressReturn")(
   function* () {
-    yield* pressKeyCode(36);
+    yield* pressKeyCode(KEY_RETURN);
   },
 );
+
 export const pressEscape = Effect.fn("flatmaxx.macos.pressEscape")(
   function* () {
-    yield* pressKeyCode(53);
+    yield* pressKeyCode(KEY_ESCAPE);
   },
 );
 
 export const goToPath = Effect.fn("flatmaxx.macos.goToPath")(function* (
   path: string,
 ) {
-  yield* pressKeyCode(5, ["command", "shift"]);
+  yield* pressKeyCode(KEY_GO_TO_FOLDER, ["command", "shift"]);
   yield* Effect.sleep(Duration.millis(500));
   yield* typeText(path);
   yield* Effect.sleep(Duration.millis(250));
@@ -99,19 +83,18 @@ export const screenshot = Effect.fn("flatmaxx.macos.screenshot")(function* (
   outPath: string,
   region?: Rect,
 ) {
-  const args = ["-x"];
-  if (region !== undefined) {
-    args.push("-R", `${region.x},${region.y},${region.w},${region.h}`);
-  }
-  args.push(outPath);
+  const args = ["-x", ...regionArgs(region), outPath];
   const proc = yield* ChildProcess.make("screencapture", args);
   const exitCode = yield* proc.exitCode;
-  if (exitCode !== 0) {
-    return yield* Effect.fail(
-      new ScreenshotError({
-        message: `screencapture exited ${exitCode} → ${outPath}`,
-      }),
-    );
-  }
-  return outPath;
+
+  return yield* Match.value(exitCode === 0).pipe(
+    Match.when(true, () => Effect.succeed(outPath)),
+    Match.orElse(() =>
+      Effect.fail(
+        new ScreenshotError({
+          message: `screencapture exited ${exitCode} → ${outPath}`,
+        }),
+      ),
+    ),
+  );
 });

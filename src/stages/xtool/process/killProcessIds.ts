@@ -1,6 +1,21 @@
 import { Effect } from "effect";
 import { getRunningProcessIds } from "./getRunningProcessIds";
 
+const killProcessId = (
+  processId: number,
+  signal: "SIGINT" | "SIGTERM" | "SIGKILL",
+) => {
+  try {
+    globalThis.process.kill(processId, signal);
+  } catch (error) {
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ESRCH")
+    ) {
+      throw error;
+    }
+  }
+};
+
 export const killProcessIds = Effect.fn(
   "flatmaxx.xtool.process.killProcessIds",
 )(function* (
@@ -13,17 +28,9 @@ export const killProcessIds = Effect.fn(
 
   const runningProcessIds = yield* getRunningProcessIds(processIds);
 
-  yield* Effect.sync(() => {
-    for (const processId of runningProcessIds) {
-      try {
-        globalThis.process.kill(processId, signal);
-      } catch (error) {
-        if (
-          !(error instanceof Error && "code" in error && error.code === "ESRCH")
-        ) {
-          throw error;
-        }
-      }
-    }
-  });
+  yield* Effect.forEach(
+    runningProcessIds,
+    (processId) => Effect.sync(() => killProcessId(processId, signal)),
+    { discard: true },
+  );
 });

@@ -1,21 +1,8 @@
 import { effectiveToolDiameter } from "@/cnc/effectiveToolDiameter";
+import { Array, Match, Record, Result } from "effect";
 import type { ElectroplatingReportOptions } from "@/stages/electroplating/generateElectroplatingReport";
-import type { EdgeCutDxfOptions } from "@/stages/generateEdgeCutDxfs/generateEdgeCutDxfs";
-import type {
-  MakeracamStep,
-  MakeracamStepOptions,
-} from "@/stages/makeracam/types";
-import type {
-  AlignmentDrillCategorizationOptions,
-  BoardSelectionOptions,
-  BoardValidationOptions,
-  DrillCategorizationOptions,
-  IsolationValidationOptions,
-  KicadOutputOptions,
-  ResolvedConfig,
-  Side,
-  XToolProjectOptions,
-} from "./types";
+import type { MakeracamStep } from "@/stages/makeracam/types";
+import type { ResolvedConfig, Side } from "./types";
 
 const allSides = ["front", "back"] as const satisfies readonly Side[];
 
@@ -50,26 +37,38 @@ const workflowSkipReason = (
   return undefined;
 };
 
+const sideSkipReason = (
+  side: Side,
+  boardSides: readonly Side[],
+  excludeSides: readonly Side[],
+  workflowName: "solderMask" | "stencil",
+): Result.Result<readonly [Side, string], null> =>
+  Match.value({
+    ignored: !boardSides.includes(side),
+    excluded: excludeSides.includes(side),
+  }).pipe(
+    Match.when({ ignored: true }, () =>
+      Result.succeed([side, `board.ignoreSide=${side}`] as const),
+    ),
+    Match.when({ excluded: true }, () =>
+      Result.succeed([
+        side,
+        `${workflowName}.excludeSides includes ${side}`,
+      ] as const),
+    ),
+    Match.orElse(() => Result.fail(null)),
+  );
+
 const sideSkipStatus = (
   boardSides: readonly Side[],
   excludeSides: readonly Side[],
   workflowName: "solderMask" | "stencil",
-) => {
-  const statuses: Partial<Record<Side, string>> = {};
-
-  for (const side of allSides) {
-    if (!boardSides.includes(side)) {
-      statuses[side] = `board.ignoreSide=${side}`;
-      continue;
-    }
-
-    if (excludeSides.includes(side)) {
-      statuses[side] = `${workflowName}.excludeSides includes ${side}`;
-    }
-  }
-
-  return statuses;
-};
+): Partial<Record<Side, string>> =>
+  Record.fromEntries(
+    Array.filterMap(allSides, (side) =>
+      sideSkipReason(side, boardSides, excludeSides, workflowName),
+    ),
+  );
 
 export const buildBoardSelectionOptions = (config: ResolvedConfig) => ({
   boardFile: config.board.file,

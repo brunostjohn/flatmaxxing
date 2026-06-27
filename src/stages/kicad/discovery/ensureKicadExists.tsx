@@ -1,29 +1,30 @@
-import { renderOnce, renderWaiting } from "@/inkHelpers";
-import { Alert } from "@inkjs/ui";
-import { Effect } from "effect";
-import { FileSystem } from "effect/FileSystem";
+import { KicadError } from "@/errors";
+import { createTasklist } from "@/inkHelpers";
+import { ensureKicadTasks } from "@/stages/kicad/discovery/tasks";
+import { discoveryTaskPaths } from "@/stages/kicad/discovery/taskPaths";
+import { Effect, FileSystem } from "effect";
 
 export const ensureKicadExists = Effect.fn("flatmaxx.ensureKicadExists")(
   function* (pathToKicad: string) {
-    const fs = yield* FileSystem;
+    const fs = yield* FileSystem.FileSystem;
+    const tasks = yield* createTasklist(ensureKicadTasks);
 
-    const [success, _, stop] = yield* renderWaiting({
-      success: "KiCAD found",
-      loading: "Checking if KiCAD exists...",
+    yield* tasks.runTask({
+      path: discoveryTaskPaths.ensureKicad,
+      loading: { status: `Checking ${pathToKicad}...` },
+      success: { label: "KiCAD found." },
+      error: { label: "KiCAD not found." },
+      effect: Effect.gen(function* () {
+        const exists = yield* fs.exists(pathToKicad);
+        if (!exists) {
+          return yield* Effect.fail(
+            new KicadError({
+              message: `The file "${pathToKicad}" does not exist.`,
+            }),
+          );
+        }
+      }),
     });
-
-    if (!(yield* fs.exists(pathToKicad))) {
-      yield* stop;
-
-      yield* renderOnce(
-        <Alert variant="error">The file "{pathToKicad}" does not exist.</Alert>,
-      );
-
-      return yield* Effect.fail(
-        new Error(`The file "${pathToKicad}" does not exist.`),
-      );
-    }
-
-    yield* success();
   },
+  Effect.scoped,
 );

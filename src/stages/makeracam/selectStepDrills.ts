@@ -1,3 +1,4 @@
+import { Array, Order, Result } from "effect";
 import type { MakeracamStep, ParsedDrillFilename } from "./types";
 
 export const parseDrillFilename = (
@@ -42,22 +43,25 @@ export const selectStepDrills = (
 ): readonly SelectedDrill[] => {
   const wanted = STEP_CATEGORIES[step];
 
-  const selected: SelectedDrill[] = [];
-  for (const file of files) {
+  const selected = Array.filterMap(files, (file) => {
     const parsed = parseDrillFilename(file);
-    if (parsed === undefined) continue;
-    if (parsed.board !== board) continue;
-    if (!wanted.includes(parsed.category)) continue;
-    selected.push({ ...parsed, file });
-  }
+    const matches =
+      parsed !== undefined &&
+      parsed.board === board &&
+      wanted.includes(parsed.category);
+    return matches
+      ? Result.succeed({ ...parsed, file })
+      : Result.fail(undefined);
+  });
 
-  const methodRank = (method: string): number => (method === "drills" ? 0 : 1);
-  return selected.sort(
-    (a, b) =>
-      methodRank(a.method) - methodRank(b.method) ||
-      a.diameterMm - b.diameterMm ||
-      a.category.localeCompare(b.category),
-  );
+  const methodRank = (method: string) => (method === "drills" ? 0 : 1);
+  return Array.sortBy(
+    Order.mapInput(Order.Number, (drill: SelectedDrill) =>
+      methodRank(drill.method),
+    ),
+    Order.mapInput(Order.Number, (drill: SelectedDrill) => drill.diameterMm),
+    Order.mapInput(Order.String, (drill: SelectedDrill) => drill.category),
+  )(selected);
 };
 
 export const magazineCategoryFor = (method: string): "Drill" | "Corn Bits" =>

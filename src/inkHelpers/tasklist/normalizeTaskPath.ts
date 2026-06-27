@@ -1,5 +1,4 @@
 import type { TaskPath, TaskPathInput } from "./types";
 
-export function normalizeTaskPath(path: TaskPathInput): TaskPath {
-  return typeof path === "string" ? [path] : path;
-}
+export const normalizeTaskPath = (path: TaskPathInput): TaskPath =>
+  typeof path === "string" ? [path] : path;

@@ -1,16 +1,7 @@
-export type Coordinate = {
-  readonly x: number;
-  readonly y: number;
-};
+import { Array } from "effect";
+import type { Coordinate, PathCmd } from "./types";
 
-export type PathCmd =
-  | { readonly kind: "line"; readonly to: Coordinate }
-  | {
-      readonly kind: "arc";
-      readonly to: Coordinate;
-      readonly center: Coordinate;
-      readonly cw: boolean;
-    };
+export type { Coordinate, PathCmd } from "./types";
 
 const f = (n: number) => {
   const s = n.toFixed(6);
@@ -51,19 +42,18 @@ const arcEntity = (
   );
 };
 
+const renderCmd = (cursor: Coordinate, cmd: PathCmd): [Coordinate, string] => [
+  cmd.to,
+  cmd.kind === "line"
+    ? lineEntity(cursor, cmd.to)
+    : arcEntity(cursor, cmd.to, cmd.center, cmd.cw),
+];
+
 export const renderDxfOutline = (
   start: Coordinate,
   cmds: readonly PathCmd[],
 ) => {
-  let cursor = start;
-  let entities = "";
-  for (const cmd of cmds) {
-    entities +=
-      cmd.kind === "line"
-        ? lineEntity(cursor, cmd.to)
-        : arcEntity(cursor, cmd.to, cmd.center, cmd.cw);
-    cursor = cmd.to;
-  }
+  const [, entities] = Array.mapAccum(cmds, start, renderCmd);
 
   return (
     pair(0, "SECTION") +
@@ -73,7 +63,7 @@ export const renderDxfOutline = (
     pair(0, "ENDSEC") +
     pair(0, "SECTION") +
     pair(2, "ENTITIES") +
-    entities +
+    entities.join("") +
     pair(0, "ENDSEC") +
     pair(0, "EOF")
   );

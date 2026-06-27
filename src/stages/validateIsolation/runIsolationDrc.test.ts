@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
+import { Effect } from "effect";
+import type { DrcViolation } from "./schema";
 import {
   buildIsolationDru,
   compileIgnorePatterns,
-  type DrcViolation,
   partitionViolations,
   violationText,
 } from "./runIsolationDrc";
 
-// Mirrors the real antenna-footprint violations the user hit.
 const antennaViolation: DrcViolation = {
   type: "clearance",
   severity: "error",
@@ -28,6 +28,9 @@ const realViolation: DrcViolation = {
   ],
 };
 
+const compile = (patterns: readonly string[]) =>
+  Effect.runSync(compileIgnorePatterns(patterns));
+
 test("DRU encodes the effective diameter as the clearance min", () => {
   const dru = buildIsolationDru(0.19773502691896, ["F.Cu", "B.Cu"]);
   expect(dru).toContain("(constraint clearance (min 0.1977mm))");
@@ -46,9 +49,9 @@ test("DRU scopes to the machined copper layers", () => {
 
 test("DRU covers all copper feature types", () => {
   const dru = buildIsolationDru(0.2, ["F.Cu"]);
-  for (const type of ["pad", "track", "via", "zone"]) {
+  ["pad", "track", "via", "zone"].forEach((type) => {
     expect(dru).toContain(`A.Type == '${type}'`);
-  }
+  });
 });
 
 test("violationText includes the description and every feature", () => {
@@ -59,7 +62,7 @@ test("violationText includes the description and every feature", () => {
 });
 
 test("ignore regex excludes only matching violations", () => {
-  const patterns = compileIgnorePatterns(["AE1"]);
+  const patterns = compile(["AE1"]);
   const { blocking, ignored } = partitionViolations(
     [antennaViolation, realViolation],
     patterns,
@@ -71,14 +74,13 @@ test("ignore regex excludes only matching violations", () => {
 test("no ignore patterns means everything blocks", () => {
   const { blocking, ignored } = partitionViolations(
     [antennaViolation, realViolation],
-    compileIgnorePatterns([]),
+    compile([]),
   );
   expect(ignored).toHaveLength(0);
   expect(blocking).toHaveLength(2);
 });
 
-test("compileIgnorePatterns throws a clear error on a bad regex", () => {
-  expect(() => compileIgnorePatterns(["("])).toThrow(
-    "validation.isolationFeasibility.ignore",
-  );
+test("compileIgnorePatterns fails with a clear error on a bad regex", () => {
+  const result = Effect.runSync(compileIgnorePatterns(["("]).pipe(Effect.flip));
+  expect(result.message).toContain("validation.isolationFeasibility.ignore");
 });

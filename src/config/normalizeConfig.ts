@@ -1,4 +1,6 @@
+import { ConfigValidationError } from "@/errors";
 import type { ConfigFile } from "@/config/schema";
+import { Array, Effect, Match, Option, Record } from "effect";
 import { resolveFrom } from "./paths";
 import type {
   CncSettingOptions,
@@ -7,352 +9,357 @@ import type {
   ResolvedConfig,
 } from "./types";
 
-class ConfigValidationError extends Error {
-  constructor(readonly errors: readonly string[]) {
-    super(
-      `Invalid flatmaxxing config:\n${errors.map((e) => `- ${e}`).join("\n")}`,
-    );
-    this.name = "ConfigValidationError";
-  }
-}
+const rangeShapeErrors = (range: Range, path: string): readonly string[] => [
+  ...(Number.isFinite(range.min) ? [] : [`${path}.min must be finite.`]),
+  ...(Number.isFinite(range.max) ? [] : [`${path}.max must be finite.`]),
+  ...(range.min > range.max
+    ? [`${path}.min must be less than or equal to ${path}.max.`]
+    : []),
+];
 
-const assertRangeShape = (range: Range, path: string, errors: string[]) => {
-  if (!Number.isFinite(range.min)) {
-    errors.push(`${path}.min must be finite.`);
-  }
-  if (!Number.isFinite(range.max)) {
-    errors.push(`${path}.max must be finite.`);
-  }
-  if (range.min > range.max) {
-    errors.push(`${path}.min must be less than or equal to ${path}.max.`);
-  }
-};
-
-const assertInRange = (
+const inRangeErrors = (
   value: number,
   range: Range,
   path: string,
-  errors: string[],
-) => {
-  if (!Number.isFinite(value)) {
-    errors.push(`${path} must be finite.`);
-    return;
-  }
+): readonly string[] =>
+  Match.value(Number.isFinite(value)).pipe(
+    Match.when(false, () => [`${path} must be finite.`]),
+    Match.orElse(() =>
+      value < range.min || value > range.max
+        ? [`${path} must be between ${range.min} and ${range.max}.`]
+        : [],
+    ),
+  );
 
-  if (value < range.min || value > range.max) {
-    errors.push(`${path} must be between ${range.min} and ${range.max}.`);
-  }
-};
-
-const validateTool = (
+const toolErrors = (
   tool: CncToolOptions | undefined,
   ranges: ResolvedConfig["validation"]["ranges"],
   path: string,
-  errors: string[],
-) => {
-  if (!tool) {
-    return;
-  }
+): readonly string[] =>
+  Option.match(Option.fromUndefinedOr(tool), {
+    onNone: () => [],
+    onSome: (resolvedTool) => [
+      ...inRangeErrors(
+        resolvedTool.diameter,
+        ranges.toolDiameterMm,
+        `${path}.diameter`,
+      ),
+      ...(resolvedTool.type === "vbit"
+        ? inRangeErrors(
+            resolvedTool.angle,
+            ranges.angleDegrees,
+            `${path}.angle`,
+          )
+        : []),
+    ],
+  });
 
-  assertInRange(
-    tool.diameter,
-    ranges.toolDiameterMm,
-    `${path}.diameter`,
-    errors,
-  );
-
-  if (tool.type === "vbit") {
-    assertInRange(tool.angle, ranges.angleDegrees, `${path}.angle`, errors);
-  }
-};
-
-const validateCncSetting = (
+const cncSettingErrors = (
   setting: CncSettingOptions | undefined,
   ranges: ResolvedConfig["validation"]["ranges"],
   path: string,
-  errors: string[],
-) => {
-  if (!setting) {
-    return;
-  }
+): readonly string[] =>
+  Option.match(Option.fromUndefinedOr(setting), {
+    onNone: () => [],
+    onSome: (resolved) => [
+      ...inRangeErrors(resolved.feedRate, ranges.feedRate, `${path}.feedRate`),
+      ...inRangeErrors(
+        resolved.spindleSpeed,
+        ranges.spindleSpeed,
+        `${path}.spindleSpeed`,
+      ),
+      ...inRangeErrors(
+        resolved.zCutDepth,
+        ranges.cutDepthMm,
+        `${path}.zCutDepth`,
+      ),
+      ...inRangeErrors(
+        resolved.zCutFeedRate,
+        ranges.feedRate,
+        `${path}.zCutFeedRate`,
+      ),
+      ...toolErrors(resolved.tool, ranges, `${path}.tool`),
+    ],
+  });
 
-  assertInRange(setting.feedRate, ranges.feedRate, `${path}.feedRate`, errors);
-  assertInRange(
-    setting.spindleSpeed,
-    ranges.spindleSpeed,
-    `${path}.spindleSpeed`,
-    errors,
-  );
-  assertInRange(
-    setting.zCutDepth,
-    ranges.cutDepthMm,
-    `${path}.zCutDepth`,
-    errors,
-  );
-  assertInRange(
-    setting.zCutFeedRate,
-    ranges.feedRate,
-    `${path}.zCutFeedRate`,
-    errors,
-  );
-  validateTool(setting.tool, ranges, `${path}.tool`, errors);
+const platingBathPairErrors = (
+  container: ResolvedConfig["electroplating"]["container"],
+): readonly string[] =>
+  (container.maxBoardWidthMm === undefined) !==
+  (container.maxBoardHeightMm === undefined)
+    ? [
+        "electroplating.container.maxBoardWidthMm and maxBoardHeightMm must be configured together.",
+      ]
+    : [];
+
+const millRequirementErrors = (config: ResolvedConfig): readonly string[] =>
+  (config.makeracam.platedHoles.generate ||
+    config.makeracam.finalCut.generate) &&
+  config.cnc.availableMills.length === 0
+    ? [
+        "cnc.availableMills must include at least one mill when MakerCAM platedHoles or finalCut generation is enabled.",
+      ]
+    : [];
+
+export const resolvedConfigErrors = (
+  config: ResolvedConfig,
+): readonly string[] => {
+  const { ranges } = config.validation;
+  const { additionalDistance, container, recipe } = config.electroplating;
+
+  return [
+    ...Array.flatMap(Record.toEntries(ranges), ([key, range]) =>
+      rangeShapeErrors(range, `validation.ranges.${key}`),
+    ),
+    ...inRangeErrors(
+      config.alignmentDrills.distance.x,
+      ranges.distanceMm,
+      "alignmentDrills.distance.x",
+    ),
+    ...inRangeErrors(
+      config.alignmentDrills.distance.y,
+      ranges.distanceMm,
+      "alignmentDrills.distance.y",
+    ),
+    ...Array.flatMap(["left", "right", "top", "bottom"] as const, (edge) =>
+      inRangeErrors(
+        additionalDistance[edge],
+        ranges.distanceMm,
+        `electroplating.additionalDistance.${edge}`,
+      ),
+    ),
+    ...inRangeErrors(
+      config.electroplating.cornerRadius,
+      ranges.distanceMm,
+      "electroplating.cornerRadius",
+    ),
+    ...inRangeErrors(
+      container.waterMl,
+      ranges.electroplatingVolumeMl,
+      "electroplating.container.waterMl",
+    ),
+    ...Option.match(Option.fromUndefinedOr(container.maxBoardWidthMm), {
+      onNone: () => [],
+      onSome: (value) =>
+        inRangeErrors(
+          value,
+          ranges.electroplatingBoardSizeMm,
+          "electroplating.container.maxBoardWidthMm",
+        ),
+    }),
+    ...Option.match(Option.fromUndefinedOr(container.maxBoardHeightMm), {
+      onNone: () => [],
+      onSome: (value) =>
+        inRangeErrors(
+          value,
+          ranges.electroplatingBoardSizeMm,
+          "electroplating.container.maxBoardHeightMm",
+        ),
+    }),
+    ...platingBathPairErrors(container),
+    ...inRangeErrors(
+      recipe.currentDensityMaPerCm2,
+      ranges.electroplatingCurrentDensityMaPerCm2,
+      "electroplating.recipe.currentDensityMaPerCm2",
+    ),
+    ...inRangeErrors(
+      recipe.durationMinutes,
+      ranges.electroplatingDurationMinutes,
+      "electroplating.recipe.durationMinutes",
+    ),
+    ...inRangeErrors(
+      recipe.stirRpm,
+      ranges.electroplatingStirRpm,
+      "electroplating.recipe.stirRpm",
+    ),
+    ...inRangeErrors(
+      recipe.targetCopperMicrons,
+      ranges.electroplatingMicrons,
+      "electroplating.recipe.targetCopperMicrons",
+    ),
+    ...inRangeErrors(
+      recipe.voltageLimitV,
+      ranges.electroplatingVoltageV,
+      "electroplating.recipe.voltageLimitV",
+    ),
+    ...inRangeErrors(
+      recipe.copperSulfatePentahydrate.gramsPerLiter,
+      ranges.electroplatingMassGramsPerLiter,
+      "electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter",
+    ),
+    ...inRangeErrors(
+      recipe.citricAcid.gramsPerLiter,
+      ranges.electroplatingMassGramsPerLiter,
+      "electroplating.recipe.citricAcid.gramsPerLiter",
+    ),
+    ...inRangeErrors(
+      recipe.polysorbate20.millilitersPerLiter,
+      ranges.electroplatingLiquidMillilitersPerLiter,
+      "electroplating.recipe.polysorbate20.millilitersPerLiter",
+    ),
+    ...inRangeErrors(
+      recipe.hcl.solutionConcentrationPercent,
+      ranges.electroplatingConcentrationPercent,
+      "electroplating.recipe.hcl.solutionConcentrationPercent",
+    ),
+    ...inRangeErrors(
+      recipe.hcl.referenceConcentrationPercent,
+      ranges.electroplatingConcentrationPercent,
+      "electroplating.recipe.hcl.referenceConcentrationPercent",
+    ),
+    ...inRangeErrors(
+      recipe.hcl.referenceMillilitersPerLiter,
+      ranges.electroplatingLiquidMillilitersPerLiter,
+      "electroplating.recipe.hcl.referenceMillilitersPerLiter",
+    ),
+    ...inRangeErrors(
+      config.solderMask.distance.x,
+      ranges.distanceMm,
+      "solderMask.distance.x",
+    ),
+    ...inRangeErrors(
+      config.solderMask.distance.y,
+      ranges.distanceMm,
+      "solderMask.distance.y",
+    ),
+    ...inRangeErrors(
+      config.solderMask.xtool.intensity,
+      ranges.xtoolPercent,
+      "solderMask.xtool.intensity",
+    ),
+    ...inRangeErrors(
+      config.solderMask.xtool.passes,
+      ranges.xtoolPasses,
+      "solderMask.xtool.passes",
+    ),
+    ...inRangeErrors(
+      config.stencil.xtool.power,
+      ranges.xtoolPercent,
+      "stencil.xtool.power",
+    ),
+    ...inRangeErrors(
+      config.stencil.xtool.speed,
+      ranges.xtoolSpeed,
+      "stencil.xtool.speed",
+    ),
+    ...inRangeErrors(
+      config.stencil.xtool.passes,
+      ranges.xtoolPasses,
+      "stencil.xtool.passes",
+    ),
+    ...cncSettingErrors(config.cnc.isolation, ranges, "cnc.isolation"),
+    ...cncSettingErrors(
+      config.cnc.nonCopperClearing,
+      ranges,
+      "cnc.nonCopperClearing",
+    ),
+    ...Array.flatMap(config.cnc.availableDrills, (drill, index) =>
+      inRangeErrors(
+        drill.diameter,
+        ranges.toolDiameterMm,
+        `cnc.availableDrills.${index}.diameter`,
+      ),
+    ),
+    ...Array.flatMap(config.cnc.availableMills, (mill, index) =>
+      inRangeErrors(
+        mill.diameter,
+        ranges.toolDiameterMm,
+        `cnc.availableMills.${index}.diameter`,
+      ),
+    ),
+    ...millRequirementErrors(config),
+  ];
 };
 
 export const validateResolvedConfig = (config: ResolvedConfig) => {
-  const errors: string[] = [];
-  const { ranges } = config.validation;
+  const errors = resolvedConfigErrors(config);
 
-  for (const [key, range] of Object.entries(ranges)) {
-    assertRangeShape(range, `validation.ranges.${key}`, errors);
-  }
-
-  assertInRange(
-    config.alignmentDrills.distance.x,
-    ranges.distanceMm,
-    "alignmentDrills.distance.x",
-    errors,
-  );
-  assertInRange(
-    config.alignmentDrills.distance.y,
-    ranges.distanceMm,
-    "alignmentDrills.distance.y",
-    errors,
-  );
-
-  for (const edge of ["left", "right", "top", "bottom"] as const) {
-    assertInRange(
-      config.electroplating.additionalDistance[edge],
-      ranges.distanceMm,
-      `electroplating.additionalDistance.${edge}`,
-      errors,
-    );
-  }
-  assertInRange(
-    config.electroplating.cornerRadius,
-    ranges.distanceMm,
-    "electroplating.cornerRadius",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.container.waterMl,
-    ranges.electroplatingVolumeMl,
-    "electroplating.container.waterMl",
-    errors,
-  );
-  if (config.electroplating.container.maxBoardWidthMm !== undefined) {
-    assertInRange(
-      config.electroplating.container.maxBoardWidthMm,
-      ranges.electroplatingBoardSizeMm,
-      "electroplating.container.maxBoardWidthMm",
-      errors,
-    );
-  }
-  if (config.electroplating.container.maxBoardHeightMm !== undefined) {
-    assertInRange(
-      config.electroplating.container.maxBoardHeightMm,
-      ranges.electroplatingBoardSizeMm,
-      "electroplating.container.maxBoardHeightMm",
-      errors,
-    );
-  }
-  if (
-    (config.electroplating.container.maxBoardWidthMm === undefined) !==
-    (config.electroplating.container.maxBoardHeightMm === undefined)
-  ) {
-    errors.push(
-      "electroplating.container.maxBoardWidthMm and maxBoardHeightMm must be configured together.",
-    );
-  }
-  assertInRange(
-    config.electroplating.recipe.currentDensityMaPerCm2,
-    ranges.electroplatingCurrentDensityMaPerCm2,
-    "electroplating.recipe.currentDensityMaPerCm2",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.durationMinutes,
-    ranges.electroplatingDurationMinutes,
-    "electroplating.recipe.durationMinutes",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.stirRpm,
-    ranges.electroplatingStirRpm,
-    "electroplating.recipe.stirRpm",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.targetCopperMicrons,
-    ranges.electroplatingMicrons,
-    "electroplating.recipe.targetCopperMicrons",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.voltageLimitV,
-    ranges.electroplatingVoltageV,
-    "electroplating.recipe.voltageLimitV",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter,
-    ranges.electroplatingMassGramsPerLiter,
-    "electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.citricAcid.gramsPerLiter,
-    ranges.electroplatingMassGramsPerLiter,
-    "electroplating.recipe.citricAcid.gramsPerLiter",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.polysorbate20.millilitersPerLiter,
-    ranges.electroplatingLiquidMillilitersPerLiter,
-    "electroplating.recipe.polysorbate20.millilitersPerLiter",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.hcl.solutionConcentrationPercent,
-    ranges.electroplatingConcentrationPercent,
-    "electroplating.recipe.hcl.solutionConcentrationPercent",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.hcl.referenceConcentrationPercent,
-    ranges.electroplatingConcentrationPercent,
-    "electroplating.recipe.hcl.referenceConcentrationPercent",
-    errors,
-  );
-  assertInRange(
-    config.electroplating.recipe.hcl.referenceMillilitersPerLiter,
-    ranges.electroplatingLiquidMillilitersPerLiter,
-    "electroplating.recipe.hcl.referenceMillilitersPerLiter",
-    errors,
-  );
-
-  assertInRange(
-    config.solderMask.distance.x,
-    ranges.distanceMm,
-    "solderMask.distance.x",
-    errors,
-  );
-  assertInRange(
-    config.solderMask.distance.y,
-    ranges.distanceMm,
-    "solderMask.distance.y",
-    errors,
-  );
-  assertInRange(
-    config.solderMask.xtool.intensity,
-    ranges.xtoolPercent,
-    "solderMask.xtool.intensity",
-    errors,
-  );
-  assertInRange(
-    config.solderMask.xtool.passes,
-    ranges.xtoolPasses,
-    "solderMask.xtool.passes",
-    errors,
-  );
-  assertInRange(
-    config.stencil.xtool.power,
-    ranges.xtoolPercent,
-    "stencil.xtool.power",
-    errors,
-  );
-  assertInRange(
-    config.stencil.xtool.speed,
-    ranges.xtoolSpeed,
-    "stencil.xtool.speed",
-    errors,
-  );
-  assertInRange(
-    config.stencil.xtool.passes,
-    ranges.xtoolPasses,
-    "stencil.xtool.passes",
-    errors,
-  );
-
-  validateCncSetting(config.cnc.isolation, ranges, "cnc.isolation", errors);
-  validateCncSetting(
-    config.cnc.nonCopperClearing,
-    ranges,
-    "cnc.nonCopperClearing",
-    errors,
-  );
-
-  config.cnc.availableDrills?.forEach((drill, index) =>
-    assertInRange(
-      drill.diameter,
-      ranges.toolDiameterMm,
-      `cnc.availableDrills.${index}.diameter`,
-      errors,
-    ),
-  );
-  config.cnc.availableMills?.forEach((mill, index) =>
-    assertInRange(
-      mill.diameter,
-      ranges.toolDiameterMm,
-      `cnc.availableMills.${index}.diameter`,
-      errors,
-    ),
-  );
-
-  if (
-    (config.makeracam.platedHoles.generate ||
-      config.makeracam.finalCut.generate) &&
-    config.cnc.availableMills.length === 0
-  ) {
-    errors.push(
-      "cnc.availableMills must include at least one mill when MakerCAM platedHoles or finalCut generation is enabled.",
-    );
-  }
-
-  if (errors.length > 0) {
-    throw new ConfigValidationError(errors);
-  }
-};
-
-export const normalizeConfig = (config: ConfigFile, configRoot: string) => {
-  const resolvedConfigRoot = resolveFrom(process.cwd(), configRoot);
-  const resolvedProjectDir = resolveFrom(resolvedConfigRoot, config.projectDir);
-  const resolved: ResolvedConfig = {
-    projectDir: resolvedProjectDir,
-    skipRenderBoard: config.skipRenderBoard,
-    dependencies: config.dependencies,
-    paths: {
-      additionalProjects: resolveFrom(
-        resolvedProjectDir,
-        config.paths.additionalProjects,
+  return Match.value(errors.length > 0).pipe(
+    Match.when(true, () =>
+      Effect.fail(
+        new ConfigValidationError({
+          message: `Invalid flatmaxxing config:\n${errors.map((e) => `- ${e}`).join("\n")}`,
+          errors,
+        }),
       ),
-      gcode: resolveFrom(resolvedProjectDir, config.paths.gcode),
-      svg: resolveFrom(resolvedProjectDir, config.paths.svg),
-      dxf: resolveFrom(resolvedProjectDir, config.paths.dxf),
-      png: resolveFrom(resolvedProjectDir, config.paths.png),
-      gerbers: resolveFrom(resolvedProjectDir, config.paths.gerbers),
-      drills: resolveFrom(resolvedProjectDir, config.paths.drills),
-      xtool: resolveFrom(resolvedProjectDir, config.paths.xtool),
-      place: resolveFrom(resolvedProjectDir, config.paths.place),
-      cnc: resolveFrom(resolvedProjectDir, config.paths.cnc),
-    },
-    board: {
-      ...config.board,
-      file: config.board.file
-        ? resolveFrom(resolvedProjectDir, config.board.file)
-        : undefined,
-    },
-    alignmentDrills: config.alignmentDrills,
-    electroplating: config.electroplating,
-    solderMask: config.solderMask,
-    stencil: config.stencil,
-    drills: config.drills,
-    place: config.place,
-    cnc: config.cnc,
-    xtool: config.xtool,
-    makeracam: config.makeracam,
-    validation: config.validation,
-  };
-
-  validateResolvedConfig(resolved);
-  return resolved;
+    ),
+    Match.orElse(() => Effect.void),
+  );
 };
+
+export const normalizeConfig = Effect.fn("flatmaxx.config.normalize")(
+  function* (config: ConfigFile, configRoot: string) {
+    const cwd = yield* Effect.sync(() => process.cwd());
+    const resolvedConfigRoot = yield* resolveFrom(cwd, configRoot);
+    const resolvedProjectDir = yield* resolveFrom(
+      resolvedConfigRoot,
+      config.projectDir,
+    );
+    const fromProjectDir = (path: string) =>
+      resolveFrom(resolvedProjectDir, path);
+    const [
+      additionalProjects,
+      gcode,
+      svg,
+      dxf,
+      png,
+      gerbers,
+      drills,
+      xtool,
+      place,
+      cnc,
+    ] = yield* Effect.all([
+      fromProjectDir(config.paths.additionalProjects),
+      fromProjectDir(config.paths.gcode),
+      fromProjectDir(config.paths.svg),
+      fromProjectDir(config.paths.dxf),
+      fromProjectDir(config.paths.png),
+      fromProjectDir(config.paths.gerbers),
+      fromProjectDir(config.paths.drills),
+      fromProjectDir(config.paths.xtool),
+      fromProjectDir(config.paths.place),
+      fromProjectDir(config.paths.cnc),
+    ]);
+    const boardFile = yield* Option.match(
+      Option.fromUndefinedOr(config.board.file),
+      {
+        onNone: () => Effect.succeed(undefined),
+        onSome: fromProjectDir,
+      },
+    );
+    const resolved: ResolvedConfig = {
+      projectDir: resolvedProjectDir,
+      skipRenderBoard: config.skipRenderBoard,
+      dependencies: config.dependencies,
+      paths: {
+        additionalProjects,
+        gcode,
+        svg,
+        dxf,
+        png,
+        gerbers,
+        drills,
+        xtool,
+        place,
+        cnc,
+      },
+      board: {
+        ...config.board,
+        file: boardFile,
+      },
+      alignmentDrills: config.alignmentDrills,
+      electroplating: config.electroplating,
+      solderMask: config.solderMask,
+      stencil: config.stencil,
+      drills: config.drills,
+      place: config.place,
+      cnc: config.cnc,
+      xtool: config.xtool,
+      makeracam: config.makeracam,
+      validation: config.validation,
+    };
+
+    yield* validateResolvedConfig(resolved);
+    return resolved;
+  },
+);

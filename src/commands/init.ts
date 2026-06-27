@@ -19,16 +19,15 @@ import {
   renderTomlAssignments,
   renderTomlSection,
 } from "@/config";
-import { Effect } from "effect";
+import { CliError } from "@/errors";
+import { Array, Effect, FileSystem, Match, Order, Path } from "effect";
 import { Command } from "effect/unstable/cli";
-import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-export type InitPrompt = (question: string) => Effect.Effect<string, Error>;
+export type InitPrompt = (question: string) => Effect.Effect<string, CliError>;
 
-export type InitOptions = {
+export interface InitOptions {
   readonly cwd?: string | undefined;
   readonly userConfigPath?: string | undefined;
   readonly prompt?: InitPrompt | undefined;
@@ -36,57 +35,86 @@ export type InitOptions = {
     | ((
         projectDir: string,
         boardFiles: readonly string[],
-      ) => Effect.Effect<string, Error>)
+      ) => Effect.Effect<string, CliError>)
     | undefined;
-};
+}
 
-export type InitProjectSelection = {
+export interface InitProjectSelection {
   readonly projectDir: string;
   readonly boardFile?: string | undefined;
-};
+}
 
 export type InitResult = InitProjectSelection & {
   readonly configPath: string;
   readonly extendsUserConfig: boolean;
 };
 
-type InitSelectionOptions = {
+interface InitSelectionOptions {
   readonly cwd: string;
   readonly prompt?: InitPrompt | undefined;
   readonly selectBoard?: InitOptions["selectBoard"] | undefined;
-};
+}
 
 const generatedConfigFilename = "flatmaxxing.toml";
 const userConfigExtendsPath = "~/flatmaxxing.user.toml";
+const userConfigFilename = "flatmaxxing.user.toml";
+const kicadBoardExtension = ".kicad_pcb";
 
-const isKicadBoardFile = (file: string) => file.endsWith(".kicad_pcb");
+const boardNameOrder = Order.make<string>((a, b) =>
+  a.localeCompare(b) < 0 ? -1 : a.localeCompare(b) > 0 ? 1 : 0,
+);
 
-export const findKicadBoardFiles = (directory: string): readonly string[] =>
-  readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && isKicadBoardFile(entry.name))
-    .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
+const isKicadBoardFile = (file: string) => file.endsWith(kicadBoardExtension);
 
-const relativeConfigPath = (fromDirectory: string, toPath: string): string => {
-  const from = resolve(fromDirectory);
-  const to = resolve(from, toPath);
-  const rel = relative(from, to);
+export const findKicadBoardFiles = Effect.fn("flatmaxx.init.findBoards")(
+  function* (directory: string) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const exists = yield* fs.exists(directory);
 
-  if (rel === "") {
-    return ".";
-  }
+    if (!exists) {
+      return [] as readonly string[];
+    }
 
-  return rel.startsWith("..") || rel.startsWith(`.${sep}`)
-    ? rel
-    : `.${sep}${rel}`;
-};
+    const entries = yield* fs.readDirectory(directory);
+    const candidates = Array.filter(entries, isKicadBoardFile);
+    const files = yield* Effect.filter(candidates, (name) =>
+      fs.stat(path.join(directory, name)).pipe(
+        Effect.map((info) => info.type === "File"),
+        Effect.orElseSucceed(() => false),
+      ),
+    );
 
-const relativeProjectPath = (fromDirectory: string, toPath: string): string => {
-  const from = resolve(fromDirectory);
-  const to = resolve(from, toPath);
-  const rel = relative(from, to);
-  return rel === "" ? "." : rel;
-};
+    return Array.sort(files, boardNameOrder);
+  },
+);
+
+const relativeConfigPath = Effect.fn("flatmaxx.init.relativeConfigPath")(
+  function* (fromDirectory: string, toPath: string) {
+    const path = yield* Path.Path;
+    const from = path.resolve(fromDirectory);
+    const to = path.resolve(from, toPath);
+    const rel = path.relative(from, to);
+
+    if (rel === "") {
+      return ".";
+    }
+
+    return rel.startsWith("..") || rel.startsWith(`.${path.sep}`)
+      ? rel
+      : `.${path.sep}${rel}`;
+  },
+);
+
+const relativeProjectPath = Effect.fn("flatmaxx.init.relativeProjectPath")(
+  function* (fromDirectory: string, toPath: string) {
+    const path = yield* Path.Path;
+    const from = path.resolve(fromDirectory);
+    const to = path.resolve(from, toPath);
+    const rel = path.relative(from, to);
+    return rel === "" ? "." : rel;
+  },
+);
 
 export const createProjectConfigToml = ({
   extendsUserConfig,
@@ -203,44 +231,59 @@ const defaultPrompt: InitPrompt = (question) =>
         output: process.stdout,
       }),
     ),
-    (readline) => Effect.promise(() => readline.question(question)),
+    (readline) =>
+      Effect.tryPromise({
+        try: () => readline.question(question),
+        catch: (cause) =>
+          new CliError({ message: "Failed to read input.", cause }),
+      }),
     (readline) => Effect.sync(() => readline.close()),
   );
+
+const chooseBoardByAnswer = (
+  answer: string,
+  boardFiles: readonly string[],
+  projectDir: string,
+): Effect.Effect<string, CliError> => {
+  const trimmed = answer.trim();
+  const index = Number(trimmed);
+
+  if (Number.isInteger(index) && index >= 1 && index <= boardFiles.length) {
+    return Effect.succeed(boardFiles[index - 1]!);
+  }
+
+  if (boardFiles.includes(trimmed)) {
+    return Effect.succeed(trimmed);
+  }
+
+  return Effect.fail(
+    new CliError({
+      message: `Invalid board selection "${answer}" for ${projectDir}.`,
+    }),
+  );
+};
 
 const chooseBoard = (
   projectDir: string,
   boardFiles: readonly string[],
   prompt: InitPrompt,
-): Effect.Effect<string, Error> => {
-  if (boardFiles.length === 1) {
-    return Effect.succeed(boardFiles[0]!);
-  }
+): Effect.Effect<string, CliError> =>
+  Match.value(boardFiles.length === 1).pipe(
+    Match.when(true, () => Effect.succeed(boardFiles[0]!)),
+    Match.orElse(() => {
+      const choices = boardFiles
+        .map((file, index) => `${index + 1}. ${file}`)
+        .join("\n");
 
-  const choices = boardFiles
-    .map((file, index) => `${index + 1}. ${file}`)
-    .join("\n");
-
-  return prompt(
-    `Found more than one KiCad board in ${projectDir}.\n${choices}\nSelect board [1-${boardFiles.length}]: `,
-  ).pipe(
-    Effect.flatMap((answer) => {
-      const trimmed = answer.trim();
-      const index = Number(trimmed);
-
-      if (Number.isInteger(index) && index >= 1 && index <= boardFiles.length) {
-        return Effect.succeed(boardFiles[index - 1]!);
-      }
-
-      if (boardFiles.includes(trimmed)) {
-        return Effect.succeed(trimmed);
-      }
-
-      return Effect.fail(
-        new Error(`Invalid board selection "${answer}" for ${projectDir}.`),
+      return prompt(
+        `Found more than one KiCad board in ${projectDir}.\n${choices}\nSelect board [1-${boardFiles.length}]: `,
+      ).pipe(
+        Effect.flatMap((answer) =>
+          chooseBoardByAnswer(answer, boardFiles, projectDir),
+        ),
       );
     }),
   );
-};
 
 export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
   function* ({
@@ -248,7 +291,8 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
     prompt = defaultPrompt,
     selectBoard,
   }: InitSelectionOptions) {
-    const cwdBoards = findKicadBoardFiles(cwd);
+    const path = yield* Path.Path;
+    const cwdBoards = yield* findKicadBoardFiles(cwd);
 
     if (cwdBoards.length > 0) {
       const selectedBoard = yield* selectBoard?.(cwd, cwdBoards) ??
@@ -263,19 +307,22 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
     const answer = yield* prompt(
       "No KiCad board was found in the current directory. KiCad project directory: ",
     );
-    const projectDir = resolveFrom(cwd, answer.trim());
+    const projectDir = yield* resolveFrom(cwd, answer.trim());
+    const fs = yield* FileSystem.FileSystem;
 
-    if (!existsSync(projectDir)) {
+    if (!(yield* fs.exists(projectDir))) {
       return yield* Effect.fail(
-        new Error(`The directory "${projectDir}" does not exist.`),
+        new CliError({
+          message: `The directory "${projectDir}" does not exist.`,
+        }),
       );
     }
 
-    const projectBoards = findKicadBoardFiles(projectDir);
+    const projectBoards = yield* findKicadBoardFiles(projectDir);
 
     if (projectBoards.length === 0) {
       return yield* Effect.fail(
-        new Error(`No KiCad boards found in "${projectDir}".`),
+        new CliError({ message: `No KiCad boards found in "${projectDir}".` }),
       );
     }
 
@@ -283,10 +330,13 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
       chooseBoard(projectDir, projectBoards, prompt);
 
     return {
-      projectDir: relativeConfigPath(cwd, projectDir),
+      projectDir: yield* relativeConfigPath(cwd, projectDir),
       boardFile:
         projectBoards.length > 1
-          ? relativeProjectPath(projectDir, join(projectDir, selectedBoard))
+          ? yield* relativeProjectPath(
+              projectDir,
+              path.join(projectDir, selectedBoard),
+            )
           : undefined,
     };
   },
@@ -295,12 +345,14 @@ export const selectInitProject = Effect.fn("flatmaxx.init.selectProject")(
 export const runInitWorkflow = Effect.fn("flatmaxx.init")(function* (
   options: InitOptions = {},
 ) {
-  const cwd = options.cwd ? resolve(options.cwd) : process.cwd();
-  const configPath = join(cwd, generatedConfigFilename);
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const cwd = options.cwd ? path.resolve(options.cwd) : process.cwd();
+  const configPath = path.join(cwd, generatedConfigFilename);
 
-  if (existsSync(configPath)) {
+  if (yield* fs.exists(configPath)) {
     return yield* Effect.fail(
-      new Error(`Config file "${configPath}" already exists.`),
+      new CliError({ message: `Config file "${configPath}" already exists.` }),
     );
   }
 
@@ -309,16 +361,17 @@ export const runInitWorkflow = Effect.fn("flatmaxx.init")(function* (
     prompt: options.prompt,
     selectBoard: options.selectBoard,
   });
+  const home = yield* Effect.sync(() => homedir());
   const userConfigPath =
-    options.userConfigPath ?? join(homedir(), "flatmaxxing.user.toml");
-  const extendsUserConfig = existsSync(userConfigPath);
+    options.userConfigPath ?? path.join(home, userConfigFilename);
+  const extendsUserConfig = yield* fs.exists(userConfigPath);
   const toml = createProjectConfigToml({
     extendsUserConfig,
     projectDir: selection.projectDir,
     boardFile: selection.boardFile,
   });
 
-  yield* Effect.promise(() => Bun.write(configPath, toml));
+  yield* fs.writeFileString(configPath, toml);
 
   return {
     configPath,
@@ -332,10 +385,10 @@ export const makeInitCommand = () =>
     "init",
     {},
     Effect.fn("flatmaxx.init.command")(function* () {
+      const path = yield* Path.Path;
       const result = yield* runInitWorkflow();
-      yield* Effect.sync(() => {
-        console.log(`Created ${basename(result.configPath)}.`);
-      });
+      const name = path.basename(result.configPath);
+      yield* Effect.sync(() => console.log(`Created ${name}.`));
     }),
   ).pipe(
     Command.withDescription(

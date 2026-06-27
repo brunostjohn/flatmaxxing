@@ -1,4 +1,4 @@
-import { runAppleScript } from "@/utils";
+import { runAppleScript } from "@/macos";
 import type { Client } from "chrome-remote-interface";
 import { Duration, Effect } from "effect";
 import { cdpClickOn, runScriptInXToolStudio } from "../cdp";

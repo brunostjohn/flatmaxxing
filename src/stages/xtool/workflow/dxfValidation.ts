@@ -1,20 +1,22 @@
 import { dxfBounds, dxfHasPlottableGeometry } from "@/compute";
+import { DxfError, XToolError } from "@/errors";
 import DxfParser from "dxf-parser";
 import { Effect, FileSystem } from "effect";
+
+const parseDxf = (dxfFile: string) => {
+  const dxf = new DxfParser().parseSync(dxfFile);
+  if (!dxf) {
+    throw new DxfError({ message: "Failed to parse DXF file." });
+  }
+  return dxf;
+};
 
 export const parseDxfString = Effect.fn("flatmaxx.xtool.parseDxfString")(
   function* (dxfFile: string) {
     return yield* Effect.try({
-      try: () => {
-        const parser = new DxfParser();
-        const dxf = parser.parseSync(dxfFile);
-        if (!dxf) {
-          throw new Error("Failed to parse DXF file.");
-        }
-        return dxf;
-      },
+      try: () => parseDxf(dxfFile),
       catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
+        new XToolError({ message: "Failed to parse DXF file.", cause }),
     });
   },
 );

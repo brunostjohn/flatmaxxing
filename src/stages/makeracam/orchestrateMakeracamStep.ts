@@ -1,5 +1,5 @@
-import { Effect, FileSystem } from "effect";
-import { basename, join } from "node:path";
+import { createTasklist, type TasklistControls } from "@/inkHelpers";
+import { Effect, FileSystem, Layer, Match, Path } from "effect";
 import {
   assertExportRowCount,
   calculatePath,
@@ -19,53 +19,57 @@ import {
   setSequentialToolNumbers,
   setStockMaterialPCB,
 } from "./actions";
-import { type LifecycleReport, withMakeraCamSession } from "./lifecycle";
+import { MakeraCamReporter, withMakeraCamSession } from "./lifecycle";
 import { selectStepDrills } from "./selectStepDrills";
+import { buildMakeracamTasks, makeracamTaskPaths } from "./tasks";
 import type {
+  MakeracamStep,
   MakeracamStepOptions,
   PlannedToolpath,
   ToolpathKind,
 } from "./types";
 
-export const stepFilename = (board: string, step: "plated" | "final") =>
+export const stepFilename = (board: string, step: MakeracamStep) =>
   step === "plated"
     ? `${board}_align-PTH_Holes-PTH_EdgeCuts`
     : `${board}_NPTH_Holes-Final_EdgeCuts`;
 
-const kindForMethod = (method: string) => {
-  const kind: ToolpathKind = method === "drills" ? "drill" : "pocket";
-  return kind;
-};
+const kindForMethod = (method: string): ToolpathKind =>
+  method === "drills" ? "drill" : "pocket";
 
-export const planToolpaths = (
-  files: readonly string[],
-  board: string,
-  step: "plated" | "final",
-  drillsDir: string,
-  edgeCutGerberPath: string,
-) => {
-  const drills: PlannedToolpath[] = selectStepDrills(files, board, step).map(
-    (d) => ({
-      file: d.file,
-      absPath: join(drillsDir, d.file),
-      kind: kindForMethod(d.method),
-      category: d.category,
-      method: d.method,
-      diameterMm: d.diameterMm,
-    }),
-  );
+export const planToolpaths = Effect.fn("flatmaxx.makeracam.planToolpaths")(
+  function* (
+    files: readonly string[],
+    board: string,
+    step: MakeracamStep,
+    drillsDir: string,
+    edgeCutGerberPath: string,
+  ) {
+    const path = yield* Path.Path;
 
-  const contour: PlannedToolpath = {
-    file: basename(edgeCutGerberPath),
-    absPath: edgeCutGerberPath,
-    kind: "contour",
-    category: "edge",
-    method: "contour",
-    diameterMm: 0,
-  };
+    const drills = selectStepDrills(files, board, step).map(
+      (drill): PlannedToolpath => ({
+        file: drill.file,
+        absPath: path.join(drillsDir, drill.file),
+        kind: kindForMethod(drill.method),
+        category: drill.category,
+        method: drill.method,
+        diameterMm: drill.diameterMm,
+      }),
+    );
 
-  return [contour, ...drills];
-};
+    const contour: PlannedToolpath = {
+      file: path.basename(edgeCutGerberPath),
+      absPath: edgeCutGerberPath,
+      kind: "contour",
+      category: "edge",
+      method: "contour",
+      diameterMm: 0,
+    };
+
+    return [contour, ...drills];
+  },
+);
 
 export const assignToolNumbers = (
   planned: readonly PlannedToolpath[],
@@ -81,87 +85,68 @@ export const assignToolNumbers = (
   ];
   const seenTools = new Map<string, number>();
   return finalOrder.map((tp) => {
-    const k = toolKey(tp);
-    let n = seenTools.get(k);
-    if (n === undefined) {
-      n = seenTools.size + 1;
-      seenTools.set(k, n);
-    }
-    return n;
+    const key = toolKey(tp);
+    const existing = seenTools.get(key);
+    if (existing !== undefined) return existing;
+    const next = seenTools.size + 1;
+    seenTools.set(key, next);
+    return next;
   });
 };
 
-export const orchestrateMakeracamStep = Effect.fn(
-  "flatmaxx.makeracam.orchestrateStep",
-)(function* (
+const reporterFromTasklist = (tasks: TasklistControls) =>
+  Layer.succeed(MakeraCamReporter, {
+    report: (message) =>
+      tasks.setTaskStatus(makeracamTaskPaths.session.root, message),
+  });
+
+const buildToolpath = (
+  tasks: TasklistControls,
+  pid: number,
+  toolpath: PlannedToolpath,
+  index: number,
   options: MakeracamStepOptions,
-  pcbName: string,
-  edgeCutGerberPath: string,
   contourMillDiameterMm: number,
-  report: LifecycleReport = () => Effect.void,
-) {
-  const fs = yield* FileSystem.FileSystem;
+) =>
+  Effect.gen(function* () {
+    const paths = makeracamTaskPaths.toolpaths.step(index);
+    const scope = tasks.scope(paths.root);
 
-  const listing = (yield* fs.readDirectory(options.drillsDir)).filter((f) =>
-    f.toLowerCase().endsWith(".drl"),
-  );
-  const planned = planToolpaths(
-    listing,
-    pcbName,
-    options.step,
-    options.drillsDir,
-    edgeCutGerberPath,
-  );
+    yield* tasks.patchTask(paths.root, { state: "loading" });
 
-  if (planned.length === 0) {
-    return yield* Effect.fail(
-      new Error(
-        `No toolpaths planned for the ${options.step} step (no matching drills in ${options.drillsDir}).`,
-      ),
-    );
-  }
+    const layerSelector = yield* scope.runTask({
+      path: paths.import,
+      effect: importPcbFile(pid, toolpath.absPath),
+    });
+    yield* scope.runTask({
+      path: paths.selectGraphics,
+      effect: selectLayerGraphics(pid, layerSelector),
+    });
+    yield* scope.runTask({
+      path: paths.openToolpath,
+      effect: openToolpath(pid, toolpath.kind),
+    });
+    yield* scope.runTask({
+      path: paths.setDepth,
+      effect: setEndDepth(pid, toolpath.kind, options.cutDepthMm),
+    });
 
-  const base = stepFilename(pcbName, options.step);
-  const gcodeFinal = join(options.gcodeDir, `${base}.gcode`);
-  const mkcFinal = join(options.cncDir, `${base}.mkc`);
-
-  yield* fs.makeDirectory(options.gcodeDir, { recursive: true });
-  yield* fs.makeDirectory(options.cncDir, { recursive: true });
-
-  return yield* withMakeraCamSession(
-    options,
-    (session) =>
-      Effect.gen(function* () {
-        const pid = session.pid;
-
-        yield* report("Creating a new 3-axis project...");
-        yield* newProject3Axis(pid);
-
-        yield* report("Setting stock material to PCB...");
-        yield* setStockMaterialPCB(pid);
-
-        for (let i = 0; i < planned.length; i++) {
-          const tp = planned[i];
-          if (tp === undefined) continue;
-          yield* report(
-            `Building toolpath ${i + 1}/${planned.length}: ${tp.file}...`,
-          );
-
-          const layerSelector = yield* importPcbFile(pid, tp.absPath);
-          yield* selectLayerGraphics(pid, layerSelector);
-
-          yield* openToolpath(pid, tp.kind);
-          yield* setEndDepth(pid, tp.kind, options.cutDepthMm);
-
-          if (tp.kind === "pocket") {
+    yield* scope.runTask({
+      path: paths.chooseTool,
+      effect: Match.value(toolpath.kind).pipe(
+        Match.when("pocket", () =>
+          Effect.gen(function* () {
             yield* deleteDefaultPocketTool(pid);
             yield* chooseToolByDiameter(
               pid,
-              tp.method,
-              tp.diameterMm,
+              toolpath.method,
+              toolpath.diameterMm,
               "Add Tool",
             );
-          } else if (tp.kind === "contour") {
+          }),
+        ),
+        Match.when("contour", () =>
+          Effect.gen(function* () {
             yield* chooseToolByDiameter(
               pid,
               "contour",
@@ -173,35 +158,117 @@ export const orchestrateMakeracamStep = Effect.fn(
               options.cutDepthMm,
               options.tabsPerContour,
             );
-          } else {
-            yield* chooseToolByDiameter(
-              pid,
-              tp.method,
-              tp.diameterMm,
-              "Choose Tool",
-            );
-          }
+          }),
+        ),
+        Match.orElse(() =>
+          chooseToolByDiameter(
+            pid,
+            toolpath.method,
+            toolpath.diameterMm,
+            "Choose Tool",
+          ),
+        ),
+      ),
+    });
 
-          yield* calculatePath(pid);
-          yield* closeToolpathDialog(pid);
-        }
+    yield* scope.runTask({
+      path: paths.calculate,
+      effect: calculatePath(pid),
+    });
+    yield* scope.runTask({
+      path: paths.closeDialog,
+      effect: closeToolpathDialog(pid),
+    });
 
-        yield* report("Reordering — moving the edge-cut contour to last...");
-        yield* reorderContourLast(pid);
+    yield* tasks.patchTask(paths.root, { state: "success" });
+  });
 
-        yield* report("Saving all paths → Export ToolPaths...");
-        yield* saveAllPaths(pid);
+export const orchestrateMakeracamStep = Effect.fn(
+  "flatmaxx.makeracam.orchestrateStep",
+)(function* (
+  options: MakeracamStepOptions,
+  pcbName: string,
+  edgeCutGerberPath: string,
+  contourMillDiameterMm: number,
+  title: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
 
-        yield* assertExportRowCount(pid, planned.length);
+  const listing = (yield* fs.readDirectory(options.drillsDir)).filter((file) =>
+    file.toLowerCase().endsWith(".drl"),
+  );
+  const planned = yield* planToolpaths(
+    listing,
+    pcbName,
+    options.step,
+    options.drillsDir,
+    edgeCutGerberPath,
+  );
 
-        yield* report("Assigning tool numbers (reusing repeated tools)...");
-        yield* setSequentialToolNumbers(
-          pid,
-          assignToolNumbers(planned, contourMillDiameterMm),
-        );
+  const base = stepFilename(pcbName, options.step);
+  const gcodeFinal = path.join(options.gcodeDir, `${base}.gcode`);
+  const mkcFinal = path.join(options.cncDir, `${base}.mkc`);
 
-        yield* report("Exporting G-code...");
-        const ncVariant = `${gcodeFinal}.nc`;
+  yield* fs.makeDirectory(options.gcodeDir, { recursive: true });
+  yield* fs.makeDirectory(options.cncDir, { recursive: true });
+
+  const tasks = yield* createTasklist(buildMakeracamTasks(planned), title);
+
+  const work = Effect.gen(function* () {
+    const sessionPaths = makeracamTaskPaths.session;
+    const session = yield* withMakeraCamSession(options);
+    const pid = session.pid;
+
+    yield* tasks.runTask({
+      path: sessionPaths.newProject,
+      effect: newProject3Axis(pid),
+    });
+    yield* tasks.runTask({
+      path: sessionPaths.setStock,
+      effect: setStockMaterialPCB(pid),
+    });
+    yield* tasks.patchTask(sessionPaths.root, { state: "success", status: "" });
+
+    yield* Effect.forEach(planned, (toolpath, index) =>
+      buildToolpath(
+        tasks,
+        pid,
+        toolpath,
+        index,
+        options,
+        contourMillDiameterMm,
+      ),
+    );
+    yield* tasks.patchTask(makeracamTaskPaths.toolpaths.root, {
+      state: "success",
+    });
+
+    const finalize = makeracamTaskPaths.finalize;
+    yield* tasks.runTask({
+      path: finalize.reorder,
+      effect: reorderContourLast(pid),
+    });
+    yield* tasks.runTask({
+      path: finalize.savePaths,
+      effect: saveAllPaths(pid),
+    });
+    yield* tasks.runTask({
+      path: finalize.assertRows,
+      effect: assertExportRowCount(pid, planned.length),
+    });
+    yield* tasks.runTask({
+      path: finalize.toolNumbers,
+      effect: setSequentialToolNumbers(
+        pid,
+        assignToolNumbers(planned, contourMillDiameterMm),
+      ),
+    });
+
+    const ncVariant = `${gcodeFinal}.nc`;
+    yield* tasks.runTask({
+      path: finalize.exportGcode,
+      effect: Effect.gen(function* () {
         yield* fs.remove(ncVariant, { force: true }).pipe(Effect.ignore);
         yield* fs.remove(gcodeFinal, { force: true }).pipe(Effect.ignore);
         yield* exportGcode(pid, gcodeFinal);
@@ -209,17 +276,27 @@ export const orchestrateMakeracamStep = Effect.fn(
           yield* fs.remove(gcodeFinal).pipe(Effect.ignore);
           yield* fs.rename(ncVariant, gcodeFinal);
         }
+      }),
+    });
 
-        yield* report("Saving the MakeraCAM project (.mkc)...");
+    yield* tasks.runTask({
+      path: finalize.saveMkc,
+      effect: Effect.gen(function* () {
         yield* fs.remove(mkcFinal, { force: true }).pipe(Effect.ignore);
         yield* saveProjectMkc(pid, mkcFinal);
-
-        return {
-          gcodePath: gcodeFinal,
-          mkcPath: mkcFinal,
-          pathCount: planned.length,
-        };
       }),
-    report,
+    });
+    yield* tasks.patchTask(finalize.root, { state: "success" });
+
+    return {
+      gcodePath: gcodeFinal,
+      mkcPath: mkcFinal,
+      pathCount: planned.length,
+    };
+  });
+
+  return yield* work.pipe(
+    Effect.provide(reporterFromTasklist(tasks)),
+    Effect.scoped,
   );
-});
+}, Effect.scoped);

@@ -1,10 +1,8 @@
+import { BoardValidationError } from "@/errors";
 import { checkPlatingBathFit } from "@/stages/electroplating/calculateElectroplating";
 import { resolvePlatingLayout } from "@/stages/generateEdgeCutDxfs/platingOutline";
 import { findEdgeCutsBounds } from "@/stages/kicad/board/kicadBoardBounds";
-import {
-  BoardValidationError,
-  type BoardValidator,
-} from "@/stages/kicad/validation/boardValidationTypes";
+import type { BoardValidator } from "@/stages/kicad/validation/boardValidationTypes";
 import { Effect } from "effect";
 
 export const ensureElectroplatingBathFit: BoardValidator = (context) =>
@@ -31,7 +29,7 @@ export const ensureElectroplatingBathFit: BoardValidator = (context) =>
     });
 
     if (!fit.fits) {
-      throw new BoardValidationError(fit.message);
+      throw new BoardValidationError({ message: fit.message });
     }
 
     return null;

@@ -1,23 +1,20 @@
 import { Effect } from "effect";
+import { RenderError } from "@/errors";
 import { normalizeTaskPath } from "./normalizeTaskPath";
 import type {
+  BranchPatch,
   TaskDef,
   TasklistControls,
   TaskPath,
   TaskPathInput,
-  TaskPatch,
 } from "./types";
-
-type BranchPatch = TaskPatch & {
-  readonly childStatus?: string | undefined;
-};
 
 const findTask = (
   tasks: readonly TaskDef[],
   path: readonly string[],
 ): TaskDef | undefined => {
   const [id, ...rest] = path;
-  const task = tasks.find((task) => task.id === id);
+  const task = tasks.find((candidate) => candidate.id === id);
 
   if (!task || rest.length === 0) {
     return task;
@@ -25,6 +22,12 @@ const findTask = (
 
   return findTask(task.children ?? [], rest);
 };
+
+const childPatch = (child: TaskDef, patch: BranchPatch): BranchPatch => ({
+  state: patch.state,
+  label: patch.state === "success" ? `${child.label} skipped.` : child.label,
+  status: patch.childStatus ?? patch.status,
+});
 
 const patchBranch = (
   controls: TasklistControls,
@@ -35,15 +38,14 @@ const patchBranch = (
   Effect.gen(function* () {
     yield* controls.patchTask(path, patch);
 
-    for (const child of task.children ?? []) {
-      const childPath = [...path, child.id] as TaskPath;
-      yield* patchBranch(controls, childPath, child, {
-        state: patch.state,
-        label:
-          patch.state === "success" ? `${child.label} skipped.` : child.label,
-        status: patch.childStatus ?? patch.status,
-      });
-    }
+    yield* Effect.forEach(task.children ?? [], (child) =>
+      patchBranch(
+        controls,
+        [...path, child.id] as TaskPath,
+        child,
+        childPatch(child, patch),
+      ),
+    );
   });
 
 export const markTaskBranch = Effect.fn("flatmaxx.tasklist.markTaskBranch")(
@@ -58,7 +60,9 @@ export const markTaskBranch = Effect.fn("flatmaxx.tasklist.markTaskBranch")(
 
     if (!task) {
       return yield* Effect.fail(
-        new Error(`Task path not found: ${normalizedPath.join("/")}`),
+        new RenderError({
+          message: `Task path not found: ${normalizedPath.join("/")}`,
+        }),
       );
     }
 

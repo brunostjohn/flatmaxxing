@@ -368,7 +368,6 @@ export const CncMillBitSchema = Schema.Struct({
   diameter: Schema.Number.pipe(
     Schema.withDecodingDefault(Effect.succeed(defaultCncMillTool.diameter)),
   ),
-  // Optional per-tool NCC overrides (fall back to cnc.nonCopperClearing).
   feedRate: Schema.Number.pipe(Schema.optional),
   zCutFeedRate: Schema.Number.pipe(Schema.optional),
   spindleSpeed: Schema.Number.pipe(Schema.optional),

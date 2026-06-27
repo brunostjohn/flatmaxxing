@@ -1,11 +1,20 @@
+import { MakeraCamError, ProcessError } from "@/errors";
 import { Duration, Effect, Schedule } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import type { WaitForMakeraCamToExitOptions } from "./types";
 
 export const MAKERACAM_PROCESS = "MakeraCAM";
 
 export const DEFAULT_APP_PATH = "/Applications/MakeraCAM.app";
 
-const parsePgrepOutput = (output: string): number[] =>
+const LAUNCH_POLL = Duration.millis(500);
+const LAUNCH_ATTEMPTS = 120;
+const QUIT_POLL = Duration.millis(500);
+const QUIT_ATTEMPTS = 20;
+const DEFAULT_EXIT_INTERVAL_MS = 500;
+const DEFAULT_EXIT_RECURS = 240;
+
+const parsePgrepOutput = (output: string) =>
   output
     .split(/\s+/)
     .map((value) => Number.parseInt(value, 10))
@@ -21,53 +30,64 @@ export const getMakeraCamPids = Effect.fn("flatmaxx.makeracam.getPids")(
   },
 );
 
+const NOT_YET_LAUNCHED = new MakeraCamError({
+  message: "flatmaxx.makeracam.launch.notYet",
+});
+
 export const launchMakeraCam = Effect.fn("flatmaxx.makeracam.launch")(
   function* (appPath: string = DEFAULT_APP_PATH) {
     const proc = yield* ChildProcess.make("open", ["-na", appPath]);
     const exitCode = yield* proc.exitCode;
     if (exitCode !== 0) {
       return yield* Effect.fail(
-        new Error(`Failed to launch MakeraCAM (open -na exited ${exitCode}).`),
+        new ProcessError({
+          message: `Failed to launch MakeraCAM (open -na exited ${exitCode}).`,
+        }),
       );
     }
 
-    const everyMs = 500;
-    const attempts = 120;
-    for (let i = 0; i < attempts; i++) {
-      const pids = yield* getMakeraCamPids();
-      const pid = pids[0];
+    const probe = Effect.gen(function* () {
+      const pid = (yield* getMakeraCamPids())[0];
       if (pid !== undefined) return pid;
-      yield* Effect.sleep(Duration.millis(everyMs));
-    }
-    return yield* Effect.fail(
-      new Error("MakeraCAM did not appear to pgrep after launch."),
+      return yield* Effect.fail(NOT_YET_LAUNCHED);
+    });
+
+    return yield* probe.pipe(
+      Effect.retry(
+        Schedule.spaced(LAUNCH_POLL).pipe(Schedule.take(LAUNCH_ATTEMPTS - 1)),
+      ),
+      Effect.catchTag("MakeraCamError", () =>
+        Effect.fail(
+          new MakeraCamError({
+            message: "MakeraCAM did not appear to pgrep after launch.",
+          }),
+        ),
+      ),
     );
   },
 );
 
-export type WaitForMakeraCamToExitOptions = {
-  readonly intervalMs?: number | undefined;
-  readonly recurs?: number | undefined;
-};
-
 export const waitForMakeraCamToExitWithProbe = <E, R>(
   getPids: () => Effect.Effect<readonly number[], E, R>,
   options: WaitForMakeraCamToExitOptions = {},
-): Effect.Effect<void, E | Error, R> => {
+) => {
   const waitForNoProcesses = Effect.gen(function* () {
     const processIds = yield* getPids();
-
     if (processIds.length > 0) {
       return yield* Effect.fail(
-        new Error(`MakeraCAM is still running: ${processIds.join(", ")}`),
+        new MakeraCamError({
+          message: `MakeraCAM is still running: ${processIds.join(", ")}`,
+        }),
       );
     }
   });
 
   return waitForNoProcesses.pipe(
     Effect.retry(
-      Schedule.spaced(options.intervalMs ?? 500).pipe(
-        Schedule.both(Schedule.recurs(options.recurs ?? 240)),
+      Schedule.spaced(
+        Duration.millis(options.intervalMs ?? DEFAULT_EXIT_INTERVAL_MS),
+      ).pipe(
+        Schedule.both(Schedule.recurs(options.recurs ?? DEFAULT_EXIT_RECURS)),
       ),
     ),
   );
@@ -79,38 +99,48 @@ export const waitForMakeraCamToExit = Effect.fn(
   yield* waitForMakeraCamToExitWithProbe(getMakeraCamPids, options);
 });
 
+const stillAlive = (pid: number) => {
+  try {
+    globalThis.process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const sendSignal = (pid: number, signal: "SIGTERM" | "SIGKILL") => {
+  try {
+    globalThis.process.kill(pid, signal);
+  } catch (error) {
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ESRCH")
+    ) {
+      throw error;
+    }
+  }
+};
+
+const STILL_ALIVE = new MakeraCamError({
+  message: "flatmaxx.makeracam.quit.stillAlive",
+});
+
 export const quitMakeraCam = Effect.fn("flatmaxx.makeracam.quit")(function* (
   pid: number,
 ) {
-  const stillAlive = (): boolean => {
-    try {
-      globalThis.process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  };
+  yield* Effect.sync(() => sendSignal(pid, "SIGTERM"));
 
-  const send = (signal: "SIGTERM" | "SIGKILL"): void => {
-    try {
-      globalThis.process.kill(pid, signal);
-    } catch (error) {
-      if (
-        !(error instanceof Error && "code" in error && error.code === "ESRCH")
-      ) {
-        throw error;
-      }
-    }
-  };
+  const probe = Effect.gen(function* () {
+    if (!(yield* Effect.sync(() => stillAlive(pid)))) return;
+    return yield* Effect.fail(STILL_ALIVE);
+  });
 
-  yield* Effect.sync(() => send("SIGTERM"));
+  const gone = yield* probe.pipe(
+    Effect.retry(
+      Schedule.spaced(QUIT_POLL).pipe(Schedule.take(QUIT_ATTEMPTS - 1)),
+    ),
+    Effect.isSuccess,
+  );
+  if (gone) return;
 
-  const everyMs = 500;
-  const attempts = 20;
-  for (let i = 0; i < attempts; i++) {
-    if (!stillAlive()) return;
-    yield* Effect.sleep(Duration.millis(everyMs));
-  }
-
-  yield* Effect.sync(() => send("SIGKILL"));
+  yield* Effect.sync(() => sendSignal(pid, "SIGKILL"));
 });

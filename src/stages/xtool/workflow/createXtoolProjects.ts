@@ -1,7 +1,6 @@
 import type { XToolProjectOptions } from "@/config";
 import { createTasklist, markTaskBranch, nextStep } from "@/inkHelpers";
-import { Effect, FileSystem } from "effect";
-import { resolve } from "node:path";
+import { Effect, FileSystem, Path } from "effect";
 import { xToolTaskPaths, xToolTasks } from "../tasks";
 import { createSolderMaskProject } from "./createSolderMaskProject";
 import { createSolderPasteStencilProjects } from "./createSolderPasteStencilProjects";
@@ -51,8 +50,7 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
     options: XToolProjectOptions = defaultXToolProjectOptions,
   ) {
     const fs = yield* FileSystem.FileSystem;
-    // Only consume a step number when xTool projects are actually created, so a
-    // skipped xTool stage doesn't leave a gap in the displayed step sequence.
+    const path = yield* Path.Path;
     const title = options.enabled
       ? `Step ${nextStep()}: Create xTool projects`
       : "Create xTool projects (skipped)";
@@ -91,7 +89,7 @@ export const createXtoolProjects = Effect.fn("flatmaxx.createXtoolProjects")(
       return;
     }
 
-    const xtoolProjectPath = resolve(projectPath, options.outputPath);
+    const xtoolProjectPath = path.resolve(projectPath, options.outputPath);
 
     yield* startXToolStudioLifecycle(
       tasks,

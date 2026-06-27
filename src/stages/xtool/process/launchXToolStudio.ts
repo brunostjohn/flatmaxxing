@@ -1,10 +1,11 @@
 import { Effect } from "effect";
+import { XToolError } from "@/errors";
+import { runCollectingBoth } from "@/process";
 import {
   getXToolStudioOpenArgs,
   xToolStudioCdpPort,
   xToolStudioOpenArgs,
 } from "./constants";
-import { runProcessAndCollectOutput } from "./runProcessAndCollectOutput";
 import type { XToolStudioProcess, XToolStudioRuntimeOptions } from "./types";
 import { waitForXToolStudioProcessIds } from "./waitForXToolStudioProcessIds";
 
@@ -17,13 +18,13 @@ export const launchXToolStudio = Effect.fn("flatmaxx.xtool.process.launch")(
             appPath: options.appPath,
             cdpPort: options.cdpPort ?? xToolStudioCdpPort,
           });
-    const result = yield* runProcessAndCollectOutput("open", openArgs);
+    const result = yield* runCollectingBoth("open", openArgs);
 
     if (result.exitCode !== 0) {
       return yield* Effect.fail(
-        new Error(
-          `Failed to open xTool Studio with CDP flags: ${result.stderr || result.stdout}`,
-        ),
+        new XToolError({
+          message: `Failed to open xTool Studio with CDP flags: ${result.stderr || result.stdout}`,
+        }),
       );
     }
 

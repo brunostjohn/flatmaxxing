@@ -35,6 +35,18 @@ export const renderTomlInlineValue = (value: TomlValue): string => {
   return renderInlineObject(value, renderTomlInlineValue);
 };
 
+const renderTomlArray = (value: readonly TomlValue[]): string => {
+  if (value.length === 0) {
+    return "[]";
+  }
+
+  if (value.every((entry) => typeof entry === "object")) {
+    return `[\n${value.map((entry) => `  ${renderTomlInlineValue(entry)},`).join("\n")}\n]`;
+  }
+
+  return `[${value.map(renderTomlInlineValue).join(", ")}]`;
+};
+
 export const renderTomlValue = (value: TomlValue): string => {
   if (typeof value === "string") {
     return escapeTomlString(value);
@@ -45,15 +57,7 @@ export const renderTomlValue = (value: TomlValue): string => {
   }
 
   if (isTomlArray(value)) {
-    if (value.length === 0) {
-      return "[]";
-    }
-
-    if (value.every((entry) => typeof entry === "object")) {
-      return `[\n${value.map((entry) => `  ${renderTomlInlineValue(entry)},`).join("\n")}\n]`;
-    }
-
-    return `[${value.map(renderTomlInlineValue).join(", ")}]`;
+    return renderTomlArray(value);
   }
 
   return renderInlineObject(value, renderTomlValue);

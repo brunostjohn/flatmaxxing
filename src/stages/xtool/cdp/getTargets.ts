@@ -1,53 +1,69 @@
-import CDP from "chrome-remote-interface";
-import { Effect } from "effect";
+import { XToolError } from "@/errors";
+import { Duration, Effect, Match, Option, Schema } from "effect";
 import {
   getXToolStudioTargetListUrl,
   xToolStudioTargetListUrl,
 } from "../process";
 import type { XToolStudioRuntimeOptions } from "../process";
+import { XToolCdpTargetsSchema } from "./schema";
 
-export const getTargets = (options?: Partial<XToolStudioRuntimeOptions>) =>
+const targetListTimeout = Duration.seconds(1);
+
+const fetchTargetsUnsafe = (url: string, signal: AbortSignal) =>
+  fetch(url, { signal });
+
+const readResponseJsonUnsafe = (response: Response) => response.json();
+
+const targetListUrl = (options?: Partial<XToolStudioRuntimeOptions>) =>
+  Option.fromUndefinedOr(options).pipe(
+    Option.match({
+      onNone: () => xToolStudioTargetListUrl,
+      onSome: getXToolStudioTargetListUrl,
+    }),
+  );
+
+const fetchTargetListResponse = (url: string) =>
   Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(
-        options === undefined
-          ? xToolStudioTargetListUrl
-          : getXToolStudioTargetListUrl(options),
-        {
-          signal: AbortSignal.timeout(1000),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `CDP target list returned HTTP ${response.status} ${response.statusText}`,
-        );
-      }
-
-      return (await response.json()) as CDP.Target[];
-    },
+    try: (signal) => fetchTargetsUnsafe(url, signal),
     catch: (cause) =>
-      cause instanceof Error
-        ? cause
-        : new Error(`Unable to list CDP targets: ${String(cause)}`),
+      new XToolError({ message: "Unable to list CDP targets.", cause }),
+  }).pipe(Effect.timeout(targetListTimeout));
+
+const ensureTargetListResponseOk = (response: Response) =>
+  Match.value(response.ok).pipe(
+    Match.when(true, () => Effect.succeed(response)),
+    Match.orElse(() =>
+      Effect.fail(
+        new XToolError({
+          message: `CDP target list returned HTTP ${response.status} ${response.statusText}`,
+        }),
+      ),
+    ),
+  );
+
+const readTargetListJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => readResponseJsonUnsafe(response),
+    catch: (cause) =>
+      new XToolError({ message: "Unable to read CDP target JSON.", cause }),
   });
 
-export const defaultGetTargets = Effect.tryPromise({
-  try: async () => {
-    const response = await fetch(xToolStudioTargetListUrl, {
-      signal: AbortSignal.timeout(1000),
-    });
+const decodeTargets = (raw: unknown) =>
+  Schema.decodeUnknownEffect(XToolCdpTargetsSchema)(raw).pipe(
+    Effect.mapError(
+      (cause) =>
+        new XToolError({
+          message: "CDP target list has an invalid shape.",
+          cause,
+        }),
+    ),
+  );
 
-    if (!response.ok) {
-      throw new Error(
-        `CDP target list returned HTTP ${response.status} ${response.statusText}`,
-      );
-    }
+export const getTargets = (options?: Partial<XToolStudioRuntimeOptions>) =>
+  Effect.gen(function* () {
+    const response = yield* fetchTargetListResponse(targetListUrl(options));
+    const okResponse = yield* ensureTargetListResponseOk(response);
+    return yield* decodeTargets(yield* readTargetListJson(okResponse));
+  });
 
-    return (await response.json()) as CDP.Target[];
-  },
-  catch: (cause) =>
-    cause instanceof Error
-      ? cause
-      : new Error(`Unable to list CDP targets: ${String(cause)}`),
-});
+export const defaultGetTargets = getTargets();

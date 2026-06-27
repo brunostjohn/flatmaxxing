@@ -3,9 +3,8 @@ import {
   categorizeHoles,
   renderRoundedUpReport,
   resolveHoleTool,
-  type ToolInventory,
 } from "./categorizeHoles";
-import type { CircleHole, Hole, SlotHole } from "./parseExcellon";
+import type { CircleHole, Hole, SlotHole, ToolInventory } from "./types";
 
 // Default-ish bench inventory.
 const inv: ToolInventory = {
@@ -134,6 +133,32 @@ test("categoryOverride groups everything under one label (alignment)", () => {
 test("unknown plating is treated as PTH for the filename category", () => {
   const { groups } = categorizeHoles([circle(0.5, "unknown")], inv);
   expect(groups[0]!.fileSuffix).toBe("PTH-drills-0.5mm");
+});
+
+test("groups are ordered by category, then drills before pockets, then size", () => {
+  // 0.9 → pocket (0.8 mill); 0.4 & 0.5 → drills. NPTH 0.4 sorts before PTH.
+  const holes: Hole[] = [
+    circle(0.9, "PTH"),
+    circle(0.5, "PTH"),
+    circle(0.4, "PTH"),
+    circle(0.4, "NPTH"),
+  ];
+  const { groups } = categorizeHoles(holes, inv);
+  expect(groups.map((g) => g.fileSuffix)).toEqual([
+    "NPTH-drills-0.4mm",
+    "PTH-drills-0.4mm",
+    "PTH-drills-0.5mm",
+    "PTH-pockets-0.8mm",
+  ]);
+});
+
+test("round-up events are sorted by true diameter then position", () => {
+  // 0.45 → 0.5 bit (+0.05); 0.65 → 0.7 bit (+0.05). Both rounded up.
+  const { roundUps } = categorizeHoles(
+    [circle(0.65, "PTH", 5, 5), circle(0.45, "PTH", 1, 1)],
+    inv,
+  );
+  expect(roundUps.map((e) => e.trueDiameter)).toEqual([0.45, 0.65]);
 });
 
 test("renderRoundedUpReport lists each oversize hole with its delta", () => {

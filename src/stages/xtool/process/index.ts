@@ -6,7 +6,6 @@ export * from "./isXToolStudioRunning";
 export * from "./killProcessIds";
 export * from "./launchXToolStudio";
 export * from "./parsePgrepOutput";
-export * from "./runProcessAndCollectOutput";
 export * from "./types";
 export * from "./waitForProcessIdsToExit";
 export * from "./waitForXToolStudioProcessIds";

@@ -14,7 +14,11 @@ export const validateSolderPasteStencilDxf = Effect.fn(
 ) {
   const config = solderPasteStencilSideConfig[side];
   const paths = config.taskPaths.importDxf;
-  const dxfPath = getSolderPasteStencilDxfPath(projectPath, pcbName, side);
+  const dxfPath = yield* getSolderPasteStencilDxfPath(
+    projectPath,
+    pcbName,
+    side,
+  );
 
   yield* tasks.patchTask(paths.root, {
     state: "loading",
@@ -23,7 +27,6 @@ export const validateSolderPasteStencilDxf = Effect.fn(
 
   const hasGeometry = yield* tasks.runTask({
     path: paths.validateDxf,
-    // Runs the geometry check in a Bun worker (off the main thread).
     effect: dxfFileHasPlottableGeometry(dxfPath),
     loading: { status: `Validating ${dxfPath} has plottable geometry...` },
     success: { label: `${config.fileSuffix} DXF checked.` },

@@ -7,13 +7,10 @@ import {
 
 export interface CncJobOptions {
   readonly enabled: boolean;
-  /** Sides to machine (front/back, minus `board.ignoreSide`). */
   readonly sides: readonly Side[];
   readonly plan: CncJobPlan;
   readonly mirrorAxis: "X" | "Y";
-  /** Resolved output dir for the merged Carvera `.nc` files (`paths.gcode`). */
   readonly gcodeDir: string;
-  /** Resolved gerbers dir — copper/outline inputs and the alignment Excellon output. */
   readonly gerbersDir: string;
   readonly alignmentDrills: {
     readonly generate: boolean;
@@ -23,7 +20,6 @@ export interface CncJobOptions {
 }
 
 export const buildCncJobOptions = (config: ResolvedConfig): CncJobOptions => ({
-  // A configured isolation tool is required; buildCncJobPlan throws otherwise.
   enabled: config.cnc.isolation.tool !== undefined,
   sides: enabledSidesFromConfig(config),
   plan: buildCncJobPlan(config),

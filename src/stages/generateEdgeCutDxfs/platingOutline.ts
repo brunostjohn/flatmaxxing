@@ -1,35 +1,19 @@
 import type { Coordinate, PathCmd } from "@/geometry/dxfWriter";
 import { alignmentDrillPoints } from "@/stages/generateCncJobs/alignmentDrills";
-import type { Outline } from "./extractEdgeCutsOutline";
+import { Array } from "effect";
+import type {
+  PlatingBounds,
+  PlatingLayout,
+  PlatingLayoutOptions,
+  PlatingOffsets,
+} from "./types";
 
-export interface PlatingBounds {
-  readonly minX: number;
-  readonly minY: number;
-  readonly maxX: number;
-  readonly maxY: number;
-}
-
-export interface PlatingOffsets {
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-  readonly bottom: number;
-}
-
-export interface PlatingLayoutOptions {
-  readonly offsets: PlatingOffsets;
-  readonly includeAlignmentDrills: boolean;
-  readonly alignmentDistance: { readonly x: number; readonly y: number };
-}
-
-export interface PlatingLayout {
-  readonly boardBounds: PlatingBounds;
-  readonly baseBounds: PlatingBounds;
-  readonly bounds: PlatingBounds;
-  readonly alignmentPoints: readonly Coordinate[];
-  readonly widthMm: number;
-  readonly heightMm: number;
-}
+export type {
+  PlatingBounds,
+  PlatingLayout,
+  PlatingLayoutOptions,
+  PlatingOffsets,
+} from "./types";
 
 export const resolvePlatingAlignmentPoints = (
   bounds: PlatingBounds,
@@ -55,23 +39,18 @@ export const expandPlatingBounds = (
   alignmentPoints: readonly Coordinate[],
   offsets: PlatingOffsets,
 ): PlatingBounds => {
-  let minX = bounds.minX;
-  let minY = bounds.minY;
-  let maxX = bounds.maxX;
-  let maxY = bounds.maxY;
-
-  for (const point of alignmentPoints) {
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  }
+  const unioned = Array.reduce(alignmentPoints, bounds, (acc, point) => ({
+    minX: Math.min(acc.minX, point.x),
+    minY: Math.min(acc.minY, point.y),
+    maxX: Math.max(acc.maxX, point.x),
+    maxY: Math.max(acc.maxY, point.y),
+  }));
 
   return {
-    minX: minX - offsets.left,
-    minY: minY - offsets.top,
-    maxX: maxX + offsets.right,
-    maxY: maxY + offsets.bottom,
+    minX: unioned.minX - offsets.left,
+    minY: unioned.minY - offsets.top,
+    maxX: unioned.maxX + offsets.right,
+    maxY: unioned.maxY + offsets.bottom,
   };
 };
 
@@ -107,36 +86,16 @@ export const resolvePlatingLayout = (
   };
 };
 
-export const buildPlatingRoundedRect = (
-  bounds: PlatingBounds,
-  alignmentPoints: readonly Coordinate[],
-  offsets: PlatingOffsets,
-  cornerRadius: number,
-) => {
-  const { minX, minY, maxX, maxY } = expandPlatingBounds(
-    bounds,
-    alignmentPoints,
-    offsets,
-  );
+const rectangleCmds = (bounds: PlatingBounds): PathCmd[] => [
+  { kind: "line", to: { x: bounds.maxX, y: bounds.minY } },
+  { kind: "line", to: { x: bounds.maxX, y: bounds.maxY } },
+  { kind: "line", to: { x: bounds.minX, y: bounds.maxY } },
+  { kind: "line", to: { x: bounds.minX, y: bounds.minY } },
+];
 
-  const width = maxX - minX;
-  const height = maxY - minY;
-  const radius = Math.max(0, Math.min(cornerRadius, width / 2, height / 2));
-
-  if (radius <= 0) {
-    const start: Coordinate = { x: minX, y: minY };
-    const cmds: PathCmd[] = [
-      { kind: "line", to: { x: maxX, y: minY } },
-      { kind: "line", to: { x: maxX, y: maxY } },
-      { kind: "line", to: { x: minX, y: maxY } },
-      { kind: "line", to: { x: minX, y: minY } },
-    ];
-    return { start, cmds };
-  }
-
-  const start: Coordinate = { x: minX + radius, y: minY };
-
-  const cmds: PathCmd[] = [
+const roundedRectCmds = (bounds: PlatingBounds, radius: number): PathCmd[] => {
+  const { minX, minY, maxX, maxY } = bounds;
+  return [
     { kind: "line", to: { x: maxX - radius, y: minY } },
     {
       kind: "arc",
@@ -166,6 +125,28 @@ export const buildPlatingRoundedRect = (
       cw: false,
     },
   ];
+};
 
-  return { start, cmds };
+export const buildPlatingRoundedRect = (
+  bounds: PlatingBounds,
+  alignmentPoints: readonly Coordinate[],
+  offsets: PlatingOffsets,
+  cornerRadius: number,
+) => {
+  const expanded = expandPlatingBounds(bounds, alignmentPoints, offsets);
+  const width = expanded.maxX - expanded.minX;
+  const height = expanded.maxY - expanded.minY;
+  const radius = Math.max(0, Math.min(cornerRadius, width / 2, height / 2));
+
+  if (radius <= 0) {
+    return {
+      start: { x: expanded.minX, y: expanded.minY } satisfies Coordinate,
+      cmds: rectangleCmds(expanded),
+    };
+  }
+
+  return {
+    start: { x: expanded.minX + radius, y: expanded.minY } satisfies Coordinate,
+    cmds: roundedRectCmds(expanded, radius),
+  };
 };

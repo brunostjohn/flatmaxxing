@@ -1,4 +1,5 @@
 import { Effect, Schedule } from "effect";
+import { XToolError } from "@/errors";
 import { getXToolStudioProcessIds } from "./getXToolStudioProcessIds";
 
 export const waitForXToolStudioToExit = Effect.fn(
@@ -9,7 +10,9 @@ export const waitForXToolStudioToExit = Effect.fn(
 
     if (processIds.length > 0) {
       return yield* Effect.fail(
-        new Error(`xTool Studio is still running: ${processIds.join(", ")}`),
+        new XToolError({
+          message: `xTool Studio is still running: ${processIds.join(", ")}`,
+        }),
       );
     }
   });

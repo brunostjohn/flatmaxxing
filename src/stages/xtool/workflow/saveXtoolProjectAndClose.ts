@@ -1,7 +1,6 @@
-import { runAppleScript } from "@/utils";
+import { runAppleScript } from "@/macos";
 import type { Client } from "chrome-remote-interface";
-import { Effect, FileSystem } from "effect";
-import { resolve } from "node:path";
+import { Effect, FileSystem, Path } from "effect";
 import { runScriptInXToolStudio } from "../cdp";
 import {
   applescriptBringDialogToFront,
@@ -22,9 +21,8 @@ export const saveXtoolProjectAndClose = Effect.fn(
   paths: SaveProjectTaskPaths = xToolTaskPaths.save,
 ) {
   const fs = yield* FileSystem.FileSystem;
-  const absolutePath = yield* Effect.sync(() =>
-    resolve(desiredAbsolutePath, filename),
-  );
+  const path = yield* Path.Path;
+  const absolutePath = path.resolve(desiredAbsolutePath, filename);
 
   yield* tasks.patchTask(paths.root, {
     state: "loading",

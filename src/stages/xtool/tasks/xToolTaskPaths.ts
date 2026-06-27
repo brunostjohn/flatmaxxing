@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/correctness/noInvalidUseBeforeDeclaration: chill im not at work */
 const lifecycle = ["xtool-studio-lifecycle"] as const;
 const project = ["solder-mask-project"] as const;
 const pasteStencils = ["solder-paste-stencils"] as const;
