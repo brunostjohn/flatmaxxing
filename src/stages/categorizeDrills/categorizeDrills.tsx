@@ -12,7 +12,7 @@ import {
   type TaskDef,
 } from "@/inkHelpers";
 import { Alert } from "@inkjs/ui";
-import { Array, Effect, FileSystem, Match, Option, Path, pipe } from "effect";
+import { Array, Effect, FileSystem, Match, Path, pipe } from "effect";
 import { Box, Text } from "ink";
 import { categorizeHoles, renderRoundedUpReport } from "./categorizeHoles";
 import { MAX_SHOWN } from "./constants";
@@ -139,20 +139,13 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
     const title = options.enabled
       ? `Step ${nextStep()}: Categorize drills`
       : "Categorize drills (skipped)";
+
     const controls = yield* createTasklist(categorizeTasks, title);
     const { patchTask } = controls;
 
     const board = path.basename(pcbFile, PCB_SUFFIX);
     const projectRoot = path.dirname(pcbFile);
     const roundedUpPath = path.join(projectRoot, ROUNDED_UP_FILE);
-
-    const clearStaleRoundedUp = Effect.gen(function* () {
-      const exists = yield* fs.exists(roundedUpPath);
-      yield* Match.value(exists).pipe(
-        Match.when(true, () => fs.remove(roundedUpPath)),
-        Match.orElse(() => Effect.void),
-      );
-    });
 
     const finishSkipped = (label: string) =>
       Effect.gen(function* () {
@@ -177,8 +170,12 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
 
     const gerbersExist = yield* fs.exists(options.gerbersDir);
     if (!gerbersExist) {
-      yield* clearStaleRoundedUp;
+      yield* fs
+        .remove(roundedUpPath)
+        .pipe(Effect.when(fs.exists(roundedUpPath)));
+
       yield* finishSkipped("No gerbers directory — no drills to categorize.");
+
       return;
     }
 
@@ -187,7 +184,9 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
       Array.filter((file) => isComponentDrill(file, board)),
     );
     if (drillFiles.length === 0) {
-      yield* clearStaleRoundedUp;
+      yield* fs
+        .remove(roundedUpPath)
+        .pipe(Effect.when(fs.exists(roundedUpPath)));
       yield* finishSkipped("No component drill files found.");
       return;
     }
@@ -215,7 +214,10 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
     );
 
     if (holes.length === 0) {
-      yield* clearStaleRoundedUp;
+      yield* fs
+        .remove(roundedUpPath)
+        .pipe(Effect.when(fs.exists(roundedUpPath)));
+
       yield* patchTask("categorize", {
         state: "success",
         label: "Drill files contain no holes.",
@@ -224,6 +226,7 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
         state: "success",
         label: "No files written.",
       });
+
       return;
     }
 
@@ -232,27 +235,22 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
       inventoryOf(options),
     );
 
-    yield* Match.value({
-      blocked: unmachinable.length > 0 && options.onFailure === "error",
-    }).pipe(
-      Match.when({ blocked: true }, () =>
-        Effect.gen(function* () {
-          yield* patchTask("categorize", {
-            state: "error",
-            label: `${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
-          });
-          yield* renderOnce(
-            <UnmachinableReport items={unmachinable} variant="error" />,
-          );
-          return yield* Effect.fail(
-            new DrillError({
-              message: `Drill infeasible: ${unmachinable.length} hole(s) have no usable tool. Add a matching drill bit (within cnc.drilling.matchToleranceMm) or a smaller cornmill to availableMills.`,
-            }),
-          );
+    if (unmachinable.length > 0 && options.onFailure === "error") {
+      yield* patchTask("categorize", {
+        state: "error",
+        label: `${unmachinable.length} of ${holes.length} hole(s) cannot be made with the configured tools.`,
+      });
+
+      yield* renderOnce(
+        <UnmachinableReport items={unmachinable} variant="error" />,
+      );
+
+      return yield* Effect.fail(
+        new DrillError({
+          message: `Drill infeasible: ${unmachinable.length} hole(s) have no usable tool. Add a matching drill bit (within cnc.drilling.matchToleranceMm) or a smaller cornmill to availableMills.`,
         }),
-      ),
-      Match.orElse(() => Effect.void),
-    );
+      );
+    }
 
     yield* patchTask("categorize", {
       state: "success",
@@ -271,51 +269,46 @@ export const categorizeDrills = Effect.fn("flatmaxx.categorizeDrills")(
       ),
     );
 
-    yield* Match.value(roundUps.length > 0).pipe(
-      Match.when(true, () =>
-        fs.writeFileString(
-          roundedUpPath,
-          renderRoundedUpReport(board, roundUps),
+    yield* fs
+      .writeFileString(roundedUpPath, renderRoundedUpReport(board, roundUps))
+      .pipe(
+        Effect.filterOrElse(
+          () => roundUps.length > 0,
+          () =>
+            fs
+              .remove(roundedUpPath)
+              .pipe(Effect.when(fs.exists(roundedUpPath))),
         ),
-      ),
-      Match.orElse(() => clearStaleRoundedUp),
-    );
+      );
 
     const fileNote = `${groups.length} file(s) in ${path.basename(
       options.drillsDir,
     )}/`;
 
-    yield* Match.value({
-      unmachinable: unmachinable.length > 0,
-      rounded: roundUps.length > 0,
-    }).pipe(
-      Match.when({ unmachinable: true }, () =>
-        Effect.gen(function* () {
-          yield* patchTask("write", {
-            state: "warning",
-            label: `Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
-          });
-          yield* renderOnce(
-            <UnmachinableReport items={unmachinable} variant="warning" />,
-          );
-        }),
-      ),
-      Match.when({ rounded: true }, () =>
-        Effect.gen(function* () {
-          yield* patchTask("write", {
-            state: "warning",
-            label: `Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ${ROUNDED_UP_FILE}).`,
-          });
-          yield* renderOnce(<RoundUpReport events={roundUps} />);
-        }),
-      ),
-      Match.orElse(() =>
-        patchTask("write", {
-          state: "success",
-          label: `Categorized ${holes.length} holes → ${fileNote}.`,
-        }),
-      ),
-    );
+    if (unmachinable.length > 0) {
+      yield* patchTask("write", {
+        state: "warning",
+        label: `Categorized ${holes.length} holes → ${fileNote}; ${unmachinable.length} hole(s) NOT machinable (continuing, onFailure=warn).`,
+      });
+      yield* renderOnce(
+        <UnmachinableReport items={unmachinable} variant="warning" />,
+      );
+    }
+
+    if (roundUps.length > 0) {
+      yield* patchTask("write", {
+        state: "warning",
+        label: `Categorized ${holes.length} holes → ${fileNote}; ${roundUps.length} hole(s) rounded up (see ${ROUNDED_UP_FILE}).`,
+      });
+      yield* renderOnce(<RoundUpReport events={roundUps} />);
+    }
+
+    if (!(unmachinable.length > 0 && roundUps.length > 0)) {
+      yield* patchTask("write", {
+        state: "success",
+        label: `Categorized ${holes.length} holes → ${fileNote}.`,
+      });
+    }
   },
   Effect.scoped,
 );

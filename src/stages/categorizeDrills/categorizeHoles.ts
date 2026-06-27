@@ -146,17 +146,20 @@ const buildGroup = (resolved: readonly ResolvedHole[]): CategorizedGroup => {
 
 const roundUpFor = (resolved: ResolvedHole): Option.Option<RoundUpEvent> => {
   const { hole, category, result } = resolved;
-  return result.ok && result.roundedUp && hole.kind === "circle"
-    ? Option.some({
-        category,
-        plating: hole.plating,
-        x: hole.x,
-        y: hole.y,
-        trueDiameter: hole.diameter,
-        bitDiameter: result.toolDiameter,
-        delta: result.toolDiameter - hole.diameter,
-      })
-    : Option.none();
+
+  if (!result.ok || !result.roundedUp || hole.kind !== "circle") {
+    return Option.none();
+  }
+
+  return Option.some({
+    category,
+    plating: hole.plating,
+    x: hole.x,
+    y: hole.y,
+    trueDiameter: hole.diameter,
+    bitDiameter: result.toolDiameter,
+    delta: result.toolDiameter - hole.diameter,
+  });
 };
 
 export const categorizeHoles = (

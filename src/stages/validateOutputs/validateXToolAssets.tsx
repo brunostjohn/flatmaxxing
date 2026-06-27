@@ -73,11 +73,13 @@ const validateXToolAssetTasks: TaskDef[] = [
 const ensureFileExists = Effect.fn("flatmaxx.validate.ensureFileExists")(
   function* (path: string) {
     const fs = yield* FileSystem.FileSystem;
+
     if (!(yield* fs.exists(path))) {
       return yield* Effect.fail(
         new DxfError({ message: `Missing required file: ${path}` }),
       );
     }
+
     return path;
   },
 );
@@ -111,9 +113,11 @@ export const validateXToolAssets = Effect.fn("flatmaxx.validate.xToolAssets")(
     options: XToolProjectOptions,
   ) {
     const path = yield* Path.Path;
+
     const title = options.enabled
       ? `Step ${nextStep()}: Validate xTool assets`
       : "Validate xTool assets (skipped)";
+
     const tasks = yield* createTasklist(validateXToolAssetTasks, title);
     const xtoolProjectPath = path.resolve(projectPath, options.outputPath);
 

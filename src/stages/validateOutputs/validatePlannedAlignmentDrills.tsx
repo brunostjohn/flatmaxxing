@@ -8,8 +8,8 @@ import {
 import { findEdgeCutsBounds } from "@/stages/kicad/board";
 import { Effect, FileSystem, Path } from "effect";
 import { parseKicadPcb } from "kicadts";
-import { plannedAlignmentDrillTasks } from "./plannedAlignmentDrillTasks";
 import { plannedAlignmentDrillTaskPaths } from "./plannedAlignmentDrillTaskPaths";
+import { plannedAlignmentDrillTasks } from "./plannedAlignmentDrillTasks";
 import type { PlannedAlignmentDrillOptions } from "./types";
 
 export const buildPlannedAlignmentDrillOptions = (
@@ -28,6 +28,7 @@ export const plannedAlignmentDrillFile = Effect.fn(
   "flatmaxx.validate.plannedAlignmentDrillFile",
 )(function* (pcbFile: string, options: PlannedAlignmentDrillOptions) {
   const path = yield* Path.Path;
+
   return path.join(
     options.gerbersDir,
     `${path.basename(pcbFile, ".kicad_pcb")}-alignment.drl`,
@@ -70,9 +71,11 @@ export const writePlannedAlignmentDrillFile = Effect.fn(
   "flatmaxx.validate.writePlannedAlignmentDrillFile",
 )(function* (pcbFile: string, options: PlannedAlignmentDrillOptions) {
   const fs = yield* FileSystem.FileSystem;
+
   const title = options.enabled
     ? `Step ${nextStep()}: Validate planned alignment drills`
     : "Validate planned alignment drills (skipped)";
+
   const tasks = yield* createTasklist(plannedAlignmentDrillTasks, title);
 
   if (!options.enabled) {
