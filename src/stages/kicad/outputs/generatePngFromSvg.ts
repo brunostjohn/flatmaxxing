@@ -1,8 +1,11 @@
 import { solderMaskPngZoom } from "@/stages/kicad/outputs/constants";
-import type { SvgToPngResult } from "@/stages/kicad/outputs/types";
+import type {
+  PngTrimInfo,
+  SvgToPngResult,
+} from "@/stages/kicad/outputs/types";
 import { Resvg } from "@resvg/resvg-js";
 import { Effect, FileSystem } from "effect";
-import sharp, { type OutputInfo } from "sharp";
+import { Jimp } from "jimp";
 
 export const generatePngFromSvg = Effect.fn(
   "flatmaxx.generateKicadOutputs.generatePngFromSvg",
@@ -27,22 +30,18 @@ export const generatePngFromSvg = Effect.fn(
     },
   });
 
-  const pngData = yield* Effect.sync(() => resvg.render());
-  const pngBuffer = yield* Effect.sync(() => pngData.asPng());
-  const trimmed = yield* Effect.promise(() =>
-    sharp(pngBuffer).trim().toBuffer({ resolveWithObject: true }),
-  );
+  const pngBuffer = yield* Effect.sync(() => resvg.render().asPng());
+  const image = yield* Effect.promise(() => Jimp.read(pngBuffer));
+  yield* Effect.sync(() => image.autocrop({ cropOnlyFrames: false }));
+  const out = yield* Effect.promise(() => image.getBuffer("image/png"));
 
-  yield* fs.writeFile(pngFile, trimmed.data);
+  yield* fs.writeFile(pngFile, out);
 
   return {
     pngFile,
-    info: trimmed.info,
+    info: { width: image.bitmap.width, height: image.bitmap.height },
   } satisfies SvgToPngResult;
 });
 
-export const formatPngTrimStatus = (info: OutputInfo): string => {
-  const left = info.trimOffsetLeft ?? 0;
-  const top = info.trimOffsetTop ?? 0;
-  return `${info.width}x${info.height}px, trim x=${left} y=${top}`;
-};
+export const formatPngTrimStatus = (info: PngTrimInfo) =>
+  `${info.width}x${info.height}px`;

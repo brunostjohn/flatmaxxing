@@ -125,6 +125,4 @@ test("SVG to PNG rendering trims transparent padding", async () => {
   expect(result.pngFile).toBe(pngPath);
   expect(result.info.width).toBe(8);
   expect(result.info.height).toBe(10);
-  expect(result.info.trimOffsetLeft).toBe(-4);
-  expect(result.info.trimOffsetTop).toBe(-6);
 });

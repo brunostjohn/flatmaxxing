@@ -1,7 +1,6 @@
 import type { KicadOutputOptions, Side } from "@/config";
 import type { TasklistControls } from "@/inkHelpers";
 import type { Effect } from "effect";
-import type { OutputInfo } from "sharp";
 
 export interface SideConfigEntry {
   readonly label: string;
@@ -39,9 +38,14 @@ export interface RunWithKicadOptions {
   readonly onOutput: (output: string) => Effect.Effect<void>;
 }
 
+export interface PngTrimInfo {
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface SvgToPngResult {
   readonly pngFile: string;
-  readonly info: OutputInfo;
+  readonly info: PngTrimInfo;
 }
 
 export interface GenerateKicadOutputsResult {
