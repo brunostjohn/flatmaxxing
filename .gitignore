@@ -33,11 +33,19 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 
-testdir/dxf
-testdir/png
+# Generated KiCad outputs are ignored, except the deterministic fixtures the
+# test suite reads (committed so CI doesn't need kicad-cli installed).
+testdir/dxf/*
+!testdir/dxf/valid_board-F_Mask.dxf
+!testdir/dxf/valid_board-F_Paste.dxf
+!testdir/dxf/valid_board-B_Paste.dxf
+!testdir/dxf/new-and-improved-zefir-btn-F_Mask.dxf
+testdir/png/*
+!testdir/png/valid_board-F_Mask.png
 testdir/svg
 testdir/gerbers
-testdir/drills
+testdir/drills/*
+!testdir/drills/*.drl
 testdir/pos
 testdir/gcode
 testdir/gcodes
