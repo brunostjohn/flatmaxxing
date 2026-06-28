@@ -20,7 +20,8 @@ import {
   renderTomlSection,
 } from "@/config";
 import { CliError } from "@/errors";
-import { Array, Effect, FileSystem, Match, Order, Path } from "effect";
+import { renderBoardHeader } from "@/stages";
+import { Array, Effect, FileSystem, Match, Option, Order, Path } from "effect";
 import { Command } from "effect/unstable/cli";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
@@ -386,6 +387,7 @@ export const makeInitCommand = () =>
     {},
     Effect.fn("flatmaxx.init.command")(function* () {
       const path = yield* Path.Path;
+      yield* renderBoardHeader(Option.none());
       const result = yield* runInitWorkflow();
       const name = path.basename(result.configPath);
       yield* Effect.sync(() => console.log(`Created ${name}.`));

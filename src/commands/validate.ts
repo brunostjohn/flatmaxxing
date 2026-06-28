@@ -12,6 +12,7 @@ import {
   categorizeAlignmentDrills,
   categorizeDrills,
   generateKicadOutputs,
+  renderBoardHeader,
   validateIsolation,
   validateKicadBoard,
   validateXToolAssets,
@@ -27,6 +28,7 @@ import {
   mergeWithParentInput,
   prepareProjectContext,
   projectArgument,
+  resolveBoardImagePngPath,
 } from "./helpers";
 import type { rootBuildCommand } from "./build";
 
@@ -44,6 +46,7 @@ export const runValidateWorkflow = Effect.fn("flatmaxx.validate")(function* (
   yield* Effect.sync(resetSteps);
 
   const config = yield* loadConfigFromCli(input);
+  yield* renderBoardHeader(yield* resolveBoardImagePngPath(config));
   const { kicadCli, pcbFile, pcbName, projectDir } =
     yield* prepareProjectContext(config, { checkKicad: true });
 

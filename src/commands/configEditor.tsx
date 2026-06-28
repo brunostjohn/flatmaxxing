@@ -1,4 +1,5 @@
 import { renderWithOutput } from "@/inkHelpers";
+import { renderBoardHeader } from "@/stages";
 import { Form, type FormField, type FormStructure } from "ink-form";
 import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
 import { Tab, Tabs } from "ink-tab";
@@ -23,7 +24,10 @@ import {
 import {
   type ProjectCliInput,
   type SharedCliInput,
+  loadConfigFromCli,
+  mergeWithParentInput,
   projectArgument,
+  resolveBoardImagePngPath,
 } from "./helpers";
 
 interface ConfigEditorSearchItem {
@@ -457,6 +461,13 @@ export const makeConfigCommand = (parentCommand: typeof rootBuildCommand) =>
     ) {
       const path = yield* Path.Path;
       const parent = (yield* parentCommand) as SharedCliInput;
+      const headerPng = yield* loadConfigFromCli(
+        mergeWithParentInput(input, parent),
+      ).pipe(
+        Effect.flatMap(resolveBoardImagePngPath),
+        Effect.catch(() => Effect.succeed(Option.none<string>())),
+      );
+      yield* renderBoardHeader(headerPng);
       const result = yield* runConfigWorkflow({
         kicadProject: input.kicadProject,
         user: input.user,

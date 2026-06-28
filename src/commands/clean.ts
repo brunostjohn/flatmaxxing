@@ -1,5 +1,6 @@
 import type { ResolvedConfig } from "@/config";
 import { CliError } from "@/errors";
+import { renderBoardHeader } from "@/stages";
 import { ROUNDED_UP_FILE } from "@/stages/categorizeDrills/constants";
 import { PLATING_REPORT_FILE } from "@/stages/electroplating/constants";
 import { Array, Effect, FileSystem, Path, Record } from "effect";
@@ -11,6 +12,7 @@ import {
   loadConfigFromCli,
   mergeWithParentInput,
   projectArgument,
+  resolveBoardImagePngPath,
 } from "./helpers";
 import type { rootBuildCommand } from "./build";
 
@@ -91,6 +93,7 @@ export const runCleanWorkflow = Effect.fn("flatmaxx.clean")(function* (
 ) {
   const path = yield* Path.Path;
   const config = yield* loadConfigFromCli(input);
+  yield* renderBoardHeader(yield* resolveBoardImagePngPath(config));
   const result = yield* cleanProjectOutputs(config, { dryRun: input.dryRun });
   const lines = Array.map(result.removed, (target) => {
     const rel = path.relative(config.projectDir, target);

@@ -1,4 +1,5 @@
 import { runPreflight } from "@/preflight";
+import { renderBoardHeader } from "@/stages";
 import { Effect } from "effect";
 import { Command } from "effect/unstable/cli";
 import {
@@ -7,6 +8,7 @@ import {
   loadConfigFromCli,
   mergeWithParentInput,
   projectArgument,
+  resolveBoardImagePngPath,
 } from "./helpers";
 import type { rootBuildCommand } from "./build";
 
@@ -21,6 +23,7 @@ export const makeDoctorCommand = (parentCommand: typeof rootBuildCommand) =>
       const config = yield* loadConfigFromCli(
         mergeWithParentInput(input, parent),
       );
+      yield* renderBoardHeader(yield* resolveBoardImagePngPath(config));
 
       yield* runPreflight(config, {
         title: "flatmaxx doctor",

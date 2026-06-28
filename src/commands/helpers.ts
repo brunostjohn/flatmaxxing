@@ -6,8 +6,12 @@ import {
   type ResolvedConfig,
 } from "@/config";
 import { CliError } from "@/errors";
-import { ensureKicadExists, findPCBProject } from "@/stages";
-import { Effect, Option, Path } from "effect";
+import {
+  boardImageFileSuffix,
+  ensureKicadExists,
+  findPCBProject,
+} from "@/stages";
+import { Array, Effect, FileSystem, Option, Path } from "effect";
 import { Argument, Flag } from "effect/unstable/cli";
 import { buildCliOverrides, type CliAliasOverride } from "./cliOverrides";
 
@@ -205,6 +209,32 @@ export const resolveKicadCli = (config: ResolvedConfig) =>
 
 export const resolveFlatcam = (config: ResolvedConfig) =>
   config.dependencies.flatcam ?? defaultFlatcam;
+
+export const resolveBoardImagePngPath = Effect.fn(
+  "flatmaxx.resolveBoardImagePngPath",
+)(function* (config: ResolvedConfig) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const pngDir = config.paths.png;
+
+  const exists = yield* fs
+    .exists(pngDir)
+    .pipe(Effect.catch(() => Effect.succeed(false)));
+  if (!exists) {
+    return Option.none<string>();
+  }
+
+  const entries = yield* fs
+    .readDirectory(pngDir)
+    .pipe(Effect.catch(() => Effect.succeed<readonly string[]>([])));
+
+  return Option.map(
+    Array.findFirst(entries, (name) =>
+      name.endsWith(`-${boardImageFileSuffix}.png`),
+    ),
+    (name) => path.join(pngDir, name),
+  );
+});
 
 export const prepareProjectContext = Effect.fn(
   "flatmaxx.prepareProjectContext",
