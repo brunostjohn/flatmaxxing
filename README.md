@@ -17,6 +17,19 @@
 > [!NOTE]
 > This tool is built around one specific bench: a **Makera Carvera (Air)** CNC, **xTool M1 Ultra / F1 Ultra** lasers, and a **DIY copper electroplating** setup. It's shared as-is. Nothing stops you using it, but you'll want to retune the config to your own hardware, tools, and chemistry before trusting the output to a machine.
 
+## ⚠️ No support — use entirely at your own risk
+
+> [!CAUTION]
+> **This project is provided strictly AS IS, with NO SUPPORT of any kind.**
+>
+> - **No tech support.** Issues opened to ask for help, setup assistance, or troubleshooting **will not be answered** and may be closed without comment.
+> - **No bug guarantees.** Even legitimate bug reports **may never get a response or a fix.** Don't assume one is coming.
+> - **No warranty.** Nothing here is promised to work, to keep working, or to be safe for your hardware, your materials, or you. You run it at your own risk.
+>
+> This is a **hobby project** I share for free in my spare time. I have a full-time job and a life, and I'm not interested in spending my free time doing unpaid tech support — I don't want my hobby to become my job. If that's a problem for you, **don't use this.**
+>
+> Pull requests with fixes are welcome, but I make **no commitment** to review, respond to, or merge them.
+
 ## Features
 
 - **One command, full pipeline** — `flatmaxx <project>` runs every stage from board validation to machine-ready files.
