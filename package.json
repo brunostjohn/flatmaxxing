@@ -17,7 +17,8 @@
     "dev:validate": "bun run build:native && FLATMAXX_DEV=1 bun src/index.ts validate",
     "format": "biome format --write .",
     "build:native": "bun run --cwd native build",
-    "build": "bun run build:native && bun scripts/build.ts && bun run codesign",
+    "build:schema": "bun scripts/generate-schema.ts",
+    "build": "bun run build:native && bun run build:schema && bun scripts/build.ts && bun run codesign",
     "codesign": "codesign --force --options runtime --entitlements flatmaxx.entitlements --sign - dist/flatmaxx",
     "typecheck": "tsgo --noEmit"
   },

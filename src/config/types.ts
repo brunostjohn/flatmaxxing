@@ -57,6 +57,9 @@ export interface StencilXToolOptions {
 export interface ResolvedConfig {
   readonly projectDir: string;
   readonly skipRenderBoard: boolean;
+  readonly skills: {
+    readonly autoInstall: boolean;
+  };
   readonly dependencies: {
     readonly kicadCli?: string | undefined;
     readonly flatcam?: string | undefined;

@@ -20,6 +20,14 @@ projectDir = "."
 # Skip rendering the inline board preview image in the terminal.
 skipRenderBoard = false
 
+# ── Agent skill ──────────────────────────────────────────────────────────────
+[skills]
+# Install the flatmaxxing agent skill (via `npx skills`) when you run
+# `flatmaxx init`, and offer to install it globally from `flatmaxx doctor`.
+# Set to false to opt out of both. Put it in ~/flatmaxxing.user.toml to opt out
+# before `init` ever writes a project config.
+autoInstall = true
+
 # ── External tools ───────────────────────────────────────────────────────────
 [dependencies]
 kicadCli = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"

@@ -53,6 +53,11 @@ jobs:
       - name: Test
         run: bun test
 
+      - name: Verify schema is up to date
+        run: |
+          bun run build:schema
+          git diff --exit-code -- flatmaxxing.schema.json
+
       - name: Compile binary
         run: |
           bun scripts/build.ts

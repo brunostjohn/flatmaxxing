@@ -1,0 +1,6 @@
+[[rule]]
+include = ["**/flatmaxxing.toml", "**/flatmaxxing.*.toml"]
+
+[rule.schema]
+path = "flatmaxxing.schema.json"
+enabled = true

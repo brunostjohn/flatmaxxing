@@ -156,6 +156,7 @@ flatmaxx ~/projects/myboard   # run the full pipeline
 | `flatmaxx init` | Creates a `flatmaxxing.toml` config for the current project. |
 | `flatmaxx config` | Opens an interactive editor for project config overrides. |
 | `flatmaxx config --user` | Edits the shared `~/flatmaxxing.user.toml`. |
+| `flatmaxx skills install [--global]` | Installs the flatmaxxing agent skill into the project (or for the current user with `--global`). |
 | `flatmaxx doctor <project>` | Checks required software and permissions; generates nothing. |
 | `flatmaxx validate <project> --fix` | Runs validation only — no FlatCAM, xTool, or MakeraCAM launches. |
 | `flatmaxx clean <project> [--dry-run]` | Removes (or lists) generated output folders. |

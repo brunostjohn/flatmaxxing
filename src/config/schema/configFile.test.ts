@@ -30,6 +30,13 @@ test("schema decodes defaults without compatibility casts", () => {
   expect(config.cnc.nonCopperClearing).toEqual(defaultCncNonCopperClearing);
 });
 
+test("skills.autoInstall defaults to true and can be disabled", () => {
+  expect(decodeConfigFile({}).skills.autoInstall).toBe(true);
+  expect(
+    decodeConfigFile({ skills: { autoInstall: false } }).skills.autoInstall,
+  ).toBe(false);
+});
+
 test("workflow side exclusions default to empty arrays", () => {
   const config = decodeConfigFile({});
 

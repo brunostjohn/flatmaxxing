@@ -24,6 +24,10 @@ export const defaultDependencies = {
 export const defaultProjectDir = ".";
 export const defaultSkipRenderBoard = false;
 
+export const defaultSkills = {
+  autoInstall: true,
+};
+
 export const defaultPaths = {
   additionalProjects: "./manufacture",
   gcode: "./gcodes",
@@ -298,6 +302,7 @@ export const defaultConfigFile = {
   extends: [] as string[],
   projectDir: defaultProjectDir,
   skipRenderBoard: defaultSkipRenderBoard,
+  skills: defaultSkills,
   dependencies: defaultDependencies,
   paths: defaultPaths,
   board: defaultBoard,

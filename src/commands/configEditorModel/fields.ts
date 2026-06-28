@@ -1,4 +1,4 @@
-import { defaultConfigFile, isRecord } from "@/config";
+import { defaultConfigFile, isRecord, schemaAnnotationForPath } from "@/config";
 import { ConfigError } from "@/errors";
 import { Array } from "effect";
 import type {
@@ -11,313 +11,229 @@ import { sideArrayDescription } from "./constants";
 
 export const pathKey = (path: readonly string[]) => path.join(".");
 
+type RawFieldOptions = Omit<ConfigEditorField, "kind" | "path" | "label">;
+
+interface RawField {
+  readonly kind: ConfigEditorFieldKind;
+  readonly path: readonly string[];
+  readonly options: RawFieldOptions;
+}
+
+interface RawSection {
+  readonly id: string;
+  readonly title: string;
+  readonly fields: readonly RawField[];
+}
+
 const field = (
   kind: ConfigEditorFieldKind,
   path: string,
-  label: string,
-  options: Omit<ConfigEditorField, "kind" | "path" | "label"> = {},
-): ConfigEditorField => ({
-  kind,
-  path: path.split("."),
-  label,
-  ...options,
-});
+  options: RawFieldOptions = {},
+): RawField => ({ kind, path: path.split("."), options });
 
 const option = (value: string, label = value): ConfigEditorSelectOption => ({
   label,
   value,
 });
 
-export const configEditorSections = [
+const rawSections: readonly RawSection[] = [
   {
     id: "project",
     title: "Project",
     fields: [
-      field("toml", "extends", "Extends", {
-        description: `TOML string array of parent config files.`,
+      field("toml", "extends", {
+        description: "TOML string array of parent config files.",
       }),
-      field("string", "projectDir", "Project directory"),
-      field("boolean", "skipRenderBoard", "Skip board preview"),
+      field("string", "projectDir"),
+      field("boolean", "skipRenderBoard"),
     ],
+  },
+  {
+    id: "skills",
+    title: "Skills",
+    fields: [field("boolean", "skills.autoInstall")],
   },
   {
     id: "dependencies",
     title: "Dependencies",
     fields: [
-      field("string", "dependencies.kicadCli", "KiCad CLI"),
-      field("string", "dependencies.flatcam", "FlatCAM"),
+      field("string", "dependencies.kicadCli"),
+      field("string", "dependencies.flatcam"),
     ],
   },
   {
     id: "paths",
-    title: "Paths",
+    title: "Output paths",
     fields: [
-      field("string", "paths.additionalProjects", "Additional projects"),
-      field("string", "paths.gcode", "G-code"),
-      field("string", "paths.svg", "SVG"),
-      field("string", "paths.dxf", "DXF"),
-      field("string", "paths.png", "PNG"),
-      field("string", "paths.gerbers", "Gerbers"),
-      field("string", "paths.drills", "Drills"),
-      field("string", "paths.xtool", "xTool"),
-      field("string", "paths.place", "Place"),
-      field("string", "paths.cnc", "CNC"),
+      field("string", "paths.additionalProjects"),
+      field("string", "paths.gcode"),
+      field("string", "paths.svg"),
+      field("string", "paths.dxf"),
+      field("string", "paths.png"),
+      field("string", "paths.gerbers"),
+      field("string", "paths.drills"),
+      field("string", "paths.xtool"),
+      field("string", "paths.place"),
+      field("string", "paths.cnc"),
     ],
   },
   {
     id: "board",
     title: "Board",
     fields: [
-      field("boolean", "board.autoFix", "Auto-fix board"),
-      field("optionalString", "board.file", "Board file"),
-      field("select", "board.ignoreSide", "Ignored side", {
+      field("boolean", "board.autoFix"),
+      field("optionalString", "board.file"),
+      field("select", "board.ignoreSide", {
         options: [option("", "None"), option("front"), option("back")],
       }),
     ],
   },
   {
     id: "alignment-drills",
-    title: "Alignment",
+    title: "Alignment drills",
     fields: [
-      field("boolean", "alignmentDrills.generate", "Generate"),
-      field("float", "alignmentDrills.distance.x", "Distance X", {
-        min: 0,
-        step: 0.1,
-      }),
-      field("float", "alignmentDrills.distance.y", "Distance Y", {
-        min: 0,
-        step: 0.1,
-      }),
-      field("float", "alignmentDrills.diameter", "Diameter", {
-        min: 0,
-        step: 0.1,
-      }),
+      field("boolean", "alignmentDrills.generate"),
+      field("float", "alignmentDrills.distance.x", { min: 0, step: 0.1 }),
+      field("float", "alignmentDrills.distance.y", { min: 0, step: 0.1 }),
+      field("float", "alignmentDrills.diameter", { min: 0, step: 0.1 }),
     ],
   },
   {
     id: "electroplating",
-    title: "Electroplate",
+    title: "Electroplating",
     fields: [
-      field(
-        "boolean",
-        "electroplating.generateEdgeCutsWithAlignmentDrills",
-        "Edge cuts with alignment drills",
-      ),
-      field("float", "electroplating.additionalDistance.left", "Left offset"),
-      field("float", "electroplating.additionalDistance.right", "Right offset"),
-      field("float", "electroplating.additionalDistance.top", "Top offset"),
-      field(
-        "float",
-        "electroplating.additionalDistance.bottom",
-        "Bottom offset",
-      ),
-      field("float", "electroplating.cornerRadius", "Corner radius"),
-      field("float", "electroplating.container.waterMl", "Bath water ml"),
-      field(
-        "optionalFloat",
-        "electroplating.container.maxBoardWidthMm",
-        "Max board width mm",
-      ),
-      field(
-        "optionalFloat",
-        "electroplating.container.maxBoardHeightMm",
-        "Max board height mm",
-      ),
-      field(
-        "boolean",
-        "electroplating.container.allowRotation",
-        "Allow rotation",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.currentDensityMaPerCm2",
-        "Current density mA/cm2",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.durationMinutes",
-        "Duration minutes",
-      ),
-      field("float", "electroplating.recipe.stirRpm", "Stir RPM"),
-      field(
-        "float",
-        "electroplating.recipe.targetCopperMicrons",
-        "Target copper microns",
-      ),
-      field("float", "electroplating.recipe.voltageLimitV", "Voltage limit V"),
+      field("boolean", "electroplating.generateEdgeCutsWithAlignmentDrills"),
+      field("float", "electroplating.additionalDistance.left"),
+      field("float", "electroplating.additionalDistance.right"),
+      field("float", "electroplating.additionalDistance.top"),
+      field("float", "electroplating.additionalDistance.bottom"),
+      field("float", "electroplating.cornerRadius"),
+      field("float", "electroplating.container.waterMl"),
+      field("optionalFloat", "electroplating.container.maxBoardWidthMm"),
+      field("optionalFloat", "electroplating.container.maxBoardHeightMm"),
+      field("boolean", "electroplating.container.allowRotation"),
+      field("float", "electroplating.recipe.currentDensityMaPerCm2"),
+      field("float", "electroplating.recipe.durationMinutes"),
+      field("float", "electroplating.recipe.stirRpm"),
+      field("float", "electroplating.recipe.targetCopperMicrons"),
+      field("float", "electroplating.recipe.voltageLimitV"),
       field(
         "float",
         "electroplating.recipe.copperSulfatePentahydrate.gramsPerLiter",
-        "Copper sulfate g/L",
       ),
-      field(
-        "float",
-        "electroplating.recipe.citricAcid.gramsPerLiter",
-        "Citric acid g/L",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.polysorbate20.millilitersPerLiter",
-        "Polysorbate 20 ml/L",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.hcl.solutionConcentrationPercent",
-        "HCl solution concentration %",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.hcl.referenceConcentrationPercent",
-        "HCl reference concentration %",
-      ),
-      field(
-        "float",
-        "electroplating.recipe.hcl.referenceMillilitersPerLiter",
-        "HCl reference ml/L",
-      ),
+      field("float", "electroplating.recipe.citricAcid.gramsPerLiter"),
+      field("float", "electroplating.recipe.polysorbate20.millilitersPerLiter"),
+      field("float", "electroplating.recipe.hcl.solutionConcentrationPercent"),
+      field("float", "electroplating.recipe.hcl.referenceConcentrationPercent"),
+      field("float", "electroplating.recipe.hcl.referenceMillilitersPerLiter"),
     ],
   },
   {
     id: "solder-mask",
-    title: "Solder Mask",
+    title: "Solder mask",
     fields: [
-      field("boolean", "solderMask.generate", "Generate"),
-      field("boolean", "solderMask.double", "Double"),
-      field("toml", "solderMask.excludeSides", "Exclude sides", {
+      field("boolean", "solderMask.generate"),
+      field("boolean", "solderMask.double"),
+      field("toml", "solderMask.excludeSides", {
         description: sideArrayDescription,
       }),
-      field("float", "solderMask.distance.x", "Distance X"),
-      field("float", "solderMask.distance.y", "Distance Y"),
-      field("select", "solderMask.xtool.device", "xTool device", {
+      field("float", "solderMask.distance.x"),
+      field("float", "solderMask.distance.y"),
+      field("select", "solderMask.xtool.device", {
         options: [option("M1 Ultra")],
       }),
-      field("float", "solderMask.xtool.intensity", "xTool intensity"),
-      field("integer", "solderMask.xtool.passes", "xTool passes", {
-        min: 1,
-        step: 1,
-      }),
+      field("float", "solderMask.xtool.intensity"),
+      field("integer", "solderMask.xtool.passes", { min: 1, step: 1 }),
     ],
   },
   {
     id: "stencil",
     title: "Stencil",
     fields: [
-      field("boolean", "stencil.generate", "Generate"),
-      field("toml", "stencil.excludeSides", "Exclude sides", {
+      field("boolean", "stencil.generate"),
+      field("toml", "stencil.excludeSides", {
         description: sideArrayDescription,
       }),
-      field("select", "stencil.xtool.device", "xTool device", {
+      field("select", "stencil.xtool.device", {
         options: [option("F1 Ultra")],
       }),
-      field("float", "stencil.xtool.power", "xTool power"),
-      field("float", "stencil.xtool.speed", "xTool speed"),
-      field("integer", "stencil.xtool.passes", "xTool passes", {
-        min: 1,
-        step: 1,
-      }),
+      field("float", "stencil.xtool.power"),
+      field("float", "stencil.xtool.speed"),
+      field("integer", "stencil.xtool.passes", { min: 1, step: 1 }),
     ],
   },
   {
     id: "outputs",
     title: "Outputs",
     fields: [
-      field("boolean", "drills.generate", "Generate drills"),
-      field("boolean", "drills.withEdgeCuts", "Drills with edge cuts"),
-      field("boolean", "place.generate", "Generate placement"),
+      field("boolean", "drills.generate"),
+      field("boolean", "drills.withEdgeCuts"),
+      field("boolean", "place.generate"),
     ],
   },
   {
     id: "cnc",
     title: "CNC",
     fields: [
-      field("toml", "cnc.availableDrills", "Available drills", {
+      field("toml", "cnc.availableDrills", {
         description: "TOML array of drill tool objects.",
       }),
-      field("toml", "cnc.availableMills", "Available mills", {
+      field("toml", "cnc.availableMills", {
         description: "TOML array of mill tool objects.",
       }),
-      field("float", "cnc.isolation.feedRate", "Isolation feed rate"),
-      field("float", "cnc.isolation.spindleSpeed", "Isolation spindle speed"),
-      field("float", "cnc.isolation.zCutDepth", "Isolation Z cut depth"),
-      field("float", "cnc.isolation.zCutFeedRate", "Isolation Z feed rate"),
-      field("select", "cnc.isolation.tool.type", "Isolation tool type", {
+      field("float", "cnc.isolation.feedRate"),
+      field("float", "cnc.isolation.spindleSpeed"),
+      field("float", "cnc.isolation.zCutDepth"),
+      field("float", "cnc.isolation.zCutFeedRate"),
+      field("select", "cnc.isolation.tool.type", {
         options: [option("vbit"), option("mill"), option("drill")],
       }),
-      field("float", "cnc.isolation.tool.diameter", "Isolation tool diameter"),
-      field(
-        "optionalFloat",
-        "cnc.isolation.tool.angle",
-        "Isolation V-bit angle",
-      ),
-      field("integer", "cnc.isolation.passes", "Isolation passes", {
-        min: 1,
-        step: 1,
-      }),
-      field("float", "cnc.isolation.overlap", "Isolation overlap"),
-      field("numberSelect", "cnc.isolation.isoType", "Isolation type", {
+      field("float", "cnc.isolation.tool.diameter"),
+      field("optionalFloat", "cnc.isolation.tool.angle"),
+      field("integer", "cnc.isolation.passes", { min: 1, step: 1 }),
+      field("float", "cnc.isolation.overlap"),
+      field("numberSelect", "cnc.isolation.isoType", {
         options: [
           option("0", "Exteriors"),
           option("1", "Interiors"),
           option("2", "Full"),
         ],
       }),
-      field("float", "cnc.nonCopperClearing.feedRate", "NCC feed rate"),
-      field("float", "cnc.nonCopperClearing.spindleSpeed", "NCC spindle speed"),
-      field("float", "cnc.nonCopperClearing.zCutDepth", "NCC Z cut depth"),
-      field("float", "cnc.nonCopperClearing.zCutFeedRate", "NCC Z feed rate"),
-      field("select", "cnc.nonCopperClearing.tool.type", "NCC tool type", {
+      field("float", "cnc.nonCopperClearing.feedRate"),
+      field("float", "cnc.nonCopperClearing.spindleSpeed"),
+      field("float", "cnc.nonCopperClearing.zCutDepth"),
+      field("float", "cnc.nonCopperClearing.zCutFeedRate"),
+      field("select", "cnc.nonCopperClearing.tool.type", {
         options: [option("vbit"), option("mill"), option("drill")],
       }),
-      field(
-        "float",
-        "cnc.nonCopperClearing.tool.diameter",
-        "NCC tool diameter",
-      ),
-      field(
-        "optionalFloat",
-        "cnc.nonCopperClearing.tool.angle",
-        "NCC V-bit angle",
-      ),
-      field("float", "cnc.nonCopperClearing.overlap", "NCC overlap"),
-      field("float", "cnc.nonCopperClearing.margin", "NCC margin"),
-      field("select", "cnc.nonCopperClearing.method", "NCC method", {
+      field("float", "cnc.nonCopperClearing.tool.diameter"),
+      field("optionalFloat", "cnc.nonCopperClearing.tool.angle"),
+      field("float", "cnc.nonCopperClearing.overlap"),
+      field("float", "cnc.nonCopperClearing.margin"),
+      field("select", "cnc.nonCopperClearing.method", {
         options: [option("standard"), option("seed"), option("lines")],
       }),
-      field(
-        "float",
-        "cnc.nonCopperClearing.millZCutDepth",
-        "NCC mill Z cut depth",
-      ),
-      field("float", "cnc.clearance.travelZ", "Travel Z"),
-      field("float", "cnc.clearance.endZ", "End Z"),
-      field("float", "cnc.clearance.rapidFeedRate", "Rapid feed rate"),
-      field("float", "cnc.clearance.seamZ", "Seam Z"),
-      field("select", "cnc.backside.mirrorAxis", "Backside mirror axis", {
+      field("float", "cnc.nonCopperClearing.millZCutDepth"),
+      field("float", "cnc.clearance.travelZ"),
+      field("float", "cnc.clearance.endZ"),
+      field("float", "cnc.clearance.rapidFeedRate"),
+      field("float", "cnc.clearance.seamZ"),
+      field("select", "cnc.backside.mirrorAxis", {
         options: [option("X"), option("Y")],
       }),
-      field(
-        "float",
-        "cnc.drilling.matchToleranceMm",
-        "Drill match tolerance mm",
-      ),
+      field("float", "cnc.drilling.matchToleranceMm"),
     ],
   },
   {
     id: "xtool",
     title: "xTool",
     fields: [
-      field("string", "xtool.appPath", "App path"),
-      field("string", "xtool.cdpHost", "CDP host"),
-      field("integer", "xtool.cdpPort", "CDP port", { min: 1, step: 1 }),
-      field("integer", "xtool.window.width", "Window width", {
-        min: 1,
-        step: 1,
-      }),
-      field("integer", "xtool.window.height", "Window height", {
-        min: 1,
-        step: 1,
-      }),
-      field("select", "xtool.existingProcess", "Existing process", {
+      field("string", "xtool.appPath"),
+      field("string", "xtool.cdpHost"),
+      field("integer", "xtool.cdpPort", { min: 1, step: 1 }),
+      field("integer", "xtool.window.width", { min: 1, step: 1 }),
+      field("integer", "xtool.window.height", { min: 1, step: 1 }),
+      field("select", "xtool.existingProcess", {
         options: [option("prompt")],
       }),
     ],
@@ -326,194 +242,127 @@ export const configEditorSections = [
     id: "makeracam",
     title: "MakeraCAM",
     fields: [
-      field("string", "makeracam.appPath", "App path"),
-      field("float", "makeracam.cutDepthMm", "Cut depth mm"),
-      field("integer", "makeracam.tabsPerContour", "Tabs per contour", {
-        min: 0,
-        step: 1,
-      }),
-      field("select", "makeracam.existingProcess", "Existing process", {
+      field("string", "makeracam.appPath"),
+      field("float", "makeracam.cutDepthMm"),
+      field("integer", "makeracam.tabsPerContour", { min: 0, step: 1 }),
+      field("select", "makeracam.existingProcess", {
         options: [option("prompt")],
       }),
-      field("integer", "makeracam.window.width", "Window width", {
-        min: 1,
-        step: 1,
-      }),
-      field("integer", "makeracam.window.height", "Window height", {
-        min: 1,
-        step: 1,
-      }),
-      field(
-        "boolean",
-        "makeracam.platedHoles.generate",
-        "Generate plated holes",
-      ),
-      field("boolean", "makeracam.finalCut.generate", "Generate final cut"),
+      field("integer", "makeracam.window.width", { min: 1, step: 1 }),
+      field("integer", "makeracam.window.height", { min: 1, step: 1 }),
+      field("boolean", "makeracam.platedHoles.generate"),
+      field("boolean", "makeracam.finalCut.generate"),
     ],
   },
   {
     id: "validation",
     title: "Validation",
     fields: [
-      field("float", "validation.ranges.distanceMm.min", "Distance min"),
-      field("float", "validation.ranges.distanceMm.max", "Distance max"),
-      field(
-        "float",
-        "validation.ranges.toolDiameterMm.min",
-        "Tool diameter min",
-      ),
-      field(
-        "float",
-        "validation.ranges.toolDiameterMm.max",
-        "Tool diameter max",
-      ),
-      field("float", "validation.ranges.feedRate.min", "Feed rate min"),
-      field("float", "validation.ranges.feedRate.max", "Feed rate max"),
-      field("float", "validation.ranges.spindleSpeed.min", "Spindle speed min"),
-      field("float", "validation.ranges.spindleSpeed.max", "Spindle speed max"),
-      field("float", "validation.ranges.cutDepthMm.min", "Cut depth min"),
-      field("float", "validation.ranges.cutDepthMm.max", "Cut depth max"),
-      field("float", "validation.ranges.angleDegrees.min", "Angle min"),
-      field("float", "validation.ranges.angleDegrees.max", "Angle max"),
-      field("float", "validation.ranges.xtoolPercent.min", "xTool percent min"),
-      field("float", "validation.ranges.xtoolPercent.max", "xTool percent max"),
-      field("float", "validation.ranges.xtoolPasses.min", "xTool passes min"),
-      field("float", "validation.ranges.xtoolPasses.max", "xTool passes max"),
-      field("float", "validation.ranges.xtoolSpeed.min", "xTool speed min"),
-      field("float", "validation.ranges.xtoolSpeed.max", "xTool speed max"),
-      field(
-        "float",
-        "validation.ranges.electroplatingBoardSizeMm.min",
-        "Electroplating board size min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingBoardSizeMm.max",
-        "Electroplating board size max",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingVolumeMl.min",
-        "Electroplating volume min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingVolumeMl.max",
-        "Electroplating volume max",
-      ),
+      field("float", "validation.ranges.distanceMm.min"),
+      field("float", "validation.ranges.distanceMm.max"),
+      field("float", "validation.ranges.toolDiameterMm.min"),
+      field("float", "validation.ranges.toolDiameterMm.max"),
+      field("float", "validation.ranges.feedRate.min"),
+      field("float", "validation.ranges.feedRate.max"),
+      field("float", "validation.ranges.spindleSpeed.min"),
+      field("float", "validation.ranges.spindleSpeed.max"),
+      field("float", "validation.ranges.cutDepthMm.min"),
+      field("float", "validation.ranges.cutDepthMm.max"),
+      field("float", "validation.ranges.angleDegrees.min"),
+      field("float", "validation.ranges.angleDegrees.max"),
+      field("float", "validation.ranges.xtoolPercent.min"),
+      field("float", "validation.ranges.xtoolPercent.max"),
+      field("float", "validation.ranges.xtoolPasses.min"),
+      field("float", "validation.ranges.xtoolPasses.max"),
+      field("float", "validation.ranges.xtoolSpeed.min"),
+      field("float", "validation.ranges.xtoolSpeed.max"),
+      field("float", "validation.ranges.electroplatingBoardSizeMm.min"),
+      field("float", "validation.ranges.electroplatingBoardSizeMm.max"),
+      field("float", "validation.ranges.electroplatingVolumeMl.min"),
+      field("float", "validation.ranges.electroplatingVolumeMl.max"),
       field(
         "float",
         "validation.ranges.electroplatingCurrentDensityMaPerCm2.min",
-        "Electroplating current density min",
       ),
       field(
         "float",
         "validation.ranges.electroplatingCurrentDensityMaPerCm2.max",
-        "Electroplating current density max",
       ),
-      field(
-        "float",
-        "validation.ranges.electroplatingDurationMinutes.min",
-        "Electroplating duration min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingDurationMinutes.max",
-        "Electroplating duration max",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingStirRpm.min",
-        "Electroplating stir RPM min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingStirRpm.max",
-        "Electroplating stir RPM max",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingMicrons.min",
-        "Electroplating microns min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingMicrons.max",
-        "Electroplating microns max",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingVoltageV.min",
-        "Electroplating voltage min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingVoltageV.max",
-        "Electroplating voltage max",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingMassGramsPerLiter.min",
-        "Electroplating mass g/L min",
-      ),
-      field(
-        "float",
-        "validation.ranges.electroplatingMassGramsPerLiter.max",
-        "Electroplating mass g/L max",
-      ),
+      field("float", "validation.ranges.electroplatingDurationMinutes.min"),
+      field("float", "validation.ranges.electroplatingDurationMinutes.max"),
+      field("float", "validation.ranges.electroplatingStirRpm.min"),
+      field("float", "validation.ranges.electroplatingStirRpm.max"),
+      field("float", "validation.ranges.electroplatingMicrons.min"),
+      field("float", "validation.ranges.electroplatingMicrons.max"),
+      field("float", "validation.ranges.electroplatingVoltageV.min"),
+      field("float", "validation.ranges.electroplatingVoltageV.max"),
+      field("float", "validation.ranges.electroplatingMassGramsPerLiter.min"),
+      field("float", "validation.ranges.electroplatingMassGramsPerLiter.max"),
       field(
         "float",
         "validation.ranges.electroplatingLiquidMillilitersPerLiter.min",
-        "Electroplating liquid ml/L min",
       ),
       field(
         "float",
         "validation.ranges.electroplatingLiquidMillilitersPerLiter.max",
-        "Electroplating liquid ml/L max",
       ),
       field(
         "float",
         "validation.ranges.electroplatingConcentrationPercent.min",
-        "Electroplating concentration min",
       ),
       field(
         "float",
         "validation.ranges.electroplatingConcentrationPercent.max",
-        "Electroplating concentration max",
       ),
-      field(
-        "boolean",
-        "validation.isolationFeasibility.enabled",
-        "Isolation feasibility enabled",
-      ),
-      field(
-        "select",
-        "validation.isolationFeasibility.onFailure",
-        "Isolation feasibility failure",
-        { options: [option("error"), option("warn")] },
-      ),
-      field(
-        "toml",
-        "validation.isolationFeasibility.ignore",
-        "Isolation ignore",
-        {
-          description: "TOML array of regex strings.",
-        },
-      ),
-      field(
-        "boolean",
-        "validation.drillFeasibility.enabled",
-        "Drill feasibility enabled",
-      ),
-      field(
-        "select",
-        "validation.drillFeasibility.onFailure",
-        "Drill feasibility failure",
-        { options: [option("error"), option("warn")] },
-      ),
+      field("boolean", "validation.isolationFeasibility.enabled"),
+      field("select", "validation.isolationFeasibility.onFailure", {
+        options: [option("error"), option("warn")],
+      }),
+      field("toml", "validation.isolationFeasibility.ignore", {
+        description: "TOML array of regex strings.",
+      }),
+      field("boolean", "validation.drillFeasibility.enabled"),
+      field("select", "validation.drillFeasibility.onFailure", {
+        options: [option("error"), option("warn")],
+      }),
     ],
   },
-] as const satisfies readonly ConfigEditorSection[];
+];
+
+const titleChain = (path: readonly string[]): readonly string[] =>
+  path.map(
+    (_, index) =>
+      schemaAnnotationForPath(path.slice(0, index + 1))?.title ??
+      path[index] ??
+      "",
+  );
+
+const labelForPath = (
+  path: readonly string[],
+  sectionTitle: string,
+): string => {
+  const titles = titleChain(path);
+  const trimmed = titles[0] === sectionTitle ? titles.slice(1) : titles;
+  return (trimmed.length > 0 ? trimmed : titles).join(" ");
+};
+
+const buildField = (raw: RawField, sectionTitle: string): ConfigEditorField => {
+  const { description, ...rest } = raw.options;
+  return {
+    kind: raw.kind,
+    path: raw.path,
+    label: labelForPath(raw.path, sectionTitle),
+    description: description ?? schemaAnnotationForPath(raw.path)?.description,
+    ...rest,
+  };
+};
+
+export const configEditorSections: readonly ConfigEditorSection[] =
+  rawSections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    fields: section.fields.map((raw) => buildField(raw, section.title)),
+  }));
 
 export const configEditorFields = configEditorSections.flatMap((section) =>
   section.fields.map((field) => ({ ...field, sectionId: section.id })),
@@ -552,8 +401,11 @@ export const assertConfigEditorDescriptorCoverage = () => {
     (key) => !actual.has(key),
   );
   const extra = Array.fromIterable(actual).filter((key) => !expected.has(key));
+  const untitled = Array.fromIterable(actual).filter(
+    (key) => schemaAnnotationForPath(key.split("."))?.title === undefined,
+  );
 
-  if (missing.length > 0 || extra.length > 0) {
+  if (missing.length > 0 || extra.length > 0 || untitled.length > 0) {
     throw new ConfigError({
       message: [
         missing.length > 0
@@ -561,6 +413,9 @@ export const assertConfigEditorDescriptorCoverage = () => {
           : "",
         extra.length > 0
           ? `Extra config editor fields: ${extra.join(", ")}`
+          : "",
+        untitled.length > 0
+          ? `Config editor fields without a schema title: ${untitled.join(", ")}`
           : "",
       ]
         .filter(Boolean)

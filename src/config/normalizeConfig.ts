@@ -330,6 +330,7 @@ export const normalizeConfig = Effect.fn("flatmaxx.config.normalize")(
     const resolved: ResolvedConfig = {
       projectDir: resolvedProjectDir,
       skipRenderBoard: config.skipRenderBoard,
+      skills: config.skills,
       dependencies: config.dependencies,
       paths: {
         additionalProjects,

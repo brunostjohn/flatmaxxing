@@ -1,0 +1,1807 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://flatmaxx.dev/flatmaxxing.schema.json",
+  "type": "object",
+  "properties": {
+    "extends": {
+      "type": "array",
+      "title": "Extends",
+      "description": "Parent config files to inherit from (later entries override earlier).",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "projectDir": {
+      "type": "string",
+      "title": "Project directory",
+      "description": "Project directory relative to the config file.",
+      "default": "."
+    },
+    "skipRenderBoard": {
+      "type": "boolean",
+      "title": "Skip board preview",
+      "description": "Skip rendering the board preview image.",
+      "default": false
+    },
+    "skills": {
+      "type": "object",
+      "properties": {
+        "autoInstall": {
+          "type": "boolean",
+          "title": "Auto-install flatmaxxing skill",
+          "description": "Install the flatmaxxing agent skill on `flatmaxx init` and offer it on `flatmaxx doctor`.",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "title": "Skills",
+      "description": "Agent skill installation settings."
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "kicadCli": {
+          "type": "string",
+          "title": "KiCad CLI",
+          "description": "Path to the kicad-cli executable.",
+          "default": "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+        },
+        "flatcam": {
+          "type": "string",
+          "title": "FlatCAM",
+          "description": "FlatCAM command or executable path.",
+          "default": "flatcam"
+        }
+      },
+      "additionalProperties": false,
+      "title": "Dependencies",
+      "description": "External tool locations."
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "additionalProjects": {
+          "type": "string",
+          "title": "Additional projects",
+          "description": "Directory for additional manufacture projects.",
+          "default": "./manufacture"
+        },
+        "gcode": {
+          "type": "string",
+          "title": "G-code",
+          "description": "Directory for generated G-code.",
+          "default": "./gcodes"
+        },
+        "svg": {
+          "type": "string",
+          "title": "SVG",
+          "description": "Directory for generated SVG files.",
+          "default": "./svg"
+        },
+        "dxf": {
+          "type": "string",
+          "title": "DXF",
+          "description": "Directory for generated DXF files.",
+          "default": "./dxf"
+        },
+        "png": {
+          "type": "string",
+          "title": "PNG",
+          "description": "Directory for generated PNG previews.",
+          "default": "./png"
+        },
+        "gerbers": {
+          "type": "string",
+          "title": "Gerbers",
+          "description": "Directory for exported Gerber files.",
+          "default": "./gerbers"
+        },
+        "drills": {
+          "type": "string",
+          "title": "Drills",
+          "description": "Directory for generated drill files.",
+          "default": "./drills"
+        },
+        "xtool": {
+          "type": "string",
+          "title": "xTool",
+          "description": "Directory for xTool Studio artifacts.",
+          "default": "./xtool"
+        },
+        "place": {
+          "type": "string",
+          "title": "Place",
+          "description": "Directory for placement files.",
+          "default": "./place"
+        },
+        "cnc": {
+          "type": "string",
+          "title": "CNC",
+          "description": "Directory for generated CNC G-code.",
+          "default": "./cnc"
+        }
+      },
+      "additionalProperties": false,
+      "title": "Output paths",
+      "description": "Output directories for generated artifacts."
+    },
+    "board": {
+      "type": "object",
+      "properties": {
+        "autoFix": {
+          "type": "boolean",
+          "title": "Auto-fix board",
+          "description": "Automatically fix detected board issues.",
+          "default": false
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Board file",
+          "description": "Path to the KiCad board file (auto-detected if unset)."
+        },
+        "ignoreSide": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "front",
+                "back"
+              ],
+              "title": "Board side",
+              "description": "Which copper side of the board: \"front\" or \"back\"."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ignored side",
+          "description": "Skip processing one side of the board.",
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "title": "Board",
+      "description": "Source board file and handling."
+    },
+    "alignmentDrills": {
+      "type": "object",
+      "properties": {
+        "generate": {
+          "type": "boolean",
+          "title": "Generate",
+          "description": "Whether alignment drills are generated.",
+          "default": true
+        },
+        "distance": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "title": "X distance",
+              "description": "Horizontal offset (mm).",
+              "type": "number",
+              "default": 6
+            },
+            "y": {
+              "title": "Y distance",
+              "description": "Vertical offset (mm).",
+              "type": "number",
+              "default": 6
+            }
+          },
+          "additionalProperties": false,
+          "title": "Spacing",
+          "description": "Inset of alignment drills from the board edges (mm)."
+        },
+        "diameter": {
+          "title": "Diameter",
+          "description": "Alignment drill diameter (mm).",
+          "type": "number",
+          "default": 2
+        }
+      },
+      "additionalProperties": false,
+      "title": "Alignment drills",
+      "description": "Registration drill holes for double-sided alignment."
+    },
+    "electroplating": {
+      "type": "object",
+      "properties": {
+        "generateEdgeCutsWithAlignmentDrills": {
+          "type": "boolean",
+          "title": "Edge cuts with alignment drills",
+          "description": "Generate edge cuts together with alignment drills.",
+          "default": true
+        },
+        "additionalDistance": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "title": "Left edge",
+              "description": "Offset added to the left edge (mm).",
+              "type": "number",
+              "default": 16
+            },
+            "right": {
+              "title": "Right edge",
+              "description": "Offset added to the right edge (mm).",
+              "type": "number",
+              "default": 4
+            },
+            "top": {
+              "title": "Top edge",
+              "description": "Offset added to the top edge (mm).",
+              "type": "number",
+              "default": 4
+            },
+            "bottom": {
+              "title": "Bottom edge",
+              "description": "Offset added to the bottom edge (mm).",
+              "type": "number",
+              "default": 4
+            }
+          },
+          "additionalProperties": false,
+          "title": "Additional distance",
+          "description": "Extra board outline offset per edge for plating (mm)."
+        },
+        "cornerRadius": {
+          "title": "Corner radius",
+          "description": "Corner radius of the plating outline (mm).",
+          "type": "number",
+          "default": 2
+        },
+        "container": {
+          "type": "object",
+          "properties": {
+            "waterMl": {
+              "title": "Bath water",
+              "description": "Volume of water in the bath (mL).",
+              "type": "number",
+              "default": 300
+            },
+            "maxBoardWidthMm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max board width",
+              "description": "Maximum board width that fits the bath (mm)."
+            },
+            "maxBoardHeightMm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max board height",
+              "description": "Maximum board height that fits the bath (mm)."
+            },
+            "allowRotation": {
+              "type": "boolean",
+              "title": "Allow rotation",
+              "description": "Allow rotating the board to fit the bath.",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "title": "Container",
+          "description": "Electroplating bath container constraints."
+        },
+        "recipe": {
+          "type": "object",
+          "properties": {
+            "currentDensityMaPerCm2": {
+              "title": "Current density",
+              "description": "Plating current density (mA/cm²).",
+              "type": "number",
+              "default": 21.5
+            },
+            "durationMinutes": {
+              "title": "Duration",
+              "description": "Plating duration (minutes).",
+              "type": "number",
+              "default": 40
+            },
+            "stirRpm": {
+              "title": "Stir speed",
+              "description": "Magnetic stirrer speed (rpm).",
+              "type": "number",
+              "default": 400
+            },
+            "targetCopperMicrons": {
+              "title": "Target copper",
+              "description": "Target deposited copper thickness (µm).",
+              "type": "number",
+              "default": 20
+            },
+            "voltageLimitV": {
+              "title": "Voltage limit",
+              "description": "Power-supply voltage limit (V).",
+              "type": "number",
+              "default": 5
+            },
+            "copperSulfatePentahydrate": {
+              "type": "object",
+              "properties": {
+                "gramsPerLiter": {
+                  "title": "Grams per litre",
+                  "description": "Concentration (g/L).",
+                  "type": "number",
+                  "default": 250
+                }
+              },
+              "additionalProperties": false,
+              "title": "Copper sulfate pentahydrate",
+              "description": "Copper(II) sulfate pentahydrate concentration."
+            },
+            "citricAcid": {
+              "type": "object",
+              "properties": {
+                "gramsPerLiter": {
+                  "title": "Grams per litre",
+                  "description": "Concentration (g/L).",
+                  "type": "number",
+                  "default": 190
+                }
+              },
+              "additionalProperties": false,
+              "title": "Citric acid",
+              "description": "Citric acid concentration."
+            },
+            "polysorbate20": {
+              "type": "object",
+              "properties": {
+                "millilitersPerLiter": {
+                  "title": "Millilitres per litre",
+                  "description": "Concentration (mL/L).",
+                  "type": "number",
+                  "default": 10
+                }
+              },
+              "additionalProperties": false,
+              "title": "Polysorbate 20",
+              "description": "Polysorbate 20 (Tween 20) concentration."
+            },
+            "hcl": {
+              "type": "object",
+              "properties": {
+                "solutionConcentrationPercent": {
+                  "title": "Solution concentration",
+                  "description": "Concentration of the HCl stock solution (%).",
+                  "type": "number",
+                  "default": 7.5
+                },
+                "referenceConcentrationPercent": {
+                  "title": "Reference concentration",
+                  "description": "Reference concentration the dose is calibrated against (%).",
+                  "type": "number",
+                  "default": 7.5
+                },
+                "referenceMillilitersPerLiter": {
+                  "title": "Reference dose",
+                  "description": "Reference dose at the reference concentration (mL/L).",
+                  "type": "number",
+                  "default": 1
+                }
+              },
+              "additionalProperties": false,
+              "title": "HCl",
+              "description": "Hydrochloric acid dosing."
+            }
+          },
+          "additionalProperties": false,
+          "title": "Recipe",
+          "description": "Copper electroplating recipe and bath chemistry."
+        }
+      },
+      "additionalProperties": false,
+      "title": "Electroplating",
+      "description": "Copper electroplating and bath settings."
+    },
+    "solderMask": {
+      "type": "object",
+      "properties": {
+        "generate": {
+          "type": "boolean",
+          "title": "Generate",
+          "description": "Whether the solder mask is generated.",
+          "default": true
+        },
+        "double": {
+          "type": "boolean",
+          "title": "Double",
+          "description": "Expose the solder mask twice.",
+          "default": true
+        },
+        "excludeSides": {
+          "type": "array",
+          "title": "Exclude sides",
+          "description": "Sides to exclude from the solder mask.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "enum": [
+              "front",
+              "back"
+            ],
+            "title": "Board side",
+            "description": "Which copper side of the board: \"front\" or \"back\"."
+          }
+        },
+        "distance": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "title": "X distance",
+              "description": "Horizontal offset (mm).",
+              "type": "number",
+              "default": 6
+            },
+            "y": {
+              "title": "Y distance",
+              "description": "Vertical offset (mm).",
+              "type": "number",
+              "default": 6
+            }
+          },
+          "additionalProperties": false,
+          "title": "Expansion",
+          "description": "Solder mask expansion around pads (mm)."
+        },
+        "xtool": {
+          "type": "object",
+          "properties": {
+            "device": {
+              "type": "string",
+              "enum": [
+                "M1 Ultra"
+              ],
+              "title": "Device",
+              "description": "xTool laser device used for solder mask.",
+              "default": "M1 Ultra"
+            },
+            "intensity": {
+              "title": "Intensity",
+              "description": "Laser intensity (%).",
+              "type": "number",
+              "default": 100
+            },
+            "passes": {
+              "title": "Passes",
+              "description": "Number of laser passes.",
+              "type": "number",
+              "default": 3
+            }
+          },
+          "additionalProperties": false,
+          "title": "xTool",
+          "description": "xTool exposure settings for solder mask."
+        }
+      },
+      "additionalProperties": false,
+      "title": "Solder mask",
+      "description": "Solder mask generation settings."
+    },
+    "stencil": {
+      "type": "object",
+      "properties": {
+        "generate": {
+          "type": "boolean",
+          "title": "Generate",
+          "description": "Whether the stencil is generated.",
+          "default": true
+        },
+        "excludeSides": {
+          "type": "array",
+          "title": "Exclude sides",
+          "description": "Sides to exclude from the stencil.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "enum": [
+              "front",
+              "back"
+            ],
+            "title": "Board side",
+            "description": "Which copper side of the board: \"front\" or \"back\"."
+          }
+        },
+        "xtool": {
+          "type": "object",
+          "properties": {
+            "device": {
+              "type": "string",
+              "enum": [
+                "F1 Ultra"
+              ],
+              "title": "Device",
+              "description": "xTool device used to cut the stencil.",
+              "default": "F1 Ultra"
+            },
+            "power": {
+              "title": "Power",
+              "description": "Laser power (%).",
+              "type": "number",
+              "default": 100
+            },
+            "speed": {
+              "title": "Speed",
+              "description": "Cutting speed (mm/min).",
+              "type": "number",
+              "default": 6000
+            },
+            "passes": {
+              "title": "Passes",
+              "description": "Number of laser passes.",
+              "type": "number",
+              "default": 3
+            }
+          },
+          "additionalProperties": false,
+          "title": "xTool",
+          "description": "xTool cutting settings for the stencil."
+        }
+      },
+      "additionalProperties": false,
+      "title": "Stencil",
+      "description": "Solder paste stencil settings."
+    },
+    "drills": {
+      "type": "object",
+      "properties": {
+        "generate": {
+          "type": "boolean",
+          "title": "Generate",
+          "description": "Whether drill files are generated.",
+          "default": true
+        },
+        "withEdgeCuts": {
+          "type": "boolean",
+          "title": "With edge cuts",
+          "description": "Include edge cuts in the drill output.",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "title": "Drills",
+      "description": "Drill file generation settings."
+    },
+    "place": {
+      "type": "object",
+      "properties": {
+        "generate": {
+          "type": "boolean",
+          "title": "Generate",
+          "description": "Whether placement files are generated.",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "title": "Placement",
+      "description": "Component placement output settings."
+    },
+    "cnc": {
+      "type": "object",
+      "properties": {
+        "isolation": {
+          "type": "object",
+          "properties": {
+            "feedRate": {
+              "title": "Feed rate",
+              "description": "XY feed rate (mm/min).",
+              "type": "number",
+              "default": 120
+            },
+            "spindleSpeed": {
+              "title": "Spindle speed",
+              "description": "Spindle speed (rpm).",
+              "type": "number",
+              "default": 15000
+            },
+            "zCutDepth": {
+              "title": "Z cut depth",
+              "description": "Per-pass cut depth (mm).",
+              "type": "number",
+              "default": 0.05
+            },
+            "zCutFeedRate": {
+              "title": "Z feed rate",
+              "description": "Plunge feed rate (mm/min).",
+              "type": "number",
+              "default": 60
+            },
+            "tool": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "vbit"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"vbit\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Tip diameter (mm).",
+                      "type": "number"
+                    },
+                    "angle": {
+                      "title": "V-bit angle",
+                      "description": "Included tip angle (degrees).",
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "V-bit",
+                  "description": "V-shaped engraving bit."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "mill"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"mill\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Cutter diameter (mm).",
+                      "type": "number"
+                    },
+                    "feedRate": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Feed rate",
+                      "description": "Override XY feed rate (mm/min)."
+                    },
+                    "zCutFeedRate": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Z feed rate",
+                      "description": "Override plunge feed rate (mm/min)."
+                    },
+                    "spindleSpeed": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Spindle speed",
+                      "description": "Override spindle speed (rpm)."
+                    },
+                    "zCutDepth": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Z cut depth",
+                      "description": "Override per-pass cut depth (mm)."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "Mill",
+                  "description": "Flat end mill."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "drill"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"drill\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Drill diameter (mm).",
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "Drill",
+                  "description": "Drill bit."
+                }
+              ],
+              "title": "Tool",
+              "description": "Tool used for isolation routing.",
+              "default": {
+                "type": "vbit",
+                "diameter": 0.14,
+                "angle": 60
+              }
+            },
+            "passes": {
+              "title": "Passes",
+              "description": "Number of isolation passes.",
+              "type": "number",
+              "default": 3
+            },
+            "overlap": {
+              "title": "Overlap",
+              "description": "Pass overlap (%).",
+              "type": "number",
+              "default": 60
+            },
+            "isoType": {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2
+              ],
+              "title": "Isolation type",
+              "description": "0 = exteriors, 1 = interiors, 2 = full.",
+              "default": 2
+            }
+          },
+          "additionalProperties": false,
+          "title": "Isolation",
+          "description": "Copper isolation routing settings."
+        },
+        "nonCopperClearing": {
+          "type": "object",
+          "properties": {
+            "feedRate": {
+              "title": "Feed rate",
+              "description": "XY feed rate (mm/min).",
+              "type": "number",
+              "default": 120
+            },
+            "spindleSpeed": {
+              "title": "Spindle speed",
+              "description": "Spindle speed (rpm).",
+              "type": "number",
+              "default": 15000
+            },
+            "zCutDepth": {
+              "title": "Z cut depth",
+              "description": "Per-pass cut depth (mm).",
+              "type": "number",
+              "default": 0.05
+            },
+            "zCutFeedRate": {
+              "title": "Z feed rate",
+              "description": "Plunge feed rate (mm/min).",
+              "type": "number",
+              "default": 60
+            },
+            "tool": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "vbit"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"vbit\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Tip diameter (mm).",
+                      "type": "number"
+                    },
+                    "angle": {
+                      "title": "V-bit angle",
+                      "description": "Included tip angle (degrees).",
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "V-bit",
+                  "description": "V-shaped engraving bit."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "mill"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"mill\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Cutter diameter (mm).",
+                      "type": "number"
+                    },
+                    "feedRate": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Feed rate",
+                      "description": "Override XY feed rate (mm/min)."
+                    },
+                    "zCutFeedRate": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Z feed rate",
+                      "description": "Override plunge feed rate (mm/min)."
+                    },
+                    "spindleSpeed": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Spindle speed",
+                      "description": "Override spindle speed (rpm)."
+                    },
+                    "zCutDepth": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Z cut depth",
+                      "description": "Override per-pass cut depth (mm)."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "Mill",
+                  "description": "Flat end mill."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "drill"
+                      ],
+                      "title": "Type",
+                      "description": "Tool kind (\"drill\")."
+                    },
+                    "diameter": {
+                      "title": "Diameter",
+                      "description": "Drill diameter (mm).",
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "title": "Drill",
+                  "description": "Drill bit."
+                }
+              ],
+              "title": "Tool",
+              "description": "Tool used for non-copper clearing.",
+              "default": {
+                "type": "vbit",
+                "diameter": 0.14,
+                "angle": 60
+              }
+            },
+            "overlap": {
+              "title": "Overlap",
+              "description": "Pass overlap (%).",
+              "type": "number",
+              "default": 40
+            },
+            "margin": {
+              "title": "Margin",
+              "description": "Margin left around copper (mm).",
+              "type": "number",
+              "default": 0
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "standard",
+                "seed",
+                "lines"
+              ],
+              "title": "Method",
+              "description": "Clearing strategy (\"standard\", \"seed\", or \"lines\").",
+              "default": "seed"
+            },
+            "millZCutDepth": {
+              "title": "Mill Z cut depth",
+              "description": "Per-pass cut depth when using a mill (mm).",
+              "type": "number",
+              "default": 0.075
+            }
+          },
+          "additionalProperties": false,
+          "title": "Non-copper clearing",
+          "description": "Clears copper from non-trace areas."
+        },
+        "clearance": {
+          "type": "object",
+          "properties": {
+            "travelZ": {
+              "title": "Travel Z",
+              "description": "Z height for rapid travel moves (mm).",
+              "type": "number",
+              "default": 2
+            },
+            "endZ": {
+              "title": "End Z",
+              "description": "Z height at the end of the job (mm).",
+              "type": "number",
+              "default": 15
+            },
+            "rapidFeedRate": {
+              "title": "Rapid feed rate",
+              "description": "Feed rate for rapid moves (mm/min).",
+              "type": "number",
+              "default": 1500
+            },
+            "seamZ": {
+              "title": "Seam Z",
+              "description": "Z height for seam moves (mm).",
+              "type": "number",
+              "default": 15
+            }
+          },
+          "additionalProperties": false,
+          "title": "Clearance",
+          "description": "Travel and safety heights."
+        },
+        "backside": {
+          "type": "object",
+          "properties": {
+            "mirrorAxis": {
+              "type": "string",
+              "enum": [
+                "X",
+                "Y"
+              ],
+              "title": "Mirror axis",
+              "description": "Axis to mirror across for backside jobs (X or Y).",
+              "default": "X"
+            }
+          },
+          "additionalProperties": false,
+          "title": "Backside",
+          "description": "Backside machining settings."
+        },
+        "drilling": {
+          "type": "object",
+          "properties": {
+            "matchToleranceMm": {
+              "title": "Match tolerance",
+              "description": "Tolerance when matching holes to drill tools (mm).",
+              "type": "number",
+              "default": 0.05
+            }
+          },
+          "additionalProperties": false,
+          "title": "Drilling",
+          "description": "Drill matching settings."
+        },
+        "availableDrills": {
+          "type": "array",
+          "title": "Available drills",
+          "description": "Drill tools available to the machine.",
+          "default": [
+            {
+              "type": "drill",
+              "diameter": 0.3
+            },
+            {
+              "type": "drill",
+              "diameter": 0.5
+            },
+            {
+              "type": "drill",
+              "diameter": 0.7
+            },
+            {
+              "type": "drill",
+              "diameter": 0.8
+            },
+            {
+              "type": "drill",
+              "diameter": 1
+            },
+            {
+              "type": "drill",
+              "diameter": 1.1
+            },
+            {
+              "type": "drill",
+              "diameter": 1.2
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "drill"
+                ],
+                "title": "Type",
+                "description": "Tool kind (\"drill\")."
+              },
+              "diameter": {
+                "title": "Diameter",
+                "description": "Drill diameter (mm).",
+                "type": "number"
+              }
+            },
+            "additionalProperties": false,
+            "title": "Drill",
+            "description": "Drill bit."
+          }
+        },
+        "availableMills": {
+          "type": "array",
+          "title": "Available mills",
+          "description": "Mill tools available to the machine.",
+          "default": [
+            {
+              "type": "mill",
+              "diameter": 0.7
+            },
+            {
+              "type": "mill",
+              "diameter": 0.8
+            },
+            {
+              "type": "mill",
+              "diameter": 1
+            },
+            {
+              "type": "mill",
+              "diameter": 1.1
+            },
+            {
+              "type": "mill",
+              "diameter": 1.2
+            },
+            {
+              "type": "mill",
+              "diameter": 1.3
+            },
+            {
+              "type": "mill",
+              "diameter": 1.4
+            },
+            {
+              "type": "mill",
+              "diameter": 1.5
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "mill"
+                ],
+                "title": "Type",
+                "description": "Tool kind (\"mill\")."
+              },
+              "diameter": {
+                "title": "Diameter",
+                "description": "Cutter diameter (mm).",
+                "type": "number"
+              },
+              "feedRate": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Feed rate",
+                "description": "Override XY feed rate (mm/min)."
+              },
+              "zCutFeedRate": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Z feed rate",
+                "description": "Override plunge feed rate (mm/min)."
+              },
+              "spindleSpeed": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Spindle speed",
+                "description": "Override spindle speed (rpm)."
+              },
+              "zCutDepth": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Z cut depth",
+                "description": "Override per-pass cut depth (mm)."
+              }
+            },
+            "additionalProperties": false,
+            "title": "Mill",
+            "description": "Flat end mill."
+          }
+        }
+      },
+      "additionalProperties": false,
+      "title": "CNC",
+      "description": "CNC milling and drilling settings."
+    },
+    "xtool": {
+      "type": "object",
+      "properties": {
+        "appPath": {
+          "type": "string",
+          "title": "App path",
+          "description": "Path to the xTool Studio application.",
+          "default": "/Applications/xTool Studio.app"
+        },
+        "cdpHost": {
+          "type": "string",
+          "title": "CDP host",
+          "description": "Chrome DevTools Protocol host for xTool Studio.",
+          "default": "127.0.0.1"
+        },
+        "cdpPort": {
+          "title": "CDP port",
+          "description": "Chrome DevTools Protocol port for xTool Studio.",
+          "type": "number",
+          "default": 9333
+        },
+        "window": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "title": "Window width",
+              "description": "Window width in pixels.",
+              "type": "number",
+              "default": 1280
+            },
+            "height": {
+              "title": "Window height",
+              "description": "Window height in pixels.",
+              "type": "number",
+              "default": 720
+            }
+          },
+          "additionalProperties": false,
+          "title": "Window",
+          "description": "xTool Studio automation window size."
+        },
+        "existingProcess": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "prompt"
+              ]
+            }
+          ],
+          "title": "Existing process",
+          "description": "Behaviour when xTool Studio is already running (\"prompt\" asks).",
+          "default": "prompt"
+        }
+      },
+      "additionalProperties": false,
+      "title": "xTool",
+      "description": "xTool Studio automation settings."
+    },
+    "makeracam": {
+      "type": "object",
+      "properties": {
+        "appPath": {
+          "type": "string",
+          "title": "App path",
+          "description": "Path to the MakeraCAM application.",
+          "default": "/Applications/MakeraCAM.app"
+        },
+        "cutDepthMm": {
+          "title": "Cut depth",
+          "description": "Contour cut depth (mm).",
+          "type": "number",
+          "default": 2
+        },
+        "tabsPerContour": {
+          "title": "Tabs per contour",
+          "description": "Number of holding tabs generated per contour.",
+          "type": "number",
+          "default": 4
+        },
+        "existingProcess": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "prompt"
+              ]
+            }
+          ],
+          "title": "Existing process",
+          "description": "Behaviour when MakeraCAM is already running (\"prompt\" asks).",
+          "default": "prompt"
+        },
+        "window": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "title": "Window width",
+              "description": "Window width in pixels.",
+              "type": "number",
+              "default": 1728
+            },
+            "height": {
+              "title": "Window height",
+              "description": "Window height in pixels.",
+              "type": "number",
+              "default": 1037
+            }
+          },
+          "additionalProperties": false,
+          "title": "Window",
+          "description": "MakeraCAM automation window size."
+        },
+        "platedHoles": {
+          "type": "object",
+          "properties": {
+            "generate": {
+              "type": "boolean",
+              "title": "Generate",
+              "description": "Whether this MakeraCAM step runs.",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "title": "Plated holes",
+          "description": "Generate the plated-holes CNC step."
+        },
+        "finalCut": {
+          "type": "object",
+          "properties": {
+            "generate": {
+              "type": "boolean",
+              "title": "Generate",
+              "description": "Whether this MakeraCAM step runs.",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "title": "Final cut",
+          "description": "Generate the final contour CNC step."
+        }
+      },
+      "additionalProperties": false,
+      "title": "MakeraCAM",
+      "description": "MakeraCAM automation settings."
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "ranges": {
+          "type": "object",
+          "properties": {
+            "distanceMm": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 250
+                }
+              },
+              "additionalProperties": false,
+              "title": "Distance (mm)",
+              "description": "Valid range for distance values (mm)."
+            },
+            "toolDiameterMm": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.01
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 10
+                }
+              },
+              "additionalProperties": false,
+              "title": "Tool diameter (mm)",
+              "description": "Valid range for tool diameters (mm)."
+            },
+            "feedRate": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 10000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Feed rate",
+              "description": "Valid range for feed rates (mm/min)."
+            },
+            "spindleSpeed": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 50000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Spindle speed",
+              "description": "Valid range for spindle speeds (rpm)."
+            },
+            "cutDepthMm": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.001
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 5
+                }
+              },
+              "additionalProperties": false,
+              "title": "Cut depth (mm)",
+              "description": "Valid range for cut depths (mm)."
+            },
+            "angleDegrees": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 180
+                }
+              },
+              "additionalProperties": false,
+              "title": "Angle (degrees)",
+              "description": "Valid range for angles (degrees)."
+            },
+            "xtoolPercent": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 100
+                }
+              },
+              "additionalProperties": false,
+              "title": "xTool percent",
+              "description": "Valid range for xTool percentage values (%)."
+            },
+            "xtoolPasses": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 20
+                }
+              },
+              "additionalProperties": false,
+              "title": "xTool passes",
+              "description": "Valid range for xTool pass counts."
+            },
+            "xtoolSpeed": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 20000
+                }
+              },
+              "additionalProperties": false,
+              "title": "xTool speed",
+              "description": "Valid range for xTool speeds (mm/min)."
+            },
+            "electroplatingBoardSizeMm": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.001
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 1000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating board size (mm)",
+              "description": "Valid range for plated board dimensions (mm)."
+            },
+            "electroplatingVolumeMl": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 10000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating volume (mL)",
+              "description": "Valid range for bath volume (mL)."
+            },
+            "electroplatingCurrentDensityMaPerCm2": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.001
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 1000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating current density",
+              "description": "Valid range for current density (mA/cm²)."
+            },
+            "electroplatingDurationMinutes": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 1
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 10000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating duration",
+              "description": "Valid range for plating duration (minutes)."
+            },
+            "electroplatingStirRpm": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 10000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating stir speed",
+              "description": "Valid range for stirrer speed (rpm)."
+            },
+            "electroplatingMicrons": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 1000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating copper thickness",
+              "description": "Valid range for deposited copper thickness (µm)."
+            },
+            "electroplatingVoltageV": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.001
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 100
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating voltage",
+              "description": "Valid range for voltage (V)."
+            },
+            "electroplatingMassGramsPerLiter": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 5000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating mass concentration",
+              "description": "Valid range for mass concentration (g/L)."
+            },
+            "electroplatingLiquidMillilitersPerLiter": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 1000
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating liquid concentration",
+              "description": "Valid range for liquid concentration (mL/L)."
+            },
+            "electroplatingConcentrationPercent": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "title": "Minimum",
+                  "description": "Inclusive lower bound.",
+                  "type": "number",
+                  "default": 0.001
+                },
+                "max": {
+                  "title": "Maximum",
+                  "description": "Inclusive upper bound.",
+                  "type": "number",
+                  "default": 100
+                }
+              },
+              "additionalProperties": false,
+              "title": "Electroplating concentration",
+              "description": "Valid range for concentration (%)."
+            }
+          },
+          "additionalProperties": false,
+          "title": "Ranges",
+          "description": "Acceptable value ranges used during validation."
+        },
+        "isolationFeasibility": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Whether the isolation feasibility check runs.",
+              "default": true
+            },
+            "onFailure": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warn"
+              ],
+              "title": "On failure",
+              "description": "Action on failure (\"error\" or \"warn\").",
+              "default": "error"
+            },
+            "ignore": {
+              "type": "array",
+              "title": "Ignore",
+              "description": "Regular expressions for nets to ignore.",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "title": "Isolation feasibility",
+          "description": "Pre-flight isolation feasibility check."
+        },
+        "drillFeasibility": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Whether the drill feasibility check runs.",
+              "default": true
+            },
+            "onFailure": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warn"
+              ],
+              "title": "On failure",
+              "description": "Action on failure (\"error\" or \"warn\").",
+              "default": "error"
+            }
+          },
+          "additionalProperties": false,
+          "title": "Drill feasibility",
+          "description": "Pre-flight drill feasibility check."
+        }
+      },
+      "additionalProperties": false,
+      "title": "Validation",
+      "description": "Configuration validation settings."
+    }
+  },
+  "additionalProperties": false,
+  "title": "flatmaxx configuration",
+  "description": "Schema for flatmaxxing.toml, the flatmaxx project configuration file."
+}

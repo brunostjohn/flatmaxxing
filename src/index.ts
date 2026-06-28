@@ -4,6 +4,7 @@ import {
   makeConfigCommand,
   makeDoctorCommand,
   makeInitCommand,
+  makeSkillsCommand,
   makeUpdateCommand,
   makeValidateCommand,
   rootBuildCommand,
@@ -22,6 +23,7 @@ const Flatmaxx = rootBuildCommand.pipe(
     makeConfigCommand(rootBuildCommand),
     makeDoctorCommand(rootBuildCommand),
     makeInitCommand(),
+    makeSkillsCommand(),
     makeUpdateCommand(),
     makeValidateCommand(rootBuildCommand),
   ]),
@@ -46,6 +48,10 @@ const Flatmaxx = rootBuildCommand.pipe(
     {
       command: "flatmaxx config --user",
       description: "Opens an interactive editor for ~/flatmaxxing.user.toml.",
+    },
+    {
+      command: "flatmaxx skills install --global",
+      description: "Installs the flatmaxxing agent skill for the current user.",
     },
     {
       command: "flatmaxx <kicad-project> -k <path-to-kicad>",

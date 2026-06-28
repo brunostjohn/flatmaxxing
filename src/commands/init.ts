@@ -12,17 +12,26 @@ import {
   defaultMakeracam,
   defaultPaths,
   defaultPlace,
+  defaultSkills,
   defaultSkipRenderBoard,
   defaultSolderMask,
   defaultStencil,
+  loadFlatmaxxConfig,
   resolveFrom,
   renderTomlAssignments,
   renderTomlSection,
 } from "@/config";
+import { writeProjectSchemaAssociation } from "@/editorSchema";
 import { CliError } from "@/errors";
+import {
+  installSkill,
+  isNpxAvailable,
+  isSkillInstalledGlobally,
+  isSkillInstalledInProject,
+} from "@/skills";
 import { renderBoardHeader } from "@/stages";
 import { Array, Effect, FileSystem, Match, Option, Order, Path } from "effect";
-import { Command } from "effect/unstable/cli";
+import { Command, Flag } from "effect/unstable/cli";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
 
@@ -134,6 +143,7 @@ export const createProjectConfigToml = ({
 
   return `${[
     topLevel,
+    renderTomlSection("skills", [["autoInstall", defaultSkills.autoInstall]]),
     renderTomlSection("paths", [
       ["additionalProjects", defaultPaths.additionalProjects],
       ["gcode", defaultPaths.gcode],
@@ -373,6 +383,7 @@ export const runInitWorkflow = Effect.fn("flatmaxx.init")(function* (
   });
 
   yield* fs.writeFileString(configPath, toml);
+  yield* writeProjectSchemaAssociation(cwd).pipe(Effect.ignore);
 
   return {
     configPath,
@@ -381,16 +392,95 @@ export const runInitWorkflow = Effect.fn("flatmaxx.init")(function* (
   } satisfies InitResult;
 });
 
+const userConfigAutoInstall = Effect.fn("flatmaxx.init.userAutoInstall")(
+  function* (userConfigPath: string) {
+    const fs = yield* FileSystem.FileSystem;
+
+    if (!(yield* fs.exists(userConfigPath))) {
+      return defaultSkills.autoInstall;
+    }
+
+    return yield* loadFlatmaxxConfig({
+      projectRoot: yield* Effect.sync(() => homedir()),
+      configPath: userConfigPath,
+    }).pipe(
+      Effect.map((config) => config.skills.autoInstall),
+      Effect.orElseSucceed(() => defaultSkills.autoInstall),
+    );
+  },
+);
+
+const maybeInstallSkillForInit = Effect.fn("flatmaxx.init.installSkill")(
+  function* ({
+    cwd,
+    skipSkill,
+  }: {
+    readonly cwd: string;
+    readonly skipSkill: boolean;
+  }) {
+    if (skipSkill) {
+      return;
+    }
+
+    const path = yield* Path.Path;
+    const home = yield* Effect.sync(() => homedir());
+
+    if (!(yield* userConfigAutoInstall(path.join(home, userConfigFilename)))) {
+      return;
+    }
+
+    if (!(yield* isNpxAvailable())) {
+      yield* Effect.sync(() =>
+        console.log(
+          "Skipping flatmaxxing skill install: npx was not found on PATH.",
+        ),
+      );
+      return;
+    }
+
+    if (yield* isSkillInstalledGlobally()) {
+      yield* Effect.sync(() =>
+        console.log("flatmaxxing skill is already installed globally."),
+      );
+      return;
+    }
+
+    if (yield* isSkillInstalledInProject(cwd)) {
+      return;
+    }
+
+    yield* Effect.sync(() => console.log("Installing the flatmaxxing skill…"));
+    yield* installSkill({ cwd, global: false }).pipe(
+      Effect.catchTag("SkillInstallError", (error) =>
+        Effect.sync(() =>
+          console.warn(`flatmaxxing skill install failed: ${error.message}`),
+        ),
+      ),
+    );
+  },
+);
+
 export const makeInitCommand = () =>
   Command.make(
     "init",
-    {},
-    Effect.fn("flatmaxx.init.command")(function* () {
+    {
+      skipSkill: Flag.boolean("skip-skill").pipe(
+        Flag.withDescription(
+          "Skip installing the flatmaxxing agent skill for this project.",
+        ),
+        Flag.optional,
+      ),
+    },
+    Effect.fn("flatmaxx.init.command")(function* (input) {
       const path = yield* Path.Path;
       yield* renderBoardHeader(Option.none());
       const result = yield* runInitWorkflow();
       const name = path.basename(result.configPath);
       yield* Effect.sync(() => console.log(`Created ${name}.`));
+      yield* maybeInstallSkillForInit({
+        cwd: path.dirname(result.configPath),
+        skipSkill: Option.getOrElse(input.skipSkill, () => false),
+      }).pipe(Effect.ignore);
     }),
   ).pipe(
     Command.withDescription(

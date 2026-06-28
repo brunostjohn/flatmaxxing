@@ -5,5 +5,6 @@ export * from "./configEditor";
 export * from "./doctor";
 export * from "./helpers";
 export * from "./init";
+export * from "./skills";
 export * from "./update";
 export * from "./validate";

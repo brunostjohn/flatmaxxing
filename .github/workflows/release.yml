@@ -1,15 +1,17 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to release (without leading v, e.g. 1.2.3)"
+      bump:
+        description: "Which part of the version to increment"
         required: true
-        type: string
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -20,6 +22,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -44,19 +48,56 @@ jobs:
         with:
           workspaces: native
 
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            V="${{ github.event.inputs.version }}"
-          else
-            V="${GITHUB_REF_NAME#v}"
-          fi
-          V="${V#v}"
-          echo "value=$V" >> "$GITHUB_OUTPUT"
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Build native addon
+        run: bun run build:native
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      - name: Resolve next version
+        id: version
+        run: |
+          LATEST="$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo v0.0.0)"
+          NEXT="$(LATEST="$LATEST" BUMP="${{ github.event.inputs.bump }}" bun -e '
+            const [maj, min, pat] = (process.env.LATEST || "v0.0.0")
+              .replace(/^v/, "")
+              .split(".")
+              .map(Number);
+            const bump = process.env.BUMP;
+            const next =
+              bump === "major"
+                ? [maj + 1, 0, 0]
+                : bump === "minor"
+                  ? [maj, min + 1, 0]
+                  : [maj, min, pat + 1];
+            console.log(next.join("."));
+          ')"
+          echo "value=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$NEXT (previous: $LATEST)"
+
+      - name: Regenerate and commit schema
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          bun run build:schema
+          if ! git diff --quiet -- flatmaxxing.schema.json; then
+            git add flatmaxxing.schema.json
+            git commit -m "chore: regenerate flatmaxxing.schema.json for v${{ steps.version.outputs.value }}"
+            git push origin "HEAD:${{ github.ref_name }}"
+          else
+            echo "schema already up to date"
+          fi
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.version.outputs.value }}"
+          git push origin "v${{ steps.version.outputs.value }}"
 
       - name: Build release binary
         env:
@@ -88,8 +129,6 @@ jobs:
           V: ${{ steps.version.outputs.value }}
           SHA: ${{ steps.package.outputs.sha256 }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout -B main origin/main
           bun -e '
