@@ -52,6 +52,7 @@
 
 ```sh
 brew tap brunostjohn/flatmaxxing https://github.com/brunostjohn/flatmaxxing
+brew trust flatmaxx
 brew install flatmaxx
 ```
 
