@@ -1,0 +1,200 @@
+diff --git a/dist/sharp.cjs b/dist/sharp.cjs
+index 9c6532ab7eb8607590d19cccfea873e2ae1528d1..8f5b2edd65f1acf90b110ce513b1ae713e8d30aa 100644
+--- a/dist/sharp.cjs
++++ b/dist/sharp.cjs
+@@ -19,87 +19,7 @@ const runtimePlatform = runtimePlatformArch();
+ 
+ /* node:coverage disable */
+ 
+-let sharp;
+-const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
+-}
+-if (!sharp) {
+-  try {
+-    sharp = require(`../src/build/Release/sharp-wasm32-${version}.node`);
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
+-if (!sharp) {
+-  try {
+-    switch (runtimePlatform) {
+-      case "darwin-arm64":
+-        sharp = require("@img/sharp-darwin-arm64/sharp.node");
+-        break;
+-      case "darwin-x64":
+-        sharp = require("@img/sharp-darwin-x64/sharp.node");
+-        break;
+-      case "linux-arm":
+-        sharp = require("@img/sharp-linux-arm/sharp.node");
+-        break;
+-      case "linux-arm64":
+-        sharp = require("@img/sharp-linux-arm64/sharp.node");
+-        break;
+-      case "linux-ppc64":
+-        sharp = require("@img/sharp-linux-ppc64/sharp.node");
+-        break;
+-      case "linux-riscv64":
+-        sharp = require("@img/sharp-linux-riscv64/sharp.node");
+-        break;
+-      case "linux-s390x":
+-        sharp = require("@img/sharp-linux-s390x/sharp.node");
+-        break;
+-      case "linux-x64":
+-        sharp = require("@img/sharp-linux-x64/sharp.node");
+-        break;
+-      case "linuxmusl-arm64":
+-        sharp = require("@img/sharp-linuxmusl-arm64/sharp.node");
+-        break;
+-      case "linuxmusl-x64":
+-        sharp = require("@img/sharp-linuxmusl-x64/sharp.node");
+-        break;
+-      case "win32-arm64":
+-        sharp = require("@img/sharp-win32-arm64/sharp.node");
+-        break;
+-      case "win32-ia32":
+-        sharp = require("@img/sharp-win32-ia32/sharp.node");
+-        break;
+-      case "win32-x64":
+-        sharp = require("@img/sharp-win32-x64/sharp.node");
+-        break;
+-      case "freebsd-arm64":
+-      case "freebsd-x64":
+-        sharp = require("@img/sharp-freebsd-wasm32/sharp.node");
+-        break;
+-      case "linux-wasm32":
+-        sharp = require("@img/sharp-webcontainers-wasm32/sharp.node");
+-        break;
+-    }
+-    if (sharp && ["linux-x64", "linuxmusl-x64"].includes(runtimePlatform) && !sharp._isUsingX64V2()) {
+-      const err = new Error("Prebuilt binaries for Linux x64 require v2 microarchitecture");
+-      err.code = "Unsupported CPU";
+-      errors.push(err);
+-      sharp = null;
+-    }
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
+-if (!sharp) {
+-  try {
+-    sharp = require("@img/sharp-wasm32/sharp.node");
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
++const sharp = require("@img/sharp-darwin-arm64");
+ 
+ if (!sharp) {
+   const [isLinux, isMacOs, isWindows] = ["linux", "darwin", "win32"].map((os) => runtimePlatform.startsWith(os));
+diff --git a/dist/sharp.mjs b/dist/sharp.mjs
+index e2979c00b7ecbd768ccc254addc5fa663902e12f..1664a95873d66dee38427609ad4a57c088c72021 100644
+--- a/dist/sharp.mjs
++++ b/dist/sharp.mjs
+@@ -5,11 +5,11 @@
+ 
+ // Inspects the runtime environment and exports the relevant sharp.node binary
+ 
+-import { createRequire } from "node:module"
+ import { familySync, versionSync } from "detect-libc";
++import { createRequire } from "node:module";
+ 
+-import libvips from "./libvips.mjs";
+ import pkg from '../package.json' with { type: 'json' };
++import libvips from "./libvips.mjs";
+ 
+ const require = createRequire(import.meta.url);
+ const { version } = pkg;
+@@ -19,87 +19,7 @@ const runtimePlatform = runtimePlatformArch();
+ 
+ /* node:coverage disable */
+ 
+-let sharp;
+-const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
+-}
+-if (!sharp) {
+-  try {
+-    sharp = require(`../src/build/Release/sharp-wasm32-${version}.node`);
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
+-if (!sharp) {
+-  try {
+-    switch (runtimePlatform) {
+-      case "darwin-arm64":
+-        sharp = require("@img/sharp-darwin-arm64/sharp.node");
+-        break;
+-      case "darwin-x64":
+-        sharp = require("@img/sharp-darwin-x64/sharp.node");
+-        break;
+-      case "linux-arm":
+-        sharp = require("@img/sharp-linux-arm/sharp.node");
+-        break;
+-      case "linux-arm64":
+-        sharp = require("@img/sharp-linux-arm64/sharp.node");
+-        break;
+-      case "linux-ppc64":
+-        sharp = require("@img/sharp-linux-ppc64/sharp.node");
+-        break;
+-      case "linux-riscv64":
+-        sharp = require("@img/sharp-linux-riscv64/sharp.node");
+-        break;
+-      case "linux-s390x":
+-        sharp = require("@img/sharp-linux-s390x/sharp.node");
+-        break;
+-      case "linux-x64":
+-        sharp = require("@img/sharp-linux-x64/sharp.node");
+-        break;
+-      case "linuxmusl-arm64":
+-        sharp = require("@img/sharp-linuxmusl-arm64/sharp.node");
+-        break;
+-      case "linuxmusl-x64":
+-        sharp = require("@img/sharp-linuxmusl-x64/sharp.node");
+-        break;
+-      case "win32-arm64":
+-        sharp = require("@img/sharp-win32-arm64/sharp.node");
+-        break;
+-      case "win32-ia32":
+-        sharp = require("@img/sharp-win32-ia32/sharp.node");
+-        break;
+-      case "win32-x64":
+-        sharp = require("@img/sharp-win32-x64/sharp.node");
+-        break;
+-      case "freebsd-arm64":
+-      case "freebsd-x64":
+-        sharp = require("@img/sharp-freebsd-wasm32/sharp.node");
+-        break;
+-      case "linux-wasm32":
+-        sharp = require("@img/sharp-webcontainers-wasm32/sharp.node");
+-        break;
+-    }
+-    if (sharp && ["linux-x64", "linuxmusl-x64"].includes(runtimePlatform) && !sharp._isUsingX64V2()) {
+-      const err = new Error("Prebuilt binaries for Linux x64 require v2 microarchitecture");
+-      err.code = "Unsupported CPU";
+-      errors.push(err);
+-      sharp = null;
+-    }
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
+-if (!sharp) {
+-  try {
+-    sharp = require("@img/sharp-wasm32/sharp.node");
+-  } catch (err) {
+-    errors.push(err);
+-  }
+-}
++const sharp = require("@img/sharp-darwin-arm64");
+ 
+ if (!sharp) {
+   const [isLinux, isMacOs, isWindows] = ["linux", "darwin", "win32"].map((os) => runtimePlatform.startsWith(os));
