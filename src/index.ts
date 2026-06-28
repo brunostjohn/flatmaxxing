@@ -1,5 +1,6 @@
 import {
   makeBuildCommand,
+  makeCleanCommand,
   makeConfigCommand,
   makeDoctorCommand,
   makeInitCommand,
@@ -14,6 +15,7 @@ import { Command } from "effect/unstable/cli";
 const Flatmaxx = rootBuildCommand.pipe(
   Command.withSubcommands([
     makeBuildCommand(rootBuildCommand),
+    makeCleanCommand(rootBuildCommand),
     makeConfigCommand(rootBuildCommand),
     makeDoctorCommand(rootBuildCommand),
     makeInitCommand(),
@@ -59,6 +61,15 @@ const Flatmaxx = rootBuildCommand.pipe(
       command: "flatmaxx validate <kicad-project> --fix",
       description:
         "Runs validation checks without launching FlatCAM, xTool Studio, or MakeraCAM.",
+    },
+    {
+      command: "flatmaxx clean <kicad-project>",
+      description:
+        "Removes generated output folders and files from a project directory.",
+    },
+    {
+      command: "flatmaxx clean <kicad-project> --dry-run",
+      description: "Lists the outputs that clean would remove without deleting.",
     },
   ]),
 );

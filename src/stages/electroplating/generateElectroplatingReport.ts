@@ -203,8 +203,7 @@ export const generateElectroplatingReport = Effect.fn(
   });
   yield* patchTask("write", { state: "loading" });
 
-  yield* fs.makeDirectory(options.gerbersDir, { recursive: true });
-  const reportPath = path.join(options.gerbersDir, PLATING_REPORT_FILE);
+  const reportPath = path.join(options.projectDir, PLATING_REPORT_FILE);
   yield* fs.writeFileString(reportPath, report).pipe(
     Effect.mapError(
       (cause) =>

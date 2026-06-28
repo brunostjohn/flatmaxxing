@@ -80,7 +80,10 @@ pub fn query_matches_values(
   }
 
   if let Some(expected_title) = query.title.as_deref() {
-    if actual_titles.title.as_deref() != Some(expected_title) {
+    if actual_titles.title.as_deref() != Some(expected_title)
+      && actual_titles.description.as_deref() != Some(expected_title)
+      && actual_titles.value.as_deref() != Some(expected_title)
+    {
       return false;
     }
   }

@@ -59,5 +59,5 @@ export interface ElectroplatingReportOptions {
   readonly alignmentDistance: { readonly x: number; readonly y: number };
   readonly container: ElectroplatingContainerOptions;
   readonly recipe: ElectroplatingRecipeOptions;
-  readonly gerbersDir: string;
+  readonly projectDir: string;
 }

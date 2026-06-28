@@ -23,3 +23,5 @@ export const NO_TOOL = 0;
 export const EPS = 1e-6;
 
 export const MAX_SHOWN = 12;
+
+export const ROUNDED_UP_FILE = "ROUNDED_UP.txt";

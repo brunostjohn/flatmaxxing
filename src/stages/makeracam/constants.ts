@@ -12,6 +12,8 @@ export const SETTLE = Duration.millis(400);
 export const PANEL_X = 1480;
 export const PANEL_BAND_TOP = 360;
 export const SCROLL_STEP = 8;
+export const PANEL_FOOTER_CLEARANCE = 48;
+export const TOOLBAR_BOTTOM_Y = 120;
 
 export const TAB_WIDTH_MM = 4;
 export const TAB_TOP_CUT_MM = 0.5;

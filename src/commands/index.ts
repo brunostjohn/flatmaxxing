@@ -1,4 +1,5 @@
 export * from "./build";
+export * from "./clean";
 export * from "./cliOverrides";
 export * from "./configEditor";
 export * from "./doctor";

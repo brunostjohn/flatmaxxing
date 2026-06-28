@@ -256,7 +256,7 @@ export const buildElectroplatingReportOptions = (
   alignmentDistance: config.alignmentDrills.distance,
   container: config.electroplating.container,
   recipe: config.electroplating.recipe,
-  gerbersDir: config.paths.gerbers,
+  projectDir: config.projectDir,
 });
 
 export const buildMakeracamStepOptions = (

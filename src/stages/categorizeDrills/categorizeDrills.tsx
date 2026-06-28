@@ -15,7 +15,7 @@ import { Alert } from "@inkjs/ui";
 import { Array, Effect, FileSystem, Match, Path, pipe } from "effect";
 import { Box, Text } from "ink";
 import { categorizeHoles, renderRoundedUpReport } from "./categorizeHoles";
-import { MAX_SHOWN } from "./constants";
+import { MAX_SHOWN, ROUNDED_UP_FILE } from "./constants";
 import { parseExcellon } from "./parseExcellon";
 import { renderExcellon } from "./renderExcellon";
 import type {
@@ -25,7 +25,6 @@ import type {
   UnmachinableHole,
 } from "./types";
 
-const ROUNDED_UP_FILE = "ROUNDED_UP.txt";
 const PCB_SUFFIX = ".kicad_pcb";
 const DRL_SUFFIX = ".drl";
 const ALIGNMENT_SUFFIX = "-alignment.drl";

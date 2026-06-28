@@ -48,3 +48,5 @@ testdir/ROUNDED_UP.txt
 testdir/cnc
 
 *.dylib
+
+testdir/PLATING.txt
