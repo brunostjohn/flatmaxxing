@@ -21,7 +21,8 @@ import { MAKERACAM_PROCESS } from "../process";
 import { scrollIntoBand } from "./scrollIntoBand";
 import { setValueByLabel } from "./setValueByLabel";
 
-const TABS_KEEP_SCROLLING = "flatmaxx.makeracam.clickTabsGenerate.keepScrolling";
+const TABS_KEEP_SCROLLING =
+  "flatmaxx.makeracam.clickTabsGenerate.keepScrolling";
 const TABS_SCROLL_ANCHOR_Y = 600;
 
 const calculateButtonY = Effect.fnUntraced(function* (pid: number) {

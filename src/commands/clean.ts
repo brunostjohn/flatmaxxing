@@ -71,12 +71,14 @@ export const cleanProjectOutputs = Effect.fn("flatmaxx.clean.outputs")(
 
     if (!options.dryRun) {
       yield* Effect.forEach(existing, (target) =>
-        fs.remove(target, { recursive: true, force: true }).pipe(
-          Effect.mapError(
-            (cause) =>
-              new CliError({ message: `Failed to remove ${target}.`, cause }),
+        fs
+          .remove(target, { recursive: true, force: true })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new CliError({ message: `Failed to remove ${target}.`, cause }),
+            ),
           ),
-        ),
       );
     }
 

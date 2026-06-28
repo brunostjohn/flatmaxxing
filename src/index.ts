@@ -69,7 +69,8 @@ const Flatmaxx = rootBuildCommand.pipe(
     },
     {
       command: "flatmaxx clean <kicad-project> --dry-run",
-      description: "Lists the outputs that clean would remove without deleting.",
+      description:
+        "Lists the outputs that clean would remove without deleting.",
     },
   ]),
 );

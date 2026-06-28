@@ -110,28 +110,27 @@ const buildToolpath = (
 ) =>
   Effect.gen(function* () {
     const paths = makeracamTaskPaths.toolpaths.step(index);
-    const scope = tasks.scope(paths.root);
 
     yield* tasks.patchTask(paths.root, { state: "loading" });
 
-    const layerSelector = yield* scope.runTask({
+    const layerSelector = yield* tasks.runTask({
       path: paths.import,
       effect: importPcbFile(pid, toolpath.absPath),
     });
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.selectGraphics,
       effect: selectLayerGraphics(pid, layerSelector),
     });
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.openToolpath,
       effect: openToolpath(pid, toolpath.kind),
     });
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.setDepth,
       effect: setEndDepth(pid, toolpath.kind, options.cutDepthMm),
     });
 
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.chooseTool,
       effect: Match.value(toolpath.kind).pipe(
         Match.when("pocket", () =>
@@ -171,11 +170,11 @@ const buildToolpath = (
       ),
     });
 
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.calculate,
       effect: calculatePath(pid),
     });
-    yield* scope.runTask({
+    yield* tasks.runTask({
       path: paths.closeDialog,
       effect: closeToolpathDialog(pid),
     });

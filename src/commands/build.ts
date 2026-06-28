@@ -43,7 +43,7 @@ import {
 
 export type BoardImagePreviewRenderer = (
   pngPath: string,
-) => Effect.Effect<void>;
+) => Effect.Effect<void, never, FileSystem.FileSystem>;
 
 export interface MaybeRenderBoardImagePreviewOptions {
   readonly enabled: boolean;

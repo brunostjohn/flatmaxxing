@@ -2,12 +2,7 @@ import { expect, test } from "bun:test";
 import { loadFlatmaxxConfig } from "@/config";
 import { BunServices } from "@effect/platform-bun";
 import { Effect } from "effect";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cleanProjectOutputs } from "./clean";
