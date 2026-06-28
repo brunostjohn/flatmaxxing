@@ -7,6 +7,7 @@
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000?logo=bun&logoColor=white)](https://bun.sh)
 [![Effect v4](https://img.shields.io/badge/Effect-v4-5b3a9e)](https://effect.website)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Native: Rust](https://img.shields.io/badge/native-Rust-000000?logo=rust&logoColor=white)](native)
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)](#prerequisites)
 [![Build: single binary](https://img.shields.io/badge/build-single%20binary-f97316)](#installation)
 
@@ -16,6 +17,19 @@
 
 > [!NOTE]
 > This tool is built around one specific bench: a **Makera Carvera (Air)** CNC, **xTool M1 Ultra / F1 Ultra** lasers, and a **DIY copper electroplating** setup. It's shared as-is. Nothing stops you using it, but you'll want to retune the config to your own hardware, tools, and chemistry before trusting the output to a machine.
+
+## Contents
+
+- [No support — use entirely at your own risk](#-no-support--use-entirely-at-your-own-risk)
+- [Installation](#installation)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Output layout](#output-layout)
+- [Terminal experience](#terminal-experience)
+- [Development](#development)
 
 ## ⚠️ No support — use entirely at your own risk
 
@@ -29,56 +43,6 @@
 > This is a **hobby project** I share for free in my spare time. I have a full-time job and a life, and I'm not interested in spending my free time doing unpaid tech support — I don't want my hobby to become my job. If that's a problem for you, **don't use this.**
 >
 > Pull requests with fixes are welcome, but I make **no commitment** to review, respond to, or merge them.
-
-## Features
-
-- **One command, full pipeline** — `flatmaxx <project>` runs every stage from board validation to machine-ready files.
-- **Isolation + non-copper clearing** — FlatCAM-driven V-bit isolation routing and pocket clearing, exported as Carvera G-code per side.
-- **Drill categorization** — parses Excellon output and snaps every hole to the nearest bit in *your* declared drill set, warning on holes too small to machine.
-- **Solder mask & paste stencil** — automates xTool Studio over the Chrome DevTools Protocol to import geometry and set laser power/speed/passes per device.
-- **Drilling & edge cut** — automates MakeraCAM via macOS Accessibility to drill plated/non-plated holes and cut the board outline with retaining tabs.
-- **Electroplating report** — computes bath dimensions, current density, timing, and chemistry from your board bounds and recipe.
-- **Design rule checks** — isolation feasibility (DRC) and drill machinability gates that can warn or hard-fail before any machine moves.
-- **Inline board preview** — renders the board image right in your terminal (kitty / iTerm2 / sixel).
-- **Composable TOML config** — project + user config with `extends` inheritance, deep merge, and per-run CLI overrides.
-
-## How it works
-
-`flatmaxx` runs an ordered pipeline. Each stage feeds the next; you can disable the ones you don't need from config.
-
-| # | Stage | Consumes | Produces | Driven via |
-|---|-------|----------|----------|------------|
-| 1 | Preflight | config | software & permission check | `doctor` checks |
-| 2 | Validate board | `.kicad_pcb` | manufacturability report | `kicadts` |
-| 3 | KiCad outputs | `.kicad_pcb` | Gerbers, drills, SVG, PNG + inline preview | `kicad-cli` |
-| 4 | Categorize drills | Excellon | per-bit drill files | Excellon parser |
-| 5 | Isolation DRC | Gerbers | clearance violations | FlatCAM (headless) |
-| 6 | CNC jobs | Gerbers | isolation + NCC G-code (Carvera) | FlatCAM (headless) |
-| 7 | Alignment drills | `.kicad_pcb` | registration holes | Excellon |
-| 8 | Edge-cut DXFs | `.kicad_pcb` | `*-PTH_EdgeCuts.dxf`, `*-Final_EdgeCuts.dxf` | DXF generator |
-| 9 | Electroplating report | board bounds + recipe | bath dimensions & timing | — |
-| 10 | xTool projects | mask SVG + stencil DXF | solder mask + paste stencil jobs | xTool Studio (CDP) |
-| 11 | Plated holes | PTH DXF + drills | drilling + plating outline G-code | MakeraCAM (AX) |
-| 12 | Final cut | Final DXF + drills | non-plated drilling + edge contour | MakeraCAM (AX) |
-
-## Prerequisites
-
-> [!IMPORTANT]
-> **macOS only.** The laser and CNC stages rely on native macOS Accessibility automation and AppleScript, so `flatmaxx` does not run on Linux or Windows.
-
-External software (only the stages you enable need their tools):
-
-| Tool | Needed for | Default location |
-|------|-----------|------------------|
-| [KiCad](https://www.kicad.org) (with `kicad-cli`) | always — board parsing & exports | `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` |
-| [FlatCAM](https://bitbucket.org/jpcgt/flatcam) | isolation DRC + CNC G-code | `flatcam` (on `PATH`) |
-| [xTool Studio](https://www.xtool.com/pages/software) | solder mask + paste stencil | `/Applications/xTool Studio.app` |
-| [MakeraCAM](https://www.makera.com) | drilling + edge cut | `/Applications/MakeraCAM.app` |
-
-The xTool and MakeraCAM stages also require **macOS Accessibility permission** (System Settings → Privacy & Security → Accessibility) and a Chrome DevTools port open for xTool Studio (`127.0.0.1:9333` by default).
-
-> [!TIP]
-> Run `flatmaxx doctor <project>` before your first real build — it checks every required executable, app, and permission for your enabled stages and tells you exactly what's missing, without touching a machine.
 
 ## Installation
 
@@ -137,6 +101,56 @@ flatmaxx update --check   # only report whether a newer release exists
 ```
 
 Homebrew installs are managed by brew — run `brew upgrade flatmaxx` instead.
+
+## Features
+
+- **One command, full pipeline** — `flatmaxx <project>` runs every stage from board validation to machine-ready files.
+- **Isolation + non-copper clearing** — FlatCAM-driven V-bit isolation routing and pocket clearing, exported as Carvera G-code per side.
+- **Drill categorization** — parses Excellon output and snaps every hole to the nearest bit in *your* declared drill set, warning on holes too small to machine.
+- **Solder mask & paste stencil** — automates xTool Studio over the Chrome DevTools Protocol to import geometry and set laser power/speed/passes per device.
+- **Drilling & edge cut** — automates MakeraCAM via macOS Accessibility to drill plated/non-plated holes and cut the board outline with retaining tabs.
+- **Electroplating report** — computes bath dimensions, current density, timing, and chemistry from your board bounds and recipe.
+- **Design rule checks** — isolation feasibility (DRC) and drill machinability gates that can warn or hard-fail before any machine moves.
+- **Inline board preview** — renders the board image right in your terminal (kitty / iTerm2 / sixel).
+- **Composable TOML config** — project + user config with `extends` inheritance, deep merge, and per-run CLI overrides.
+
+## How it works
+
+`flatmaxx` runs an ordered pipeline. Each stage feeds the next; you can disable the ones you don't need from config.
+
+| # | Stage | Consumes | Produces | Driven via |
+|---|-------|----------|----------|------------|
+| 1 | Preflight | config | software & permission check | `doctor` checks |
+| 2 | Validate board | `.kicad_pcb` | manufacturability report | `kicadts` |
+| 3 | KiCad outputs | `.kicad_pcb` | Gerbers, drills, SVG, PNG + inline preview | `kicad-cli` |
+| 4 | Categorize drills | Excellon | per-bit drill files | Excellon parser |
+| 5 | Isolation DRC | Gerbers | clearance violations | FlatCAM (headless) |
+| 6 | CNC jobs | Gerbers | isolation + NCC G-code (Carvera) | FlatCAM (headless) |
+| 7 | Alignment drills | `.kicad_pcb` | registration holes | Excellon |
+| 8 | Edge-cut DXFs | `.kicad_pcb` | `*-PTH_EdgeCuts.dxf`, `*-Final_EdgeCuts.dxf` | DXF generator |
+| 9 | Electroplating report | board bounds + recipe | bath dimensions & timing | — |
+| 10 | xTool projects | mask SVG + stencil DXF | solder mask + paste stencil jobs | xTool Studio (CDP) |
+| 11 | Plated holes | PTH DXF + drills | drilling + plating outline G-code | MakeraCAM (AX) |
+| 12 | Final cut | Final DXF + drills | non-plated drilling + edge contour | MakeraCAM (AX) |
+
+## Prerequisites
+
+> [!IMPORTANT]
+> **macOS only.** The laser and CNC stages rely on native macOS Accessibility automation and AppleScript, so `flatmaxx` does not run on Linux or Windows.
+
+External software (only the stages you enable need their tools):
+
+| Tool | Needed for | Default location |
+|------|-----------|------------------|
+| [KiCad](https://www.kicad.org) (with `kicad-cli`) | always — board parsing & exports | `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` |
+| [FlatCAM](https://bitbucket.org/jpcgt/flatcam) | isolation DRC + CNC G-code | `flatcam` (on `PATH`) |
+| [xTool Studio](https://www.xtool.com/pages/software) | solder mask + paste stencil | `/Applications/xTool Studio.app` |
+| [MakeraCAM](https://www.makera.com) | drilling + edge cut | `/Applications/MakeraCAM.app` |
+
+The xTool and MakeraCAM stages also require **macOS Accessibility permission** (System Settings → Privacy & Security → Accessibility) and a Chrome DevTools port open for xTool Studio (`127.0.0.1:9333` by default).
+
+> [!TIP]
+> Run `flatmaxx doctor <project>` before your first real build — it checks every required executable, app, and permission for your enabled stages and tells you exactly what's missing, without touching a machine.
 
 ## Usage
 
