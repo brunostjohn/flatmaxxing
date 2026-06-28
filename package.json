@@ -20,7 +20,8 @@
     "build:schema": "bun scripts/generate-schema.ts",
     "build": "bun run build:native && bun run build:schema && bun scripts/build.ts && bun run codesign",
     "codesign": "codesign --force --options runtime --entitlements flatmaxx.entitlements --sign - dist/flatmaxx",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "test": "bun run --cwd native test && bun test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",

@@ -18,7 +18,7 @@
   "scripts": {
     "build": "napi build --platform --release --no-js && node scripts/align-linkedit.js",
     "build:debug": "napi build --platform --no-js && node scripts/align-linkedit.js",
-    "test": "bun test"
+    "test": "cargo test --release && bun test"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.2.0",
