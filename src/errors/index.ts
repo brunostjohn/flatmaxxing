@@ -13,4 +13,5 @@ export * from "./makeracam";
 export * from "./preflight";
 export * from "./process";
 export * from "./render";
+export * from "./update";
 export * from "./xtool";

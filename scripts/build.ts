@@ -14,9 +14,12 @@ const stubReactDevtools: BunPlugin = {
   },
 };
 
+const version = process.env.FLATMAXX_VERSION ?? "0.0.0-dev";
+
 const result = await Bun.build({
   entrypoints: ["src/index.ts"],
   compile: { target: "bun-darwin-arm64", outfile: "dist/flatmaxx" },
+  define: { "process.env.FLATMAXX_VERSION": JSON.stringify(version) },
   plugins: [stubReactDevtools],
 });
 

@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (without leading v, e.g. 1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish (darwin-arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust (native addon)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          V="${V#v}"
+          echo "value=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build release binary
+        env:
+          FLATMAXX_VERSION: ${{ steps.version.outputs.value }}
+        run: bun run build
+
+      - name: Package binary + checksum
+        id: package
+        run: |
+          cp dist/flatmaxx flatmaxx-darwin-arm64
+          shasum -a 256 flatmaxx-darwin-arm64 > flatmaxx-darwin-arm64.sha256
+          echo "sha256=$(shasum -a 256 flatmaxx-darwin-arm64 | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          generate_release_notes: true
+          files: |
+            flatmaxx-darwin-arm64
+            flatmaxx-darwin-arm64.sha256
+
+      # Bumps Formula/flatmaxx.rb on main so `brew upgrade` picks up the release.
+      # Requires main to be pushable with GITHUB_TOKEN; if main is branch-protected
+      # this step is skipped (continue-on-error) and the formula must be bumped manually.
+      - name: Bump Homebrew formula
+        continue-on-error: true
+        env:
+          V: ${{ steps.version.outputs.value }}
+          SHA: ${{ steps.package.outputs.sha256 }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          bun -e '
+            const path = "Formula/flatmaxx.rb";
+            let text = await Bun.file(path).text();
+            text = text.replace(/version "[^"]*"/, `version "${process.env.V}"`);
+            text = text.replace(/sha256 "[^"]*"/, `sha256 "${process.env.SHA}"`);
+            await Bun.write(path, text);
+          '
+          git add Formula/flatmaxx.rb
+          git commit -m "chore: bump homebrew formula to v$V" || { echo "formula already up to date"; exit 0; }
+          git push origin main

@@ -1,0 +1,215 @@
+# flatmaxxing.example.toml
+#
+# A reference listing EVERY flatmaxx config option with its default value.
+# You do not need most of this: every key is optional and falls back to the
+# value shown here, so a real config only contains what you actually override.
+# Run `flatmaxx init` to scaffold a minimal starter, or `flatmaxx config` for
+# an interactive editor. Override any single value for one run with
+# `--set path.to.key=value` (and `--unset path.to.key`).
+#
+# Distances, diameters, depths and feeds are millimetres / mm-per-min unless
+# noted. Sides are "front" or "back".
+
+# Other config files to inherit from, merged left-to-right (later wins), with
+# this file applied last. Commonly points at your shared machine config.
+extends = ["~/flatmaxxing.user.toml"]
+
+# Project root the relative paths below resolve against.
+projectDir = "."
+
+# Skip rendering the inline board preview image in the terminal.
+skipRenderBoard = false
+
+# ── External tools ───────────────────────────────────────────────────────────
+[dependencies]
+kicadCli = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+flatcam = "flatcam" # name on PATH, or an absolute path to the executable
+
+# ── Output folders (relative to projectDir) ──────────────────────────────────
+[paths]
+additionalProjects = "./manufacture" # combined / extra manufacture outputs
+gcode = "./gcodes"                    # isolation + non-copper-clearing G-code
+svg = "./svg"                         # vector solder-mask art
+dxf = "./dxf"                         # board outline DXFs
+png = "./png"                         # rendered board & mask images
+gerbers = "./gerbers"                 # KiCad Gerber + drill exports
+drills = "./drills"                   # categorized Excellon drill files
+xtool = "./xtool"                     # xTool Studio projects
+place = "./place"                     # component placement (pick-and-place) files
+cnc = "./cnc"                         # MakeraCAM projects + exported G-code
+
+# ── Board selection ──────────────────────────────────────────────────────────
+[board]
+autoFix = false # let KiCad auto-fix board issues during validation
+# file = "myboard.kicad_pcb" # auto-detected from projectDir if omitted
+# ignoreSide = "back"        # "front" | "back"; omit to process both sides
+
+# ── Alignment / registration drills ──────────────────────────────────────────
+[alignmentDrills]
+generate = true
+diameter = 2                  # mm
+distance = { x = 6, y = 6 }   # offset of the registration holes from the board
+
+# ── Electroplating ───────────────────────────────────────────────────────────
+[electroplating]
+generateEdgeCutsWithAlignmentDrills = true
+cornerRadius = 2 # mm, rounding on the plating outline
+
+# Extra outline margin added per edge (the left edge is wider for the contact).
+[electroplating.additionalDistance]
+left = 16
+right = 4
+top = 4
+bottom = 4
+
+[electroplating.container]
+waterMl = 300
+allowRotation = true # allow rotating the board to fit the bath
+# maxBoardWidthMm = 120  # optional bath limits; omit for unbounded
+# maxBoardHeightMm = 80
+
+[electroplating.recipe]
+currentDensityMaPerCm2 = 21.5
+durationMinutes = 40
+stirRpm = 400
+targetCopperMicrons = 20
+voltageLimitV = 5
+copperSulfatePentahydrate = { gramsPerLiter = 250 }
+citricAcid = { gramsPerLiter = 190 }
+polysorbate20 = { millilitersPerLiter = 10 }
+
+[electroplating.recipe.hcl]
+solutionConcentrationPercent = 7.5
+referenceConcentrationPercent = 7.5
+referenceMillilitersPerLiter = 1
+
+# ── Solder mask (xTool laser) ────────────────────────────────────────────────
+[solderMask]
+generate = true
+double = true                # two-pass exposure
+excludeSides = []            # e.g. ["back"] to skip a side
+distance = { x = 6, y = 6 }  # mask art offset
+
+[solderMask.xtool]
+device = "M1 Ultra" # only supported device for solder mask
+intensity = 100     # %
+passes = 3
+
+# ── Solder-paste stencil (xTool laser) ───────────────────────────────────────
+[stencil]
+generate = true
+excludeSides = []
+
+[stencil.xtool]
+device = "F1 Ultra" # only supported device for the stencil
+power = 100         # %
+speed = 6000        # mm/min
+passes = 3
+
+# ── Drill categorization ─────────────────────────────────────────────────────
+[drills]
+generate = true
+withEdgeCuts = false # include edge cuts in the drill output
+
+# ── Pick-and-place ───────────────────────────────────────────────────────────
+[place]
+generate = true
+
+# ── CNC (FlatCAM isolation/NCC + Makera) ─────────────────────────────────────
+# The bits you physically own. Drills snap to the nearest of these; isolation
+# and clearing pick a suitable mill. type defaults to "drill" / "mill".
+[cnc]
+availableDrills = [
+  { diameter = 0.3 }, { diameter = 0.5 }, { diameter = 0.7 },
+  { diameter = 0.8 }, { diameter = 1.0 }, { diameter = 1.1 },
+  { diameter = 1.2 },
+]
+availableMills = [
+  { diameter = 0.7 }, { diameter = 0.8 }, { diameter = 1.0 },
+  { diameter = 1.1 }, { diameter = 1.2 }, { diameter = 1.3 },
+  { diameter = 1.4 }, { diameter = 1.5 },
+]
+
+[cnc.isolation]
+feedRate = 120
+spindleSpeed = 15000
+zCutDepth = 0.05
+zCutFeedRate = 60
+passes = 3
+overlap = 60   # % overlap between passes
+isoType = 2    # FlatCAM isolation type: 0, 1, or 2
+# tool: "vbit" { diameter, angle }, "mill" { diameter, ... }, or "drill" { diameter }
+tool = { type = "vbit", diameter = 0.14, angle = 60 }
+
+[cnc.nonCopperClearing]
+feedRate = 120
+spindleSpeed = 15000
+zCutDepth = 0.05
+zCutFeedRate = 60
+overlap = 40
+margin = 0
+method = "seed"      # "standard" | "seed" | "lines"
+millZCutDepth = 0.075
+tool = { type = "vbit", diameter = 0.14, angle = 60 }
+
+[cnc.clearance]
+travelZ = 2          # mm, hop height between cuts
+endZ = 15            # mm, safe height at job end
+rapidFeedRate = 1500 # mm/min for rapid moves
+seamZ = 15           # mm retract at path seams
+
+[cnc.backside]
+mirrorAxis = "X" # "X" | "Y" — axis the backside is mirrored about
+
+[cnc.drilling]
+matchToleranceMm = 0.05 # how close a hole must be to a bit to match it
+
+# ── xTool Studio automation ──────────────────────────────────────────────────
+[xtool]
+appPath = "/Applications/xTool Studio.app"
+cdpHost = "127.0.0.1"
+cdpPort = 9333
+existingProcess = "prompt" # what to do if xTool Studio is already running
+window = { width = 1280, height = 720 }
+
+# ── MakeraCAM automation ─────────────────────────────────────────────────────
+[makeracam]
+appPath = "/Applications/MakeraCAM.app"
+cutDepthMm = 2
+tabsPerContour = 4         # retaining tabs left on the outline cut
+existingProcess = "prompt" # what to do if MakeraCAM is already running
+window = { width = 1728, height = 1037 }
+platedHoles = { generate = true }
+finalCut = { generate = true }
+
+# ── Validation gates ─────────────────────────────────────────────────────────
+[validation.isolationFeasibility]
+enabled = true
+onFailure = "error" # "error" (hard-fail) | "warn"
+ignore = []         # DRC rule ids to ignore
+
+[validation.drillFeasibility]
+enabled = true
+onFailure = "error" # "error" | "warn"
+
+# Sanity-check ranges applied to your config values; { min, max } each.
+[validation.ranges]
+distanceMm = { min = 0, max = 250 }
+toolDiameterMm = { min = 0.01, max = 10 }
+feedRate = { min = 1, max = 10000 }
+spindleSpeed = { min = 1, max = 50000 }
+cutDepthMm = { min = 0.001, max = 5 }
+angleDegrees = { min = 1, max = 180 }
+xtoolPercent = { min = 0, max = 100 }
+xtoolPasses = { min = 1, max = 20 }
+xtoolSpeed = { min = 1, max = 20000 }
+electroplatingBoardSizeMm = { min = 0.001, max = 1000 }
+electroplatingVolumeMl = { min = 1, max = 10000 }
+electroplatingCurrentDensityMaPerCm2 = { min = 0.001, max = 1000 }
+electroplatingDurationMinutes = { min = 1, max = 10000 }
+electroplatingStirRpm = { min = 0, max = 10000 }
+electroplatingMicrons = { min = 0, max = 1000 }
+electroplatingVoltageV = { min = 0.001, max = 100 }
+electroplatingMassGramsPerLiter = { min = 0, max = 5000 }
+electroplatingLiquidMillilitersPerLiter = { min = 0, max = 1000 }
+electroplatingConcentrationPercent = { min = 0.001, max = 100 }

@@ -82,10 +82,33 @@ The xTool and MakeraCAM stages also require **macOS Accessibility permission** (
 
 ## Installation
 
-`flatmaxx` runs on [Bun](https://bun.sh) — it's the only thing you need to build from source.
+`flatmaxx` ships as a single, codesigned **macOS arm64 (Apple Silicon)** binary. Pick whichever install path you prefer.
+
+### Homebrew
 
 ```sh
-git clone <repo-url> flatmaxx
+brew tap brunostjohn/flatmaxxing https://github.com/brunostjohn/flatmaxxing
+brew install flatmaxx
+```
+
+Upgrade later with `brew upgrade flatmaxx`.
+
+### Install script
+
+Downloads the latest release into `~/.local/bin`, checksum-verified, using only standard macOS tools:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/brunostjohn/flatmaxxing/main/scripts/install.sh | sh
+```
+
+If `~/.local/bin` isn't on your `PATH`, the script prints the exact line to add. Pin a version with `FLATMAXX_VERSION=1.2.3`, or change the target with `FLATMAXX_INSTALL_DIR=...`. Installed this way, `flatmaxx update` upgrades in place (see [Updating](#updating)).
+
+### From source
+
+`flatmaxx` builds with [Bun](https://bun.sh) — the only thing you need.
+
+```sh
+git clone https://github.com/brunostjohn/flatmaxxing flatmaxx
 cd flatmaxx
 bun install
 bun run build:native   # compile the native macOS accessibility module
@@ -103,6 +126,17 @@ Or build the standalone, codesigned binary at `dist/flatmaxx`:
 bun run build
 ./dist/flatmaxx <kicad-project>
 ```
+
+### Updating
+
+If you installed via the script (or any binary in a writable location), upgrade in place:
+
+```sh
+flatmaxx update           # check for and install the latest release, with a progress bar
+flatmaxx update --check   # only report whether a newer release exists
+```
+
+Homebrew installs are managed by brew — run `brew upgrade flatmaxx` instead.
 
 ## Usage
 
@@ -125,6 +159,7 @@ flatmaxx ~/projects/myboard   # run the full pipeline
 | `flatmaxx doctor <project>` | Checks required software and permissions; generates nothing. |
 | `flatmaxx validate <project> --fix` | Runs validation only — no FlatCAM, xTool, or MakeraCAM launches. |
 | `flatmaxx clean <project> [--dry-run]` | Removes (or lists) generated output folders. |
+| `flatmaxx update [--check]` | Updates flatmaxx in place to the latest GitHub release (script / binary installs; use `brew upgrade` for Homebrew). |
 
 ### Examples
 
@@ -149,7 +184,7 @@ flatmaxx clean . --dry-run
 
 `flatmaxx` reads a `flatmaxxing.toml` in the project, layered over a shared `~/flatmaxxing.user.toml`. Configs can pull in others via `extends`, are deep-merged (later wins), and any value can be overridden per run with `--set path=value` / `--unset path`.
 
-Rather than hand-writing the whole file, run `flatmaxx init` to scaffold one, then `flatmaxx config` for an interactive editor. A representative slice — your real tooling and isolation parameters:
+Rather than hand-writing the whole file, run `flatmaxx init` to scaffold one, then `flatmaxx config` for an interactive editor. Every option, with its default value and allowed values, is documented in [`flatmaxxing.example.toml`](flatmaxxing.example.toml). A representative slice — your real tooling and isolation parameters:
 
 ```toml
 extends = ["~/flatmaxxing.user.toml"]

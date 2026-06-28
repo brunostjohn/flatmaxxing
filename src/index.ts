@@ -4,13 +4,16 @@ import {
   makeConfigCommand,
   makeDoctorCommand,
   makeInitCommand,
+  makeUpdateCommand,
   makeValidateCommand,
   rootBuildCommand,
 } from "@/commands";
 import { MakeraCamProcessControlLive } from "@/stages/makeracam";
+import { VERSION } from "@/version";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Effect, Layer, Path } from "effect";
 import { Command } from "effect/unstable/cli";
+import { FetchHttpClient } from "effect/unstable/http";
 
 const Flatmaxx = rootBuildCommand.pipe(
   Command.withSubcommands([
@@ -19,6 +22,7 @@ const Flatmaxx = rootBuildCommand.pipe(
     makeConfigCommand(rootBuildCommand),
     makeDoctorCommand(rootBuildCommand),
     makeInitCommand(),
+    makeUpdateCommand(),
     makeValidateCommand(rootBuildCommand),
   ]),
   Command.withDescription("Creates CNC files from a KiCAD project."),
@@ -72,17 +76,23 @@ const Flatmaxx = rootBuildCommand.pipe(
       description:
         "Lists the outputs that clean would remove without deleting.",
     },
+    {
+      command: "flatmaxx update",
+      description:
+        "Downloads and installs the latest flatmaxx release from GitHub.",
+    },
   ]),
 );
 
 const AppLayer = Layer.mergeAll(
   BunServices.layer,
   Path.layer,
+  FetchHttpClient.layer,
   MakeraCamProcessControlLive.pipe(Layer.provide(BunServices.layer)),
 );
 
 const Main = Flatmaxx.pipe(
-  Command.run({ version: "1.0.0" }),
+  Command.run({ version: VERSION }),
   Effect.provide(AppLayer),
   Effect.scoped,
 );
