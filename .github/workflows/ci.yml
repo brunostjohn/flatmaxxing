@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     name: Build & test (darwin-arm64)
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
