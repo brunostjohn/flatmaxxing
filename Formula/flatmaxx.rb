@@ -1,9 +1,9 @@
 class Flatmaxx < Formula
   desc "Creates CNC files from a KiCAD project"
   homepage "https://github.com/brunostjohn/flatmaxxing"
-  version "0.0.0"
+  version "1.0.0"
   url "https://github.com/brunostjohn/flatmaxxing/releases/download/v#{version}/flatmaxx-darwin-arm64"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "ab425656a15aecc33f93659b8e4980bdeca28ec3a8ccff5c18b804bc3cd19f08"
   license "MIT"
 
   depends_on :macos
